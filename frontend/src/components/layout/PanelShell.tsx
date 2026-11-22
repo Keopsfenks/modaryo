@@ -38,6 +38,7 @@ export default function PanelShell({ children }: { children: React.ReactNode }) 
             {/* Masaüstü: kalıcı menü, başlıktaki butonla gizlenebilir */}
             <Box
                 component="aside"
+                className="no-print"
                 sx={{
                     display: { xs: "none", lg: "block" },
                     width: desktopOpen ? SIDEBAR_WIDTH : 0,
@@ -59,6 +60,7 @@ export default function PanelShell({ children }: { children: React.ReactNode }) 
             {/* Mobil / tablet: üstte açılan geçici menü */}
             <Drawer
                 variant="temporary"
+                className="no-print"
                 open={mobileOpen}
                 onClose={() => setMobileOpen(false)}
                 ModalProps={{ keepMounted: true }}

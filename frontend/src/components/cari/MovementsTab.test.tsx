@@ -62,7 +62,7 @@ describe("MovementsTab", () => {
         expect(within(bodyRows[1]).getByText("F-100")).toBeInTheDocument();
         expect(within(bodyRows[0]).getByText("09.03.2026")).toBeInTheDocument();
         expect(calls.statement[0].get("from")).toBe("1900-01-01");
-        expect(calls.statement[0].get("to")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(calls.statement[0].get("to")).toBe("9999-12-31");
     });
 
     it("Movements_ShowsOnlyLast100", async () => {

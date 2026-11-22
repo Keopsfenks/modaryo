@@ -43,6 +43,7 @@ export default function Header({ onToggleSidebar }: HeaderProps) {
 
     return (
         <AppBar
+            className="no-print"
             position="sticky"
             color="inherit"
             elevation={0}

@@ -3,6 +3,7 @@ import {
     IconBuildingBank,
     IconBuildingStore,
     IconBuildingWarehouse,
+    IconCalendarDue,
     IconCalendarEvent,
     IconCash,
     IconChartBar,
@@ -72,6 +73,7 @@ export const navigation: NavSection[] = [
         title: "Finans",
         items: [
             { title: "Cari Hesaplar", href: "/finans/cari-hesaplar", icon: IconWallet, permission: "cari.read", implemented: true },
+            { title: "Vade Takibi", href: "/finans/vade-takibi", icon: IconCalendarDue, permission: "cari.read", implemented: true },
             { title: "Kasa & Banka", href: "/finans/kasa-banka", icon: IconBuildingBank },
             { title: "Raporlar", href: "/finans/raporlar", icon: IconChartBar },
         ],

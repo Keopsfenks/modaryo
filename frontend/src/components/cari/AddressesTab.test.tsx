@@ -64,6 +64,7 @@ describe("AddressesTab", () => {
         expect(screen.getByText("Sanayi Sk. 5")).toBeInTheDocument();
 
         await user.click(screen.getByRole("button", { name: "Depo adresini sil" }));
+        await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Adresi sil" }));
 
         await waitFor(() => expect(screen.queryByText("Sanayi Sk. 5")).not.toBeInTheDocument());
         expect(screen.getByText("Atatürk Cad. 1")).toBeInTheDocument();

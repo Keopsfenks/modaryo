@@ -126,7 +126,7 @@ export default function AccountDetail({ id }: { id: string }) {
             <AccountHeader account={account} canManage={canManage} busy={busy} onToggleActive={toggleActive} onDelete={() => setConfirmDelete(true)} />
             <FormAlert error={actionError} />
 
-            <Tabs value={tab} onChange={changeTab} variant="scrollable" scrollButtons="auto" aria-label="Cari sekmeleri">
+            <Tabs className="no-print" value={tab} onChange={changeTab} variant="scrollable" scrollButtons="auto" aria-label="Cari sekmeleri">
                 {TABS.map((t) => (
                     <Tab key={t.value} value={t.value} label={t.label} />
                 ))}

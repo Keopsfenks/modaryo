@@ -13,7 +13,7 @@ import FormAlert from "@/components/auth/FormAlert";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import { ApiError } from "@/lib/api/client";
 import { erp, type CurrentAccountDto, type LedgerEntryType, type StatementRow } from "@/lib/api/erp";
-import { formatDate, todayIso } from "@/lib/date";
+import { formatDate } from "@/lib/date";
 import { formatMoney } from "@/lib/money";
 import CancelEntryDialog from "./CancelEntryDialog";
 import EntryForm from "./EntryForm";
@@ -44,7 +44,7 @@ export default function MovementsTab({ account, canMove, onChanged }: MovementsT
 
     useEffect(() => {
         let ignore = false;
-        erp.statement(account.id, "1900-01-01", todayIso()).then(
+        erp.statement(account.id, "1900-01-01", "9999-12-31").then(
             (result) => {
                 if (ignore) return;
                 setRows(result.rows.slice(-MAX_ROWS).reverse());

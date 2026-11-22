@@ -46,7 +46,7 @@ export default function AccountHeader({ account, canManage, busy, onToggleActive
                     </Box>
                 </Box>
                 {canManage && (
-                    <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
+                    <Box className="no-print" sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
                         <Button variant="outlined" disabled={busy} onClick={onToggleActive}>
                             {account.isActive ? "Pasifleştir" : "Etkinleştir"}
                         </Button>

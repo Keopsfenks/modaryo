@@ -1,6 +1,11 @@
 import { useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogTitle from "@mui/material/DialogTitle";
 import Chip from "@mui/material/Chip";
 import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
@@ -20,6 +25,7 @@ type AddressesTabProps = {
 /** Adres kartları. Her değişiklikten sonra kart yeniden okunur; varsayılan rozetleri sunucudan gelir. */
 export default function AddressesTab({ account, canManage, onChanged }: AddressesTabProps) {
     const [editing, setEditing] = useState<AddressDto | "new" | null>(null);
+    const [deleting, setDeleting] = useState<AddressDto | null>(null);
     const [error, setError] = useState<ApiError | null>(null);
 
     const reload = async () => {
@@ -65,7 +71,7 @@ export default function AddressesTab({ account, canManage, onChanged }: Addresse
                                             <Button size="small" aria-label={`${a.title} adresini düzenle`} onClick={() => setEditing(a)}>
                                                 Düzenle
                                             </Button>
-                                            <Button size="small" color="error" aria-label={`${a.title} adresini sil`} onClick={() => remove(a)}>
+                                            <Button size="small" color="error" aria-label={`${a.title} adresini sil`} onClick={() => setDeleting(a)}>
                                                 Sil
                                             </Button>
                                         </Box>
@@ -84,6 +90,26 @@ export default function AddressesTab({ account, canManage, onChanged }: Addresse
                     ))}
                 </Grid>
             )}
+            <Dialog open={deleting !== null} onClose={() => setDeleting(null)}>
+                <DialogTitle>Adres silinsin mi?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>{deleting?.title} adresi silinecek.</DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setDeleting(null)}>İptal</Button>
+                    <Button
+                        color="error"
+                        variant="contained"
+                        onClick={() => {
+                            const target = deleting;
+                            setDeleting(null);
+                            if (target) void remove(target);
+                        }}
+                    >
+                        Adresi sil
+                    </Button>
+                </DialogActions>
+            </Dialog>
             {editing && (
                 <AddressDialog
                     accountId={account.id}
