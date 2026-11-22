@@ -51,6 +51,9 @@ public sealed class CreateCurrentAccountCommandValidator : AbstractValidator<Cre
         RuleFor(c => c.OpeningBalance!.Amount).GreaterThan(0m).LessThanOrEqualTo(CardRules.MaxAmount)
             .WithMessage("Açılış tutarı 0 değerinden büyük ve 999.999.999.999,99 değerinden küçük olmalıdır.")
             .When(c => c.OpeningBalance is not null);
+        RuleFor(c => c.OpeningBalance!.Amount).Must(CardRules.HasValidScale)
+            .WithMessage("Açılış tutarı en fazla 2 ondalık basamak içerebilir.")
+            .When(c => c.OpeningBalance is not null);
         RuleFor(c => c.OpeningBalance!.Direction)
             .Must(d => d is "debit" or "credit").WithMessage("Açılış yönü borç (debit) veya alacak (credit) olmalıdır.")
             .When(c => c.OpeningBalance is not null);
@@ -91,18 +94,8 @@ public sealed class CreateCurrentAccountCommandHandler(IApplicationDbContext db,
 
         if (request.OpeningBalance is { } opening)
         {
-            var debit = opening.Direction == "debit";
-            db.LedgerEntries.Add(new LedgerEntry
-            {
-                CurrentAccountId = account.Id,
-                Type = LedgerEntryType.Opening,
-                Source = LedgerEntrySource.Manual,
-                Date = opening.Date,
-                Description = "Açılış bakiyesi",
-                Debit = debit ? opening.Amount : 0,
-                Credit = debit ? 0 : opening.Amount,
-                Currency = account.Currency,
-            });
+            db.LedgerEntries.Add(EntryRules.NewEntry(account, LedgerEntryType.Opening, opening.Date, null, null, null,
+                opening.Amount, opening.Direction == "debit"));
         }
 
         try

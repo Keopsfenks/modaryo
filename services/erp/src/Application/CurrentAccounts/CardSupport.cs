@@ -11,6 +11,9 @@ public static class CardRules
 
     public const decimal MaxAmount = 999_999_999_999.99m;
 
+    /// <summary>En fazla 2 ondalık basamak (veritabanında sessiz yuvarlamayı önler).</summary>
+    public static bool HasValidScale(decimal amount) => decimal.Round(amount, 2) == amount;
+
     public static void AddCardRules<T>(this AbstractValidator<T> v) where T : ICardFields
     {
         v.RuleFor(c => c.Name).NotEmpty().WithMessage("Ünvan / ad soyad zorunludur.")
@@ -64,6 +67,14 @@ public static class CariErrors
     public static AppException HasMovements() => new(409, "has_movements",
         "Hareketi olan cari silinemez. Bunun yerine pasifleştirebilirsiniz.");
 
+    public static AppException AccountInactive() => new(409, "account_inactive", "Pasif cariye hareket girilemez.");
+
+    public static AppException OpeningExists() => new(409, "opening_exists", "Bu cari için zaten bir açılış bakiyesi var. Önce mevcut açılışı iptal edin.");
+
+    public static AppException NotManual() => new(409, "not_manual", "Yalnızca elle girilen hareketler iptal edilebilir.");
+
+    public static AppException AlreadyCancelled() => new(409, "already_cancelled", "Bu hareket zaten iptal edilmiş.");
+
     public static AppException CurrencyLocked() => new(409, "currency_locked", "Hareketi olan carinin para birimi değiştirilemez.");
 
     /// <summary>Kayıt sırasında benzersiz indeks çakışması (yarış durumu) ise ilgili 409 hatasını verir.</summary>
@@ -76,6 +87,11 @@ public static class CariErrors
         }
 
         var constraint = inner.GetType().GetProperty("ConstraintName")?.GetValue(inner) as string ?? string.Empty;
+        if (constraint.Contains("_Opening", StringComparison.Ordinal))
+        {
+            return OpeningExists();
+        }
+
         if (constraint.Contains("TaxNumber", StringComparison.Ordinal))
         {
             return TaxNumberTaken();
@@ -87,9 +103,11 @@ public static class CariErrors
 
 public static class CurrentAccountClock
 {
-    /// <summary>Türkiye'de bugün (UTC+3, yaz saati uygulaması yok).</summary>
+    private static readonly TimeZoneInfo Istanbul = TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul");
+
+    /// <summary>İstanbul saatiyle bugün.</summary>
     public static DateOnly Today(TimeProvider time) =>
-        DateOnly.FromDateTime(time.GetUtcNow().ToOffset(TimeSpan.FromHours(3)).DateTime);
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), Istanbul).DateTime);
 }
 
 public static class NextCodeCalculator

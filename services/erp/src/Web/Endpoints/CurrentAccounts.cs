@@ -22,7 +22,33 @@ public class CurrentAccounts : IEndpointGroup
         groupBuilder.MapPost(AddAddress, "{id:guid}/addresses");
         groupBuilder.MapPut(UpdateAddress, "{id:guid}/addresses/{addressId:guid}");
         groupBuilder.MapDelete(DeleteAddress, "{id:guid}/addresses/{addressId:guid}");
+        groupBuilder.MapPost(AddEntry, "{id:guid}/entries");
+        groupBuilder.MapPost(CancelEntry, "{id:guid}/entries/{entryId:guid}/cancel");
+        groupBuilder.MapGet(GetStatement, "{id:guid}/statement");
     }
+
+    public sealed record CancelEntryRequest(string Reason);
+
+    [EndpointSummary("Cari hareketi gir")]
+    [EndpointDescription("type: opening | debit | credit. Açılışta direction (debit | credit) zorunlu; ikinci açılış 409 opening_exists, pasif kart 409 account_inactive. Borçta dueDate boşsa tarih + varsayılan vade. creditLimitExceeded yalnızca borç sonrası limit aşılırsa true olur; kayıt yine yapılır.")]
+    public static async Task<Created<AddEntryResult>> AddEntry(ISender sender, Guid id, AddEntryCommand command)
+    {
+        var result = await sender.Send(command with { AccountId = id });
+        return TypedResults.Created($"/api/erp/current-accounts/{id}/statement", result);
+    }
+
+    [EndpointSummary("Cari hareketi iptal et")]
+    [EndpointDescription("Yalnızca elle girilen hareketler iptal edilir (aksi halde 409 not_manual); zaten iptal edilmişse 409 already_cancelled. İptal bakiyeye yansımaz, ekstrede üstü çizili görünür.")]
+    public static async Task<NoContent> CancelEntry(ISender sender, Guid id, Guid entryId, CancelEntryRequest request)
+    {
+        await sender.Send(new CancelEntryCommand(id, entryId, request.Reason));
+        return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("Cari ekstresi")]
+    [EndpointDescription("from varsayılan yılın 1 Ocak günü, to varsayılan bugün (İstanbul). from > to ise 400.")]
+    public static async Task<Ok<StatementResultDto>> GetStatement(ISender sender, Guid id, DateOnly? from, DateOnly? to) =>
+        TypedResults.Ok(await sender.Send(new GetStatementQuery(id, from, to)));
 
     [EndpointSummary("Cari adresi ekle")]
     [EndpointDescription("Fatura ve sevk için ayrı ayrı: o türün ilk adresi otomatik varsayılan olur; yeni varsayılan seçilirse eskisinin işareti kalkar. En az biri (fatura/sevk) işaretli olmalıdır.")]
