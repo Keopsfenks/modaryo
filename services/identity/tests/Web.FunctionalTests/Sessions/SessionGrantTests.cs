@@ -120,7 +120,7 @@ public class SessionGrantTests : TestBase
 
         session.GetProperty("modules").EnumerateArray().Select(m => m.GetString()).ShouldBe(["crm"]);
         session.GetProperty("branchIds").ValueKind.ShouldBe(System.Text.Json.JsonValueKind.Null);
-        session.GetProperty("maxDiscountPercent").GetDecimal().ShouldBe(0m);
+        session.GetProperty("maxDiscountPercent").GetDecimal().ShouldBe(100m);
         session.GetProperty("userType").GetString().ShouldBe("employee");
     }
 }

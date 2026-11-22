@@ -1,3 +1,4 @@
+using IdentityService.Application.Companies;
 using IdentityService.Domain.Constants;
 using IdentityService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -6,10 +7,10 @@ namespace IdentityService.Infrastructure.Data;
 
 /// <summary>
 /// Hazır rollere (admin/member) yeni izin seti sürümlerini her firmaya bir kez uygular.
-/// Uygulanan sürüm firmada tutulur; yöneticinin kaldırdığı izin bir sonraki açılışta geri eklenmez.
+/// Uygulanan sürüm firmada tutulur; işlem bitince dokunulan firmaların açık oturumları yenilenir; yöneticinin kaldırdığı izin bir sonraki açılışta geri eklenmez.
 /// SystemKey'i olmayan özel rollere dokunmaz. İki örnek aynı anda açılırsa PostgreSQL advisory kilidi ile sıraya girer.
 /// </summary>
-public sealed class SystemRolePermissionSync(ApplicationDbContext db)
+public sealed class SystemRolePermissionSync(ApplicationDbContext db, MembershipChanges changes)
 {
     private const long AdvisoryLockKey = 727001;
 
@@ -62,6 +63,13 @@ public sealed class SystemRolePermissionSync(ApplicationDbContext db)
 
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
+
+        // Kilit ve işlem dışında: dokunulan firmaların açık oturumları yeni izin setiyle yenilenir (en iyi çaba).
+        foreach (var tenant in tenants)
+        {
+            await changes.RefreshTenantAsync(tenant.Id, ct);
+        }
+
         return added;
     }
 }

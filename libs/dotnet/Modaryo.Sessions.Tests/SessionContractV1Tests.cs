@@ -153,7 +153,7 @@ public class SessionContractV1Tests
 
         record.UserType.ShouldBe("dealer");
         record.CariId.ShouldBe(Guid.Parse("0193a6f4-1b53-7d22-9f3c-7ea05b4d6c32"));
-        record.Modules.ShouldBe(["cari", "satis"]);
+        record.Modules.ShouldBe(["pos", "sube"]);
         record.BranchIds.ShouldBe([BranchA, BranchB]);
         record.MaxDiscountPct.ShouldBe(7.5m);
     }

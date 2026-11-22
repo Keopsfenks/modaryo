@@ -25,6 +25,7 @@ public record ListAuditQuery : IRequest<AuditPageDto>
 {
     public const int DefaultPageSize = 50;
     public const int MaxPageSize = 200;
+    public const int MaxPage = 100000;
 
     public int? Page { get; init; }
 
@@ -38,7 +39,7 @@ public class ListAuditQueryHandler(IApplicationDbContext db, CompanyAccess acces
     public async Task<AuditPageDto> Handle(ListAuditQuery request, CancellationToken ct)
     {
         var tenantId = access.TenantId;
-        var page = Math.Max(request.Page ?? 1, 1);
+        var page = Math.Clamp(request.Page ?? 1, 1, ListAuditQuery.MaxPage);
         var pageSize = Math.Clamp(request.PageSize ?? ListAuditQuery.DefaultPageSize, 1, ListAuditQuery.MaxPageSize);
 
         var query = db.AuditEntries.AsNoTracking().Where(a => a.TenantId == tenantId);
@@ -58,5 +59,14 @@ public class ListAuditQueryHandler(IApplicationDbContext db, CompanyAccess acces
     private static AuditEntryDto ToDto(AuditEntry a) =>
         new(a.Id, a.At, a.ActorLabel, a.Action, a.EntityType, a.EntityId, Parse(a.Before), Parse(a.After));
 
-    private static JsonElement? Parse(string? json) => json is null ? null : JsonDocument.Parse(json).RootElement.Clone();
+    private static JsonElement? Parse(string? json)
+    {
+        if (json is null)
+        {
+            return null;
+        }
+
+        using var doc = JsonDocument.Parse(json);
+        return doc.RootElement.Clone();
+    }
 }

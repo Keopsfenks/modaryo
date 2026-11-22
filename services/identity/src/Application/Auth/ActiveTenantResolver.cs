@@ -1,4 +1,5 @@
 using IdentityService.Application.Common.Interfaces;
+using IdentityService.Domain.Constants;
 using IdentityService.Domain.Entities;
 
 namespace IdentityService.Application.Auth;
@@ -79,7 +80,7 @@ public sealed class ActiveTenantResolver(IApplicationDbContext db, IUserAccounts
         PermissionsOf(membership),
         membership.Tenant.EnabledModules.Order(StringComparer.Ordinal).ToArray(),
         BranchScopeOf(membership, inactiveBranchIds),
-        membership.Role.MaxDiscountPercent,
+        membership.Role.SystemKey == SystemRoles.Owner ? 100m : membership.Role.MaxDiscountPercent,
         membership.Kind,
         membership.CariId);
 

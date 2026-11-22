@@ -1,6 +1,7 @@
 using System.Text.Json;
 using IdentityService.Application.Common.Interfaces;
 using IdentityService.Domain.Constants;
+using IdentityService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -8,6 +9,13 @@ namespace IdentityService.Web.FunctionalTests.Companies;
 
 public class CompanyTests : TestBase
 {
+    private static async Task<Modaryo.Sessions.SessionRecord> RecordAsync(Guid userId)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<ISessionStore>();
+        return (await store.ListForUserAsync(userId, CancellationToken.None)).Single().Record;
+    }
+
     private static string[] Permissions(JsonElement session) =>
         session.GetProperty("permissions").EnumerateArray().Select(p => p.GetString()!).ToArray();
 
@@ -301,5 +309,29 @@ public class CompanyTests : TestBase
         var roles = await db.TenantRoles.Where(r => r.TenantId == tenantId).ToListAsync();
         roles.ShouldAllBe(r => r.AllBranches && r.MaxDiscountPercent == 0m);
         (await db.Memberships.SingleAsync(m => m.TenantId == tenantId)).Kind.ShouldBe("employee");
+    }
+
+    [Test]
+    public async Task ChangeMemberRole_SameRole_StillRefreshesSession()
+    {
+        using var owner = await Factory.SignedInClientAsync("sahip@ornek.com");
+        var tenantId = await owner.CreateCompanyAsync();
+        var (member, memberId) = await Factory.SignedInMemberAsync(tenantId, "uye@ornek.com", "member");
+        using var _m = member;
+        var memberRole = await Factory.RoleIdAsync(tenantId, "member");
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+            (await db.TenantRoles.Include(r => r.Permissions).SingleAsync(r => r.Id == memberRole)).Permissions
+                .Add(new TenantRolePermission { RoleId = memberRole, Permission = "cari.manage" });
+            await db.SaveChangesAsync(CancellationToken.None);
+        }
+
+        (await RecordAsync(memberId)).Permissions.ShouldNotContain("cari.manage");
+
+        using var response = await owner.PatchAsJsonAsync($"/api/identity/companies/current/members/{memberId}", new { roleId = memberRole });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await RecordAsync(memberId)).Permissions.ShouldContain("cari.manage");
     }
 }

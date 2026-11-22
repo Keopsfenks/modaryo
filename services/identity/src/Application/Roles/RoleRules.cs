@@ -237,7 +237,7 @@ public sealed class RoleRules(IApplicationDbContext db, CompanyAccess access, IC
         role.SystemKey == SystemRoles.Owner
             ? [Permissions.All]
             : role.Permissions.Select(p => p.Permission).OrderBy(p => p, StringComparer.Ordinal).ToArray(),
-        role.MaxDiscountPercent,
+        role.SystemKey == SystemRoles.Owner ? 100m : role.MaxDiscountPercent,
         role.AllBranches,
         role.Branches.Select(b => b.BranchId).Order().ToArray(),
         memberCount);

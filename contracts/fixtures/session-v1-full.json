@@ -14,7 +14,7 @@
   "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
   "user_type": "dealer",
   "cari_id": "0193a6f4-1b53-7d22-9f3c-7ea05b4d6c32",
-  "modules": ["cari", "satis"],
+  "modules": ["pos", "sube"],
   "branch_ids": ["0193a6f5-2c64-7e33-8a4d-8fb16c5e7d43", "0193a6f5-2c64-7e33-8a4d-8fb16c5e7d44"],
   "max_discount_pct": 7.5
 }

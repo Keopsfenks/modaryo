@@ -1,3 +1,4 @@
+using IdentityService.Application.Common.Interfaces;
 using IdentityService.Domain.Constants;
 using IdentityService.Domain.Entities;
 using IdentityService.Infrastructure.Data;
@@ -8,6 +9,13 @@ namespace IdentityService.Web.FunctionalTests.Roles;
 
 public class PermissionSyncTests : TestBase
 {
+    private static async Task<Modaryo.Sessions.SessionRecord> RecordAsync(Guid userId)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<ISessionStore>();
+        return (await store.ListForUserAsync(userId, CancellationToken.None)).Single().Record;
+    }
+
     private static async Task<int> SyncAsync()
     {
         using var scope = Factory.Services.CreateScope();
@@ -112,5 +120,30 @@ public class PermissionSyncTests : TestBase
         await SyncAsync();
 
         (await PermissionsOfAsync(tenantId, null, "Muhasebe")).ShouldBe(["members.read"]);
+    }
+
+    [Test]
+    public async Task Sync_RefreshesLiveSessionsOfTouchedTenants()
+    {
+        using var owner = await Factory.SignedInClientAsync("sahip@ornek.com");
+        var tenantId = await owner.CreateCompanyAsync();
+        var admin = await Factory.CreateConfirmedAsync("yonetici@ornek.com");
+        await Factory.AddMemberAsync(tenantId, admin.Id, "admin");
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            (await db.Tenants.SingleAsync(t => t.Id == tenantId)).AppliedPermissionSetVersion = 1;
+            var role = await db.TenantRoles.Include(r => r.Permissions).SingleAsync(r => r.TenantId == tenantId && r.SystemKey == "admin");
+            role.Permissions.RemoveAll(p => NewCodes.Contains(p.Permission));
+            await db.SaveChangesAsync();
+        }
+
+        using var client = Factory.CreateClientWithCookies();
+        (await client.LoginAsync("yonetici@ornek.com")).EnsureSuccessStatusCode();
+        (await RecordAsync(admin.Id)).Permissions.ShouldNotContain("roller.read");
+
+        await SyncAsync();
+
+        (await RecordAsync(admin.Id)).Permissions.ShouldContain("roller.read");
     }
 }

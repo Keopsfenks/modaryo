@@ -106,4 +106,15 @@ public class AuditTests : TestBase
         members[0].GetProperty("action").GetString().ShouldBe("member.removed");
         members[0].GetProperty("entityId").GetString().ShouldBe(memberId.ToString());
     }
+
+    [Test]
+    public async Task Audit_HugePage_Returns200Empty()
+    {
+        using var owner = await Factory.SignedInClientAsync("sahip@ornek.com");
+        await owner.CreateCompanyAsync();
+
+        var page = await AuditAsync(owner, "?page=2147483647");
+
+        page.GetProperty("items").GetArrayLength().ShouldBe(0);
+    }
 }

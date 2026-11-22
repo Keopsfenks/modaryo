@@ -74,7 +74,7 @@ public class CreateInvitationCommandHandler(
 [Authorize(Permission = Permissions.MembersInvite)]
 public record ResendInvitationCommand(Guid Id) : IRequest;
 
-public class ResendInvitationCommandHandler(IApplicationDbContext db, CompanyAccess access, InvitationService invitations)
+public class ResendInvitationCommandHandler(IApplicationDbContext db, CompanyAccess access, InvitationService invitations, Roles.RoleRules roleRules)
     : IRequestHandler<ResendInvitationCommand>
 {
     public async Task Handle(ResendInvitationCommand request, CancellationToken ct)
@@ -83,6 +83,14 @@ public class ResendInvitationCommandHandler(IApplicationDbContext db, CompanyAcc
         var invitation = await db.Invitations.Include(i => i.Tenant)
             .FirstOrDefaultAsync(i => i.Id == request.Id && i.TenantId == tenantId && i.AcceptedAt == null && i.RevokedAt == null, ct)
             ?? throw new NotFoundException(request.Id.ToString(), "Invitation");
+
+        var role = await roleRules.LoadAsync(invitation.RoleId, ct);
+        if (role.SystemKey == SystemRoles.Owner)
+        {
+            await access.EnsureCallerIsOwnerAsync(ct);
+        }
+
+        roleRules.EnsureRoleAssignable(role);
 
         var token = invitations.Renew(invitation);
         await db.SaveChangesAsync(ct);

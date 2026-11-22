@@ -183,7 +183,7 @@ public class Companies : IEndpointGroup
     public sealed record SetMemberBranchesRequest(Guid[]? BranchIds);
 
     [EndpointSummary("Üyenin şube erişimini daralt")]
-    [EndpointDescription("Rol kapsamının içinde daraltır; null veya boş liste daraltmayı kaldırır. Şubeler firmanın aktif şubeleri olmalı (400). Çağıran kendi kapsamı dışındaki şubeyi veremez (403 permission_not_grantable). Üyenin açık oturumları hemen güncellenir.")]
+    [EndpointDescription("Rol kapsamının içinde daraltır; null daraltmayı kaldırır; boş liste reddedilir (400). Şubeler firmanın aktif şubeleri olmalı (400). Çağıran kendi kapsamı dışındaki şubeyi veremez (403 permission_not_grantable). Üyenin açık oturumları hemen güncellenir.")]
     public static async Task<NoContent> SetMemberBranches(ISender sender, Guid userId, SetMemberBranchesRequest request)
     {
         await sender.Send(new SetMemberBranchesCommand { UserId = userId, BranchIds = request.BranchIds });

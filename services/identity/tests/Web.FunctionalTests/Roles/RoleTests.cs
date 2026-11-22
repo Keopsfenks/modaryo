@@ -489,4 +489,27 @@ public class RoleTests : TestBase
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
+
+    [Test]
+    public async Task OwnerSession_MaxDiscountIs100()
+    {
+        var user = await Factory.CreateConfirmedAsync("sahip@ornek.com");
+        using var owner = Factory.CreateClientWithCookies();
+        (await owner.LoginAsync("sahip@ornek.com")).EnsureSuccessStatusCode();
+        await owner.CreateCompanyAsync();
+
+        (await RecordAsync(user.Id)).MaxDiscountPct.ShouldBe(100m);
+    }
+
+    [Test]
+    public async Task OwnerRoleDto_MaxDiscount100()
+    {
+        var (owner, _) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+
+        var roles = await (await owner.GetAsync(Url)).JsonAsync();
+
+        roles.EnumerateArray().Single(r => r.GetProperty("systemKey").GetString() == "owner")
+            .GetProperty("maxDiscountPercent").GetDecimal().ShouldBe(100m);
+    }
 }

@@ -14,7 +14,7 @@
   "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
   "user_type": "employee",
   "cari_id": null,
-  "modules": ["cari", "stok", "satis"],
+  "modules": ["pos", "sube"],
   "branch_ids": null,
-  "max_discount_pct": 10
+  "max_discount_pct": 100
 }

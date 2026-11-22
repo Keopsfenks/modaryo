@@ -53,8 +53,7 @@ Geliştirme ortamında servisler açılırken migration'ları kendileri uygular.
 **demo@modaryo.local / Demo-Modaryo-2026** (sahibi olduğu firma: "Demo Firma").
 
 Oturum kuralları: tüm `GET` dışı isteklerde `X-Modaryo-Csrf: 1` başlığı zorunludur; oturum `modaryo_sid` cookie'sindedir.
-Python/Go servisleri için oturum sözleşmesi: `docs/superpowers/specs/2026-11-21-kimlik-dogrulama-design.md` (bölüm 6)
-ve örnek kayıt `contracts/session-v1.example.json`.
+Python/Go servisleri için oturum sözleşmesi ve örnek kayıt: `contracts/README.md`, `contracts/session-v1.example.json`.
 
 ## Testler
 

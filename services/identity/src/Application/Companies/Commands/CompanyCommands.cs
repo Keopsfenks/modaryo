@@ -109,6 +109,8 @@ public class ChangeMemberRoleCommandHandler(IApplicationDbContext db, CompanyAcc
 
         if (target.RoleId == newRole.Id)
         {
+            // Değişiklik yok: yazma ve denetim kaydı atlanır, ama önceki başarısız yenileme tekrar denemeyle onarılabilsin.
+            await changes.OnRoleChangedAsync(target.UserId, target.TenantId, ct);
             return;
         }
 

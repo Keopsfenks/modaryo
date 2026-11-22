@@ -351,4 +351,38 @@ public class InvitationTests : TestBase
         (await stranger.PostAsync($"/api/identity/account/invitations/{id}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         owner.Dispose();
     }
+
+    [Test]
+    public async Task ResendOwnerInvitation_ByNonOwner_Returns403()
+    {
+        var (owner, tenantId) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        await InviteAsync(owner, tenantId, "veli@ornek.com", "owner");
+        var invitationId = (await (await owner.GetAsync("/api/identity/companies/current/invitations")).JsonAsync())[0].GetProperty("id").GetGuid();
+        var (admin, _) = await Factory.SignedInMemberAsync(tenantId, "yonetici@ornek.com", "admin");
+        using var _a = admin;
+
+        using var response = await admin.PostAsync($"/api/identity/companies/current/invitations/{invitationId}/resend", null);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    [Test]
+    public async Task ResendRicherRoleInvitation_Returns403()
+    {
+        var (owner, tenantId) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        using var created = await owner.PostAsJsonAsync("/api/identity/companies/current/roles", new { name = "Zengin", permissions = new[] { "cari.read" }, maxDiscountPercent = 50m });
+        created.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var roleId = (await created.JsonAsync()).GetProperty("id").GetGuid();
+        using var invited = await owner.PostAsJsonAsync("/api/identity/companies/current/invitations", new { email = "veli@ornek.com", roleId });
+        invited.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var invitationId = (await (await owner.GetAsync("/api/identity/companies/current/invitations")).JsonAsync())[0].GetProperty("id").GetGuid();
+        var (admin, _) = await Factory.SignedInMemberAsync(tenantId, "yonetici@ornek.com", "admin");
+        using var _a = admin;
+
+        using var response = await admin.PostAsync($"/api/identity/companies/current/invitations/{invitationId}/resend", null);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
 }
