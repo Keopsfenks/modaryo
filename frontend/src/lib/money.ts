@@ -34,3 +34,26 @@ export function formatBalance(balance: number, currency: Currency): string {
     }
     return formatMoney(0, currency);
 }
+
+const GROUPED = /^\d{1,3}(\.\d{3})+(,\d{1,2})?$/;
+const PLAIN_COMMA = /^\d+(,\d{1,2})?$/;
+const PLAIN_DOT = /^\d+(\.\d{1,2})?$/;
+
+/**
+ * Türkçe tutar girdisini sayıya çevirir. Virgül ondalık ayracıdır; nokta yalnızca geçerli 3'lü
+ * gruplarda binlik ayracıdır ("1.500" → 1500). Virgülsüz tek noktayı izleyen 1-2 hane ondalıktır
+ * ("1500.5"). Boş, geçersiz ya da 2'den fazla ondalıklı girdi null döner.
+ */
+export function parseAmount(input: string): number | null {
+    const text = input.trim();
+    if (GROUPED.test(text)) {
+        return Number(text.replace(/\./g, "").replace(",", "."));
+    }
+    if (PLAIN_COMMA.test(text)) {
+        return Number(text.replace(",", "."));
+    }
+    if (PLAIN_DOT.test(text)) {
+        return Number(text);
+    }
+    return null;
+}

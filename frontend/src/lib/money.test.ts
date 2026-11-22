@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBalance, formatMoney } from "./money";
+import { formatBalance, formatMoney, parseAmount } from "./money";
 
 describe("money", () => {
     it("formatBalance_TwoDecimals", () => {
@@ -25,5 +25,26 @@ describe("money", () => {
 
     it("formatMoney_DoesNotContainNbsp", () => {
         expect(formatMoney(1, "TRY")).not.toMatch(/\u00a0|\u202f/);
+    });
+
+    it("parseAmount_TurkishFormats", () => {
+        expect(parseAmount("1.500")).toBe(1500);
+        expect(parseAmount("1.500,50")).toBe(1500.5);
+        expect(parseAmount("1500,5")).toBe(1500.5);
+        expect(parseAmount("1500")).toBe(1500);
+        expect(parseAmount("1500.5")).toBe(1500.5);
+        expect(parseAmount("1.234.567,89")).toBe(1234567.89);
+        expect(parseAmount("  25 ")).toBe(25);
+    });
+
+    it("parseAmount_Invalid", () => {
+        expect(parseAmount("1.5,3")).toBeNull();
+        expect(parseAmount("1,500,00")).toBeNull();
+        expect(parseAmount("abc")).toBeNull();
+        expect(parseAmount("")).toBeNull();
+        expect(parseAmount("1,234")).toBeNull();
+        expect(parseAmount("1.234,567")).toBeNull();
+        expect(parseAmount("10.123")).toBe(10123);
+        expect(parseAmount("-5")).toBeNull();
     });
 });

@@ -28,7 +28,7 @@ import {
     type EntryDirection,
     type OpeningBalanceInput,
 } from "@/lib/api/erp";
-import type { Currency } from "@/lib/money";
+import { parseAmount, type Currency } from "@/lib/money";
 import { isValidTckn, isValidVkn } from "@/lib/taxNumber";
 import CurrencySelect from "./CurrencySelect";
 
@@ -104,12 +104,10 @@ function initialValues(initial: CurrentAccountDto | undefined, defaultRole: Acco
     };
 }
 
-/** "1.500,50" veya "1500.5" → 1500.5; en çok 2 ondalık. Geçersizse NaN. Boşsa null. */
-function parseAmount(text: string): number | null {
-    const trimmed = text.trim();
-    if (!trimmed) return null;
-    const normalized = trimmed.includes(",") ? trimmed.replace(/\./g, "").replace(",", ".") : trimmed;
-    return /^\d+(\.\d{1,2})?$/.test(normalized) ? Number(normalized) : Number.NaN;
+/** Boşsa null, geçersizse NaN, değilse tutar. Ayrıştırma kuralları lib/money.parseAmount'ta. */
+function optionalAmount(text: string): number | null {
+    if (!text.trim()) return null;
+    return parseAmount(text) ?? Number.NaN;
 }
 
 const blankToNull = (text: string) => text.trim() || null;
@@ -132,8 +130,8 @@ function validate(v: FormValues, creating: boolean): Errors {
     const dueDays = v.defaultDueDays.trim();
     if (!/^\d+$/.test(dueDays) || Number(dueDays) > 365) errors.defaultDueDays = "Vade günü 0 ile 365 arasında olmalı.";
 
-    const limit = parseAmount(v.creditLimit);
-    if (limit !== null && (Number.isNaN(limit) || limit > MAX_MONEY)) errors.creditLimit = "Kredi limiti 0 veya daha büyük bir tutar olmalı (en çok 2 ondalık).";
+    const limit = optionalAmount(v.creditLimit);
+    if (limit !== null && (Number.isNaN(limit) || limit > MAX_MONEY)) errors.creditLimit = "Kredi limiti 0 veya daha büyük bir tutar olmalı (en çok 2 ondalık). Örn. 1.500,00";
 
     if (creating) {
         const hasAddress = [v.addressTitle, v.addressLine, v.addressDistrict, v.addressCity, v.addressPostalCode].some((x) => x.trim());
@@ -144,10 +142,10 @@ function validate(v: FormValues, creating: boolean): Errors {
             if (line.length < 1 || line.length > 500) errors.addressLine = "Adres 1 ile 500 karakter arasında olmalı.";
         }
 
-        const amount = parseAmount(v.openingAmount);
+        const amount = optionalAmount(v.openingAmount);
         if (amount !== null) {
             if (Number.isNaN(amount) || amount <= 0 || amount > MAX_MONEY) {
-                errors.openingAmount = "Tutar 0'dan büyük olmalı (en çok 2 ondalık, 999.999.999.999,99'a kadar).";
+                errors.openingAmount = "Tutar 0'dan büyük olmalı (en çok 2 ondalık, 999.999.999.999,99'a kadar). Örn. 1.500,00";
             }
             if (!v.openingDate) errors.openingDate = "Açılış tarihi seçin.";
         }
@@ -171,7 +169,7 @@ function buildBody(v: FormValues, creating: boolean): CreateAccountInput {
         notes: blankToNull(v.notes),
         currency: v.currency,
         defaultDueDays: Number(v.defaultDueDays.trim()),
-        creditLimit: parseAmount(v.creditLimit),
+        creditLimit: optionalAmount(v.creditLimit),
     };
     if (!creating) return body;
 
@@ -191,7 +189,7 @@ function buildBody(v: FormValues, creating: boolean): CreateAccountInput {
           }
         : null;
 
-    const amount = parseAmount(v.openingAmount);
+    const amount = optionalAmount(v.openingAmount);
     const openingBalance: OpeningBalanceInput | null =
         amount === null ? null : { amount, direction: v.openingDirection, date: v.openingDate };
 

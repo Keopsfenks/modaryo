@@ -15,3 +15,46 @@ export function sessionInfo(overrides: Partial<SessionInfo> = {}): SessionInfo {
 export function problem(status: number, title: string, code?: string, errors?: Record<string, string[]>) {
     return { status, title, ...(code ? { code } : {}), ...(errors ? { errors } : {}) };
 }
+
+export function accountDto(overrides: Record<string, unknown> = {}) {
+    return {
+        id: "acc-1",
+        code: "C-0001",
+        name: "Akın Tekstil",
+        kind: "corporate",
+        taxNumber: null,
+        taxOffice: null,
+        isEInvoiceTaxpayer: false,
+        isCustomer: true,
+        isSupplier: false,
+        phone: null,
+        email: null,
+        notes: null,
+        currency: "TRY",
+        defaultDueDays: 30,
+        creditLimit: 50000,
+        isActive: true,
+        balance: 1250.5,
+        overdueAmount: 0,
+        hasMovements: false,
+        addresses: [],
+        ...overrides,
+    };
+}
+
+export function addressDto(overrides: Record<string, unknown> = {}) {
+    return {
+        id: "addr-1",
+        title: "Merkez",
+        line: "Atatürk Cad. 1",
+        district: "Kadıköy",
+        city: "İstanbul",
+        postalCode: null,
+        country: "Türkiye",
+        isBilling: true,
+        isShipping: false,
+        isDefaultBilling: true,
+        isDefaultShipping: false,
+        ...overrides,
+    };
+}
