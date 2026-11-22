@@ -1,8 +1,7 @@
 namespace ERP.Application.Common.Interfaces;
 
 /// <summary>İsteği yapan oturum (Valkey'deki kayıttan). Oturum yoksa UserId null.</summary>
-public interface ICurrentSession
-{
+public interface ICurrentSession {
     Guid? UserId { get; }
 
     Guid? TenantId { get; }
@@ -14,9 +13,9 @@ public interface ICurrentSession
 
     IReadOnlyList<string> Permissions { get; }
 
-    bool HasPermission(string permission);
-
     string? Ip { get; }
 
     string? UserAgent { get; }
+
+    bool HasPermission(string permission);
 }

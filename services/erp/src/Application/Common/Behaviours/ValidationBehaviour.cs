@@ -3,22 +3,23 @@
 namespace ERP.Application.Common.Behaviours;
 
 public class ValidationBehaviour<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-    where TRequest : notnull
-{
+    where TRequest : notnull {
     private readonly IEnumerable<IValidator<TRequest>> _validators;
 
-    public ValidationBehaviour(IEnumerable<IValidator<TRequest>> validators)
-    {
+    public ValidationBehaviour(IEnumerable<IValidator<TRequest>> validators) {
         _validators = validators;
     }
 
-    public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
-    {
-        if (_validators.Any())
-        {
+    public async Task<TResponse> Handle(TRequest                          request,
+                                        RequestHandlerDelegate<TResponse> next,
+                                        CancellationToken                 cancellationToken
+    ) {
+        if (_validators.Any()) {
             var validationResults = await Task.WhenAll(
-                _validators.Select(v =>
-                    v.ValidateAsync(new ValidationContext<TRequest>(request), cancellationToken)));
+                                                       _validators.Select(v =>
+                                                                              v.ValidateAsync(new ValidationContext<
+                                                                                      TRequest>(request),
+                                                                                  cancellationToken)));
 
             var failures = validationResults
                 .Where(r => r.Errors.Any())

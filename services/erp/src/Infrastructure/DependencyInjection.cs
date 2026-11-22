@@ -8,10 +8,8 @@ using Microsoft.Extensions.Hosting;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-public static class DependencyInjection
-{
-    public static void AddInfrastructureServices(this IHostApplicationBuilder builder)
-    {
+public static class DependencyInjection {
+    public static void AddInfrastructureServices(this IHostApplicationBuilder builder) {
         var connectionString = builder.Configuration.GetConnectionString(Services.Database);
         Guard.Against.Null(connectionString, message: $"Connection string '{Services.Database}' not found.");
 
@@ -19,13 +17,14 @@ public static class DependencyInjection
         builder.Services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
         builder.Services.AddScoped<ISaveChangesInterceptor, TenantInterceptor>();
 
-        builder.Services.AddDbContext<ApplicationDbContext>((sp, options) =>
-        {
-            options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
-            options.UseNpgsql(connectionString);
-        });
+        builder.Services.AddDbContext<ApplicationDbContext>((sp, options) => {
+                                                                options.AddInterceptors(sp.GetServices<
+                                                                    ISaveChangesInterceptor>());
+                                                                options.UseNpgsql(connectionString);
+                                                            });
 
-        builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
+        builder.Services.AddScoped<IApplicationDbContext>(provider =>
+                                                              provider.GetRequiredService<ApplicationDbContext>());
 
         builder.Services.AddScoped<ApplicationDbContextInitialiser>();
 

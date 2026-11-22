@@ -5,9 +5,11 @@ using ERP.Domain.CurrentAccounts;
 namespace ERP.Application.CurrentAccounts.Commands;
 
 [Authorize(Permission = CariPermissions.Manage)]
-public sealed record CreateCurrentAccountCommand : IRequest<CurrentAccountDto>, ICardFields
-{
-    public string Code { get; init; } = string.Empty;
+public sealed record CreateCurrentAccountCommand : IRequest<CurrentAccountDto>, ICardFields {
+    public AddressInput? Address { get; init; }
+
+    public OpeningBalanceInput? OpeningBalance { get; init; }
+    public string               Code           { get; init; } = string.Empty;
 
     public string Name { get; init; } = string.Empty;
 
@@ -34,16 +36,10 @@ public sealed record CreateCurrentAccountCommand : IRequest<CurrentAccountDto>, 
     public int DefaultDueDays { get; init; } = 30;
 
     public decimal? CreditLimit { get; init; }
-
-    public AddressInput? Address { get; init; }
-
-    public OpeningBalanceInput? OpeningBalance { get; init; }
 }
 
-public sealed class CreateCurrentAccountCommandValidator : AbstractValidator<CreateCurrentAccountCommand>
-{
-    public CreateCurrentAccountCommandValidator()
-    {
+public sealed class CreateCurrentAccountCommandValidator : AbstractValidator<CreateCurrentAccountCommand> {
+    public CreateCurrentAccountCommandValidator() {
         this.AddCardRules();
 
         RuleFor(c => c.Address!).SetValidator(new AddressInputValidator()).When(c => c.Address is not null);
@@ -65,30 +61,25 @@ public sealed class CreateCurrentAccountCommandValidator : AbstractValidator<Cre
     }
 }
 
-public sealed class CreateCurrentAccountCommandHandler(IApplicationDbContext db, TimeProvider time)
-    : IRequestHandler<CreateCurrentAccountCommand, CurrentAccountDto>
-{
-    public async Task<CurrentAccountDto> Handle(CreateCurrentAccountCommand request, CancellationToken ct)
-    {
-        var code = request.Code.Trim();
+public sealed class CreateCurrentAccountCommandHandler(
+    IApplicationDbContext db,
+    TimeProvider          time
+)
+    : IRequestHandler<CreateCurrentAccountCommand, CurrentAccountDto> {
+    public async Task<CurrentAccountDto> Handle(CreateCurrentAccountCommand request, CancellationToken ct) {
+        var code      = request.Code.Trim();
         var taxNumber = CardRules.Clean(request.TaxNumber);
 
-        if (await db.CurrentAccounts.AnyAsync(a => a.Code == code, ct))
-        {
-            throw CariErrors.CodeTaken();
-        }
+        if (await db.CurrentAccounts.AnyAsync(a => a.Code == code, ct)) throw CariErrors.CodeTaken();
 
         if (taxNumber is not null && await db.CurrentAccounts.AnyAsync(a => a.TaxNumber == taxNumber, ct))
-        {
             throw CariErrors.TaxNumberTaken();
-        }
 
         var account = new CurrentAccount();
         CardRules.Apply(account, request);
         db.CurrentAccounts.Add(account);
 
-        if (request.Address is { } input)
-        {
+        if (request.Address is { } input) {
             var address = new CurrentAccountAddress { CurrentAccountId = account.Id };
             AddressRules.Apply(address, input);
             AddressRules.ResolveDefaults([address], address, input.IsDefaultBilling, input.IsDefaultShipping);
@@ -96,17 +87,13 @@ public sealed class CreateCurrentAccountCommandHandler(IApplicationDbContext db,
         }
 
         if (request.OpeningBalance is { } opening)
-        {
             db.LedgerEntries.Add(EntryRules.NewEntry(account, LedgerEntryType.Opening, opening.Date, null, null, null,
-                opening.Amount, opening.Direction == "debit"));
-        }
+                                                     opening.Amount, opening.Direction == "debit"));
 
-        try
-        {
+        try {
             await db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException ex) when (CariErrors.FromUniqueViolation(ex) is { } conflict)
-        {
+        catch (DbUpdateException ex) when (CariErrors.FromUniqueViolation(ex) is { } conflict) {
             throw conflict;
         }
 

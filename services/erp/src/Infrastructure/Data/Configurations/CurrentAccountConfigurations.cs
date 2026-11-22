@@ -4,10 +4,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace ERP.Infrastructure.Data.Configurations;
 
-public class CurrentAccountConfiguration : IEntityTypeConfiguration<CurrentAccount>
-{
-    public void Configure(EntityTypeBuilder<CurrentAccount> builder)
-    {
+public class CurrentAccountConfiguration : IEntityTypeConfiguration<CurrentAccount> {
+    public void Configure(EntityTypeBuilder<CurrentAccount> builder) {
         builder.ToTable("current_accounts");
         builder.Property(e => e.Id).ValueGeneratedNever();
         builder.Property(e => e.Code).HasMaxLength(20).IsRequired();
@@ -24,14 +22,13 @@ public class CurrentAccountConfiguration : IEntityTypeConfiguration<CurrentAccou
         builder.HasIndex(e => new { e.TenantId, e.Code }).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.TaxNumber }).IsUnique().HasFilter("\"TaxNumber\" IS NOT NULL");
 
-        builder.HasMany(e => e.Addresses).WithOne().HasForeignKey(a => a.CurrentAccountId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(e => e.Addresses).WithOne().HasForeignKey(a => a.CurrentAccountId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
 
-public class CurrentAccountAddressConfiguration : IEntityTypeConfiguration<CurrentAccountAddress>
-{
-    public void Configure(EntityTypeBuilder<CurrentAccountAddress> builder)
-    {
+public class CurrentAccountAddressConfiguration : IEntityTypeConfiguration<CurrentAccountAddress> {
+    public void Configure(EntityTypeBuilder<CurrentAccountAddress> builder) {
         builder.ToTable("current_account_addresses");
         builder.Property(e => e.Id).ValueGeneratedNever();
         builder.Property(e => e.Title).HasMaxLength(100).IsRequired();
@@ -43,10 +40,8 @@ public class CurrentAccountAddressConfiguration : IEntityTypeConfiguration<Curre
     }
 }
 
-public class LedgerEntryConfiguration : IEntityTypeConfiguration<LedgerEntry>
-{
-    public void Configure(EntityTypeBuilder<LedgerEntry> builder)
-    {
+public class LedgerEntryConfiguration : IEntityTypeConfiguration<LedgerEntry> {
+    public void Configure(EntityTypeBuilder<LedgerEntry> builder) {
         builder.ToTable("ledger_entries");
         builder.Property(e => e.Id).ValueGeneratedNever();
         builder.Ignore(e => e.IsCancelled);
@@ -61,7 +56,8 @@ public class LedgerEntryConfiguration : IEntityTypeConfiguration<LedgerEntry>
         builder.Property(e => e.CancelledBy).HasMaxLength(200);
         builder.Property(e => e.CancelReason).HasMaxLength(200);
 
-        builder.HasOne<CurrentAccount>().WithMany().HasForeignKey(e => e.CurrentAccountId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<CurrentAccount>().WithMany().HasForeignKey(e => e.CurrentAccountId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(e => new { e.TenantId, e.CurrentAccountId, e.Date });
         builder.HasIndex(e => new { e.TenantId, e.CurrentAccountId }).HasFilter("\"CancelledAt\" IS NULL");

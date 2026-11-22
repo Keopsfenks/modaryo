@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Azure.Identity;
 using ERP.Application.Common.Interfaces;
-using ERP.Infrastructure.Data;
 using ERP.Web.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
@@ -10,10 +9,8 @@ using Modaryo.Sessions;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
-public static class DependencyInjection
-{
-    public static void AddWebServices(this IHostApplicationBuilder builder)
-    {
+public static class DependencyInjection {
+    public static void AddWebServices(this IHostApplicationBuilder builder) {
         builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
         builder.Services.AddScoped<CurrentSession>();
@@ -25,41 +22,39 @@ public static class DependencyInjection
         builder.Services.AddModaryoSessions(valkeyConnectionString);
         builder.Services.AddAuthorization();
 
-        builder.Services.Configure<ForwardedHeadersOptions>(options =>
-        {
-            // Varsayılan KnownProxies yalnızca loopback: geliştirmede Next.js proxy aynı makinede çalışır.
-            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-        });
+        builder.Services.Configure<ForwardedHeadersOptions>(options => {
+                                                                // Varsayılan KnownProxies yalnızca loopback: geliştirmede Next.js proxy aynı makinede çalışır.
+                                                                options.ForwardedHeaders
+                                                                    = ForwardedHeaders.XForwardedFor |
+                                                                      ForwardedHeaders.XForwardedProto;
+                                                            });
 
         builder.Services.AddHttpContextAccessor();
 
         // Enum'lar JSON'da camelCase string ("corporate", "opening").
         builder.Services.ConfigureHttpJsonOptions(options =>
-            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
+                                                      options.SerializerOptions.Converters
+                                                          .Add(new JsonStringEnumConverter(JsonNamingPolicy
+                                                                   .CamelCase)));
 
         builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
 
         // Customise default API behaviour
         builder.Services.Configure<ApiBehaviorOptions>(options =>
-            options.SuppressModelStateInvalidFilter = true);
+                                                           options.SuppressModelStateInvalidFilter = true);
 
         builder.Services.AddEndpointsApiExplorer();
 
-        builder.Services.AddOpenApi(options =>
-        {
-            options.AddOperationTransformer<ApiExceptionOperationTransformer>();
-        });
-
+        builder.Services.AddOpenApi(options => {
+                                        options.AddOperationTransformer<ApiExceptionOperationTransformer>();
+                                    });
     }
 
-    public static void AddKeyVaultIfConfigured(this IHostApplicationBuilder builder)
-    {
+    public static void AddKeyVaultIfConfigured(this IHostApplicationBuilder builder) {
         var keyVaultUri = builder.Configuration["AZURE_KEY_VAULT_ENDPOINT"];
         if (!string.IsNullOrWhiteSpace(keyVaultUri))
-        {
             builder.Configuration.AddAzureKeyVault(
-                new Uri(keyVaultUri),
-                new DefaultAzureCredential());
-        }
+                                                   new Uri(keyVaultUri),
+                                                   new DefaultAzureCredential());
     }
 }

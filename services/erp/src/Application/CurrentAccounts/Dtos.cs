@@ -2,24 +2,67 @@ using ERP.Domain.CurrentAccounts;
 
 namespace ERP.Application.CurrentAccounts;
 
-public sealed record AddressDto(Guid Id, string Title, string Line, string? District, string? City, string? PostalCode, string Country,
-    bool IsBilling, bool IsShipping, bool IsDefaultBilling, bool IsDefaultShipping);
+public sealed record AddressDto(
+    Guid    Id,
+    string  Title,
+    string  Line,
+    string? District,
+    string? City,
+    string? PostalCode,
+    string  Country,
+    bool    IsBilling,
+    bool    IsShipping,
+    bool    IsDefaultBilling,
+    bool    IsDefaultShipping
+);
 
-public sealed record CurrentAccountListItem(Guid Id, string Code, string Name, bool IsCustomer, bool IsSupplier, string Currency,
-    decimal Balance, bool OverLimit, decimal OverdueAmount, bool IsActive);
+public sealed record CurrentAccountListItem(
+    Guid    Id,
+    string  Code,
+    string  Name,
+    bool    IsCustomer,
+    bool    IsSupplier,
+    string  Currency,
+    decimal Balance,
+    bool    OverLimit,
+    decimal OverdueAmount,
+    bool    IsActive
+);
 
-public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total);
+public sealed record PagedResult<T>(
+    IReadOnlyList<T> Items,
+    int              Total
+);
 
-public sealed record CurrentAccountDto(Guid Id, string Code, string Name, AccountKind Kind, string? TaxNumber, string? TaxOffice,
-    bool IsEInvoiceTaxpayer, bool IsCustomer, bool IsSupplier, string? Phone, string? Email, string? Notes, string Currency,
-    int DefaultDueDays, decimal? CreditLimit, bool IsActive, decimal Balance, decimal OverdueAmount, bool HasMovements,
-    IReadOnlyList<AddressDto> Addresses);
+public sealed record CurrentAccountDto(
+    Guid                      Id,
+    string                    Code,
+    string                    Name,
+    AccountKind               Kind,
+    string?                   TaxNumber,
+    string?                   TaxOffice,
+    bool                      IsEInvoiceTaxpayer,
+    bool                      IsCustomer,
+    bool                      IsSupplier,
+    string?                   Phone,
+    string?                   Email,
+    string?                   Notes,
+    string                    Currency,
+    int                       DefaultDueDays,
+    decimal?                  CreditLimit,
+    bool                      IsActive,
+    decimal                   Balance,
+    decimal                   OverdueAmount,
+    bool                      HasMovements,
+    IReadOnlyList<AddressDto> Addresses
+);
 
-public sealed record NextCodeDto(string Code);
+public sealed record NextCodeDto(
+    string Code
+);
 
 /// <summary>Cari kartın düzenlenebilir alanları (oluşturma ve güncelleme istekleri ortak kullanır).</summary>
-public interface ICardFields
-{
+public interface ICardFields {
     string Code { get; }
 
     string Name { get; }
@@ -49,8 +92,7 @@ public interface ICardFields
     decimal? CreditLimit { get; }
 }
 
-public sealed record AddressInput
-{
+public sealed record AddressInput {
     public string Title { get; init; } = string.Empty;
 
     public string Line { get; init; } = string.Empty;
@@ -72,8 +114,7 @@ public sealed record AddressInput
     public bool IsDefaultShipping { get; init; }
 }
 
-public sealed record OpeningBalanceInput
-{
+public sealed record OpeningBalanceInput {
     public decimal Amount { get; init; }
 
     /// <summary>"debit" (borç) veya "credit" (alacak).</summary>

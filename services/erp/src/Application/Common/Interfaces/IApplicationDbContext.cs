@@ -1,10 +1,8 @@
 using ERP.Domain.CurrentAccounts;
-using Microsoft.EntityFrameworkCore;
 
 namespace ERP.Application.Common.Interfaces;
 
-public interface IApplicationDbContext
-{
+public interface IApplicationDbContext {
     DbSet<CurrentAccount> CurrentAccounts { get; }
 
     DbSet<CurrentAccountAddress> CurrentAccountAddresses { get; }

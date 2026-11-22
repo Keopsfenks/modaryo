@@ -20,12 +20,10 @@ app.UseForwardedHeaders();
 app.UseExceptionHandler(options => { });
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
+if (app.Environment.IsDevelopment()) {
     await app.InitialiseDatabaseAsync();
 }
-else
-{
+else {
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
     // Geliştirmede servis Next.js proxy'si arkasında http üzerinden çalışır.

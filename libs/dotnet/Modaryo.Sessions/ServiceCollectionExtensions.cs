@@ -6,27 +6,30 @@ using StackExchange.Redis;
 
 namespace Modaryo.Sessions;
 
-public static class ServiceCollectionExtensions
-{
+public static class ServiceCollectionExtensions {
     /// <summary>
-    /// Valkey bağlantısını, oturum okuyucusunu ve "ModaryoSession" kimlik doğrulama şemasını (varsayılan olarak) kaydeder.
+    ///     Valkey bağlantısını, oturum okuyucusunu ve "ModaryoSession" kimlik doğrulama şemasını (varsayılan olarak) kaydeder.
     /// </summary>
-    public static AuthenticationBuilder AddModaryoSessions(this IServiceCollection services, string valkeyConnectionString, Action<SessionAuthenticationOptions>? configure = null)
-    {
-        services.TryAddSingleton<IConnectionMultiplexer>(_ =>
-        {
-            var options = ConfigurationOptions.Parse(valkeyConnectionString);
-            options.AbortOnConnectFail = false;
-            return ConnectionMultiplexer.Connect(options);
-        });
+    public static AuthenticationBuilder AddModaryoSessions(this IServiceCollection               services,
+                                                           string                                valkeyConnectionString,
+                                                           Action<SessionAuthenticationOptions>? configure = null
+    ) {
+        services.TryAddSingleton<IConnectionMultiplexer>(_ => {
+                                                             var options
+                                                                 = ConfigurationOptions.Parse(valkeyConnectionString);
+                                                             options.AbortOnConnectFail = false;
+                                                             return ConnectionMultiplexer.Connect(options);
+                                                         });
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<SessionReader>();
 
         return services
             .AddAuthentication(SessionAuthenticationDefaults.Scheme)
-            .AddScheme<SessionAuthenticationOptions, SessionAuthenticationHandler>(SessionAuthenticationDefaults.Scheme, options => configure?.Invoke(options));
+            .AddScheme<SessionAuthenticationOptions, SessionAuthenticationHandler>(SessionAuthenticationDefaults.Scheme,
+                options => configure?.Invoke(options));
     }
 
-    public static IApplicationBuilder UseModaryoCsrf(this IApplicationBuilder app) =>
-        app.UseMiddleware<CsrfHeaderMiddleware>();
+    public static IApplicationBuilder UseModaryoCsrf(this IApplicationBuilder app) {
+        return app.UseMiddleware<CsrfHeaderMiddleware>();
+    }
 }

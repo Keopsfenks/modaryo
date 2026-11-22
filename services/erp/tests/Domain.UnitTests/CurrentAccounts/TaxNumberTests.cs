@@ -1,14 +1,15 @@
+using ERP.Domain.CurrentAccounts;
 using NUnit.Framework;
 using Shouldly;
-using ERP.Domain.CurrentAccounts;
 
 namespace ERP.Domain.UnitTests.CurrentAccounts;
 
-public class TaxNumberTests
-{
+public class TaxNumberTests {
     [TestCase("1234567890")]
     [TestCase("9876543217")]
-    public void Vkn_Valid(string value) => TaxNumber.IsValidVkn(value).ShouldBeTrue();
+    public void Vkn_Valid(string value) {
+        TaxNumber.IsValidVkn(value).ShouldBeTrue();
+    }
 
     [TestCase("1234567891")]
     [TestCase("123456789")]
@@ -16,10 +17,14 @@ public class TaxNumberTests
     [TestCase("12345A7890")]
     [TestCase("")]
     [TestCase(null)]
-    public void Vkn_Invalid(string? value) => TaxNumber.IsValidVkn(value!).ShouldBeFalse();
+    public void Vkn_Invalid(string? value) {
+        TaxNumber.IsValidVkn(value!).ShouldBeFalse();
+    }
 
     [TestCase("10000000146")]
-    public void Tckn_Valid(string value) => TaxNumber.IsValidTckn(value).ShouldBeTrue();
+    public void Tckn_Valid(string value) {
+        TaxNumber.IsValidTckn(value).ShouldBeTrue();
+    }
 
     [TestCase("10000000147")]
     [TestCase("01234567890")]
@@ -28,5 +33,7 @@ public class TaxNumberTests
     [TestCase("1000000014A")]
     [TestCase("")]
     [TestCase(null)]
-    public void Tckn_Invalid(string? value) => TaxNumber.IsValidTckn(value!).ShouldBeFalse();
+    public void Tckn_Invalid(string? value) {
+        TaxNumber.IsValidTckn(value!).ShouldBeFalse();
+    }
 }

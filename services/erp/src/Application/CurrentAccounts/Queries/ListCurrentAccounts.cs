@@ -5,13 +5,17 @@ using ERP.Domain.CurrentAccounts;
 namespace ERP.Application.CurrentAccounts.Queries;
 
 [Authorize(Permission = CariPermissions.Read)]
-public sealed record ListCurrentAccountsQuery(string? Search, string? Role, bool IncludeInactive, int Page = 1, int PageSize = 25)
+public sealed record ListCurrentAccountsQuery(
+    string? Search,
+    string? Role,
+    bool    IncludeInactive,
+    int     Page     = 1,
+    int     PageSize = 25
+)
     : IRequest<PagedResult<CurrentAccountListItem>>;
 
-public sealed class ListCurrentAccountsQueryValidator : AbstractValidator<ListCurrentAccountsQuery>
-{
-    public ListCurrentAccountsQueryValidator()
-    {
+public sealed class ListCurrentAccountsQueryValidator : AbstractValidator<ListCurrentAccountsQuery> {
+    public ListCurrentAccountsQueryValidator() {
         RuleFor(q => q.Role).Must(r => r is "customer" or "supplier").When(q => !string.IsNullOrEmpty(q.Role))
             .WithMessage("Rol müşteri (customer) veya tedarikçi (supplier) olmalıdır.");
         RuleFor(q => q.Page).InclusiveBetween(1, 100000).WithMessage("Sayfa 1 ile 100000 arasında olmalıdır.");
@@ -19,50 +23,49 @@ public sealed class ListCurrentAccountsQueryValidator : AbstractValidator<ListCu
     }
 }
 
-public sealed class ListCurrentAccountsQueryHandler(IApplicationDbContext db, TimeProvider time)
-    : IRequestHandler<ListCurrentAccountsQuery, PagedResult<CurrentAccountListItem>>
-{
-    public async Task<PagedResult<CurrentAccountListItem>> Handle(ListCurrentAccountsQuery request, CancellationToken ct)
-    {
+public sealed class ListCurrentAccountsQueryHandler(
+    IApplicationDbContext db,
+    TimeProvider          time
+)
+    : IRequestHandler<ListCurrentAccountsQuery, PagedResult<CurrentAccountListItem>> {
+    public async Task<PagedResult<CurrentAccountListItem>> Handle(ListCurrentAccountsQuery request,
+                                                                  CancellationToken        ct
+    ) {
         var query = db.CurrentAccounts.AsNoTracking().AsQueryable();
 
-        if (!request.IncludeInactive)
-        {
-            query = query.Where(a => a.IsActive);
-        }
+        if (!request.IncludeInactive) query = query.Where(a => a.IsActive);
 
         if (request.Role == "customer")
-        {
-            query = query.Where(a => a.IsCustomer);
-        }
-        else if (request.Role == "supplier")
-        {
-            query = query.Where(a => a.IsSupplier);
-        }
+            query                                  = query.Where(a => a.IsCustomer);
+        else if (request.Role == "supplier") query = query.Where(a => a.IsSupplier);
 
-        if (!string.IsNullOrWhiteSpace(request.Search))
-        {
+        if (!string.IsNullOrWhiteSpace(request.Search)) {
             var term = CardRules.FoldSearch(request.Search);
             query = query.Where(a => a.Name.ToLower().Replace("ı", "i").Contains(term)
-                || a.Code.ToLower().Replace("ı", "i").Contains(term)
-                || (a.TaxNumber != null && a.TaxNumber.Contains(term)));
+                                     || a.Code.ToLower().Replace("ı", "i").Contains(term)
+                                     || (a.TaxNumber != null && a.TaxNumber.Contains(term)));
         }
 
         var total = await query.CountAsync(ct);
-        var page = await query.OrderBy(a => a.Code).Skip((request.Page - 1) * request.PageSize).Take(request.PageSize).ToListAsync(ct);
+        var page = await query.OrderBy(a => a.Code).Skip((request.Page - 1) * request.PageSize).Take(request.PageSize)
+                       .ToListAsync(ct);
 
         var ids = page.Select(a => a.Id).ToList();
-        var entries = (await db.LedgerEntries.AsNoTracking().Where(e => ids.Contains(e.CurrentAccountId)).ToListAsync(ct))
+        var entries = (await db.LedgerEntries.AsNoTracking().Where(e => ids.Contains(e.CurrentAccountId))
+                           .ToListAsync(ct))
             .ToLookup(e => e.CurrentAccountId);
         var today = CurrentAccountClock.Today(time);
 
-        var items = page.Select(a =>
-        {
-            var own = entries[a.Id].ToList();
-            var balance = Statement.Balance(own);
-            return new CurrentAccountListItem(a.Id, a.Code, a.Name, a.IsCustomer, a.IsSupplier, a.Currency, balance,
-                a.CreditLimit is not null && balance > a.CreditLimit, CurrentAccountReader.Overdue(own, today), a.IsActive);
-        }).ToList();
+        var items = page.Select(a => {
+                                    var own     = entries[a.Id].ToList();
+                                    var balance = Statement.Balance(own);
+                                    return new CurrentAccountListItem(a.Id, a.Code, a.Name, a.IsCustomer, a.IsSupplier,
+                                                                      a.Currency, balance,
+                                                                      a.CreditLimit is not null &&
+                                                                      balance > a.CreditLimit,
+                                                                      CurrentAccountReader.Overdue(own, today),
+                                                                      a.IsActive);
+                                }).ToList();
 
         return new PagedResult<CurrentAccountListItem>(items, total);
     }

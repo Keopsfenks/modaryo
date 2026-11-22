@@ -1,20 +1,25 @@
 {
-  "v": 1,
-  "id": "a1b2c3d4e5f60718",
-  "user_id": "0193a6f2-6c1e-7b3a-9d4e-2f5a8c7b1e90",
-  "email": "ali@ornek.com",
-  "full_name": "Ali Veli",
-  "tenant_id": "0193a6f3-0a42-7c11-8e2b-6d9f4a3c5b21",
-  "permissions": ["*"],
-  "remember_me": true,
-  "created_at": 1795200000,
-  "absolute_expires_at": 1797792000,
-  "idle_timeout_s": 1209600,
-  "ip": "203.0.113.5",
-  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-  "user_type": "employee",
-  "cari_id": null,
-  "modules": ["pos", "sube"],
-  "branch_ids": null,
-  "max_discount_pct": 100
+    "v": 1,
+    "id": "a1b2c3d4e5f60718",
+    "user_id": "0193a6f2-6c1e-7b3a-9d4e-2f5a8c7b1e90",
+    "email": "ali@ornek.com",
+    "full_name": "Ali Veli",
+    "tenant_id": "0193a6f3-0a42-7c11-8e2b-6d9f4a3c5b21",
+    "permissions": [
+        "*"
+    ],
+    "remember_me": true,
+    "created_at": 1795200000,
+    "absolute_expires_at": 1797792000,
+    "idle_timeout_s": 1209600,
+    "ip": "203.0.113.5",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "user_type": "employee",
+    "cari_id": null,
+    "modules": [
+        "pos",
+        "sube"
+    ],
+    "branch_ids": null,
+    "max_discount_pct": 100
 }

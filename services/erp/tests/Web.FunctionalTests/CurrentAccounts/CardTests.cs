@@ -1,79 +1,76 @@
 using System.Text.Json;
 using ERP.Application.Common.Interfaces;
+using ERP.Domain.CurrentAccounts;
 using ERP.Infrastructure.Data;
 using ERP.Infrastructure.Data.Interceptors;
 using Microsoft.EntityFrameworkCore;
 
 namespace ERP.Web.FunctionalTests.CurrentAccounts;
 
-public class CardTests : TestBase
-{
-    private const string Url = "/api/erp/current-accounts";
-    private static readonly Guid Tenant = Guid.CreateVersion7();
+public class CardTests : TestBase {
+    private const           string Url    = "/api/erp/current-accounts";
+    private static readonly Guid   Tenant = Guid.CreateVersion7();
 
-    private sealed class FixedTenant(Guid? tenantId) : ICurrentTenant
-    {
-        public Guid? TenantId => tenantId;
+    private static Task<HttpClient> Manager(Guid? tenant = null) {
+        return Factory.ClientAsync(tenant ?? Tenant, "cari.read", "cari.manage", "cari.movements");
     }
 
-    private static Task<HttpClient> Manager(Guid? tenant = null) =>
-        Factory.ClientAsync(tenant ?? Tenant, "cari.read", "cari.manage", "cari.movements");
+    private static Dictionary<string, object?> Card(string  code      = "C0001",
+                                                    string  name      = "Örnek Ltd.",
+                                                    bool    customer  = true,
+                                                    bool    supplier  = false,
+                                                    string? taxNumber = null,
+                                                    string  kind      = "corporate",
+                                                    string  currency  = "TRY",
+                                                    object? address   = null,
+                                                    object? opening   = null
+    ) {
+        return new Dictionary<string, object?> {
+                                                   ["code"]               = code,
+                                                   ["name"]               = name,
+                                                   ["kind"]               = kind,
+                                                   ["taxNumber"]          = taxNumber,
+                                                   ["taxOffice"]          = "Kadıköy",
+                                                   ["isEInvoiceTaxpayer"] = false,
+                                                   ["isCustomer"]         = customer,
+                                                   ["isSupplier"]         = supplier,
+                                                   ["phone"]              = "0212 000 00 00",
+                                                   ["email"]              = "info@ornek.com",
+                                                   ["notes"]              = null,
+                                                   ["currency"]           = currency,
+                                                   ["defaultDueDays"]     = 30,
+                                                   ["creditLimit"]        = null,
+                                                   ["address"]            = address,
+                                                   ["openingBalance"]     = opening
+                                               };
+    }
 
-    private static Dictionary<string, object?> Card(string code = "C0001", string name = "Örnek Ltd.", bool customer = true,
-        bool supplier = false, string? taxNumber = null, string kind = "corporate", string currency = "TRY",
-        object? address = null, object? opening = null) => new()
-    {
-        ["code"] = code,
-        ["name"] = name,
-        ["kind"] = kind,
-        ["taxNumber"] = taxNumber,
-        ["taxOffice"] = "Kadıköy",
-        ["isEInvoiceTaxpayer"] = false,
-        ["isCustomer"] = customer,
-        ["isSupplier"] = supplier,
-        ["phone"] = "0212 000 00 00",
-        ["email"] = "info@ornek.com",
-        ["notes"] = null,
-        ["currency"] = currency,
-        ["defaultDueDays"] = 30,
-        ["creditLimit"] = null,
-        ["address"] = address,
-        ["openingBalance"] = opening,
-    };
-
-    private static async Task<Guid> CreateAsync(HttpClient client, object card)
-    {
+    private static async Task<Guid> CreateAsync(HttpClient client, object card) {
         using var response = await client.PostAsJsonAsync(Url, card);
         response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
         return (await response.JsonAsync()).GetProperty("id").GetGuid();
     }
 
-    private static async Task<JsonElement> GetAsync(HttpClient client, Guid id)
-    {
+    private static async Task<JsonElement> GetAsync(HttpClient client, Guid id) {
         using var response = await client.GetAsync($"{Url}/{id}");
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         return await response.JsonAsync();
     }
 
-    private static string ValidVkn()
-    {
+    private static string ValidVkn() {
         const string first9 = "123456789";
         for (var d = 0; d <= 9; d++)
-        {
-            if (ERP.Domain.CurrentAccounts.TaxNumber.IsValidVkn(first9 + d))
-            {
+            if (TaxNumber.IsValidVkn(first9 + d))
                 return first9 + d;
-            }
-        }
 
         throw new InvalidOperationException();
     }
 
     [Test]
-    public async Task Create_Minimal_Returns201AndNextCodeAdvances()
-    {
+    public async Task Create_Minimal_Returns201AndNextCodeAdvances() {
         using var client = await Manager();
-        (await (await client.GetAsync($"{Url}/next-code")).JsonAsync()).GetProperty("code").GetString().ShouldBe("C0001");
+        (await (await client.GetAsync($"{Url}/next-code")).JsonAsync()).GetProperty("code").GetString()
+            .ShouldBe("C0001");
 
         using var response = await client.PostAsJsonAsync(Url, Card());
 
@@ -83,16 +80,22 @@ public class CardTests : TestBase
         body.GetProperty("kind").GetString().ShouldBe("corporate");
         body.GetProperty("balance").GetDecimal().ShouldBe(0);
         body.GetProperty("hasMovements").GetBoolean().ShouldBeFalse();
-        (await (await client.GetAsync($"{Url}/next-code")).JsonAsync()).GetProperty("code").GetString().ShouldBe("C0002");
+        (await (await client.GetAsync($"{Url}/next-code")).JsonAsync()).GetProperty("code").GetString()
+            .ShouldBe("C0002");
     }
 
     [Test]
-    public async Task Create_WithAddressAndOpening_ReturnsBalance()
-    {
+    public async Task Create_WithAddressAndOpening_ReturnsBalance() {
         using var client = await Manager();
         var id = await CreateAsync(client, Card(
-            address: new { title = "Merkez", line = "Bağdat Cad. 1", city = "İstanbul", isBilling = true, isShipping = true },
-            opening: new { amount = 1000m, direction = "debit", date = "2026-01-01" }));
+                                                address: new {
+                                                                 title = "Merkez", line        = "Bağdat Cad. 1",
+                                                                 city  = "İstanbul", isBilling = true, isShipping = true
+                                                             },
+                                                opening: new {
+                                                                 amount = 1000m, direction = "debit",
+                                                                 date   = "2026-01-01"
+                                                             }));
 
         var body = await GetAsync(client, id);
 
@@ -106,17 +109,16 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task Create_CreditOpening_GivesNegativeBalance()
-    {
+    public async Task Create_CreditOpening_GivesNegativeBalance() {
         using var client = await Manager();
-        var id = await CreateAsync(client, Card(opening: new { amount = 250.5m, direction = "credit", date = "2026-01-01" }));
+        var id = await CreateAsync(client,
+                                   Card(opening: new { amount = 250.5m, direction = "credit", date = "2026-01-01" }));
 
         (await GetAsync(client, id)).GetProperty("balance").GetDecimal().ShouldBe(-250.5m);
     }
 
     [Test]
-    public async Task Create_InvalidVkn_Returns400()
-    {
+    public async Task Create_InvalidVkn_Returns400() {
         using var client = await Manager();
 
         using var response = await client.PostAsJsonAsync(Url, Card(taxNumber: "1234567891"));
@@ -125,8 +127,7 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task Create_ValidTckn_ForIndividual_Returns201()
-    {
+    public async Task Create_ValidTckn_ForIndividual_Returns201() {
         using var client = await Manager();
 
         using var response = await client.PostAsJsonAsync(Url, Card(kind: "individual", taxNumber: "10000000146"));
@@ -135,8 +136,7 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task Create_NeitherCustomerNorSupplier_Returns400()
-    {
+    public async Task Create_NeitherCustomerNorSupplier_Returns400() {
         using var client = await Manager();
 
         using var response = await client.PostAsJsonAsync(Url, Card(customer: false, supplier: false));
@@ -145,8 +145,7 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task Create_DuplicateCode_Returns409CodeTaken()
-    {
+    public async Task Create_DuplicateCode_Returns409CodeTaken() {
         using var client = await Manager();
         await CreateAsync(client, Card());
 
@@ -157,29 +156,26 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task Create_DuplicateTaxNumber_Returns409()
-    {
+    public async Task Create_DuplicateTaxNumber_Returns409() {
         using var client = await Manager();
         await CreateAsync(client, Card(taxNumber: ValidVkn()));
 
-        using var response = await client.PostAsJsonAsync(Url, Card(code: "C0002", taxNumber: ValidVkn()));
+        using var response = await client.PostAsJsonAsync(Url, Card("C0002", taxNumber: ValidVkn()));
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await response.ErrorCodeAsync()).ShouldBe("tax_number_taken");
     }
 
     [Test]
-    public async Task List_FiltersByRoleSearchAndActive()
-    {
+    public async Task List_FiltersByRoleSearchAndActive() {
         using var client = await Manager();
-        await CreateAsync(client, Card(code: "C0001", name: "Müşteri A", customer: true, supplier: false));
-        await CreateAsync(client, Card(code: "C0002", name: "Tedarikçi B", customer: false, supplier: true));
-        await CreateAsync(client, Card(code: "C0003", name: "Her İkisi", customer: true, supplier: true, taxNumber: "10000000146", kind: "individual"));
-        var inactive = await CreateAsync(client, Card(code: "C0004", name: "Pasif Cari", customer: true, supplier: true));
+        await CreateAsync(client, Card("C0001", "Müşteri A",   true,  false));
+        await CreateAsync(client, Card("C0002", "Tedarikçi B", false, true));
+        await CreateAsync(client, Card("C0003", "Her İkisi",   true,  true, "10000000146", "individual"));
+        var inactive = await CreateAsync(client, Card("C0004", "Pasif Cari", true, true));
         (await client.PostAsync($"{Url}/{inactive}/deactivate", null)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
 
-        async Task<string[]> Codes(string query)
-        {
+        async Task<string[]> Codes(string query) {
             var body = await (await client.GetAsync($"{Url}{query}")).JsonAsync();
             return body.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("code").GetString()!).ToArray();
         }
@@ -194,14 +190,12 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task List_Search_FoldsTurkishDottedAndDotlessI()
-    {
+    public async Task List_Search_FoldsTurkishDottedAndDotlessI() {
         using var client = await Manager();
-        await CreateAsync(client, Card(code: "C0001", name: "YILMAZ TİCARET"));
-        await CreateAsync(client, Card(code: "C0002", name: "Işık Ltd"));
+        await CreateAsync(client, Card("C0001", "YILMAZ TİCARET"));
+        await CreateAsync(client, Card("C0002", "Işık Ltd"));
 
-        async Task<string[]> Codes(string term)
-        {
+        async Task<string[]> Codes(string term) {
             var body = await (await client.GetAsync($"{Url}?search={Uri.EscapeDataString(term)}")).JsonAsync();
             return body.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("code").GetString()!).ToArray();
         }
@@ -213,10 +207,12 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task Create_PostalCodeTooLong_Returns400()
-    {
+    public async Task Create_PostalCodeTooLong_Returns400() {
         using var client = await Manager();
-        var address = new { title = "Merkez", line = "Adres", postalCode = new string('1', 21), isBilling = true, isShipping = false };
+        var address = new {
+                              title      = "Merkez", line = "Adres", postalCode = new string('1', 21), isBilling = true,
+                              isShipping = false
+                          };
 
         using var response = await client.PostAsJsonAsync(Url, Card(address: address));
 
@@ -224,10 +220,9 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task Create_CreditLimitWithThreeDecimals_Returns400()
-    {
+    public async Task Create_CreditLimitWithThreeDecimals_Returns400() {
         using var client = await Manager();
-        var card = Card();
+        var       card   = Card();
         card["creditLimit"] = 10.123m;
 
         using var response = await client.PostAsJsonAsync(Url, card);
@@ -236,10 +231,9 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task Create_UnknownKind_Returns400()
-    {
+    public async Task Create_UnknownKind_Returns400() {
         using var client = await Manager();
-        var card = Card();
+        var       card   = Card();
         card["kind"] = 5;
 
         using var response = await client.PostAsJsonAsync(Url, card);
@@ -248,31 +242,31 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task AddEntry_DateBefore2000_Returns400()
-    {
+    public async Task AddEntry_DateBefore2000_Returns400() {
         using var client = await Manager();
-        var id = await CreateAsync(client, Card());
+        var       id     = await CreateAsync(client, Card());
 
         using var response = await client.PostAsJsonAsync($"{Url}/{id}/entries",
-            new { type = "debit", date = "1899-12-31", amount = 10m });
+                                                          new { type = "debit", date = "1899-12-31", amount = 10m });
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Test]
-    public async Task Create_OpeningDateBefore2000_Returns400()
-    {
+    public async Task Create_OpeningDateBefore2000_Returns400() {
         using var client = await Manager();
 
         using var response = await client.PostAsJsonAsync(Url,
-            Card(opening: new { amount = 10m, direction = "debit", date = "1899-12-31" }));
+                                                          Card(opening: new {
+                                                                                amount = 10m, direction = "debit",
+                                                                                date   = "1899-12-31"
+                                                                            }));
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
     [Test]
-    public async Task List_PageTooLarge_Returns400()
-    {
+    public async Task List_PageTooLarge_Returns400() {
         using var client = await Manager();
 
         using var response = await client.GetAsync($"{Url}?page=200000");
@@ -281,13 +275,9 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task List_Paginates()
-    {
+    public async Task List_Paginates() {
         using var client = await Manager();
-        for (var i = 1; i <= 30; i++)
-        {
-            await CreateAsync(client, Card(code: $"C{i:0000}", name: $"Cari {i}"));
-        }
+        for (var i = 1; i <= 30; i++) await CreateAsync(client, Card($"C{i:0000}", $"Cari {i}"));
 
         var first = await (await client.GetAsync($"{Url}?pageSize=25")).JsonAsync();
         first.GetProperty("items").GetArrayLength().ShouldBe(25);
@@ -299,10 +289,9 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task List_ReportsBalanceOverLimitAndOverdue()
-    {
+    public async Task List_ReportsBalanceOverLimitAndOverdue() {
         using var client = await Manager();
-        var card = Card(opening: new { amount = 1000m, direction = "debit", date = "2020-01-01" });
+        var       card   = Card(opening: new { amount = 1000m, direction = "debit", date = "2020-01-01" });
         card["creditLimit"] = 500m;
         await CreateAsync(client, card);
 
@@ -314,13 +303,12 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task Update_ChangesFields()
-    {
+    public async Task Update_ChangesFields() {
         using var client = await Manager();
-        var id = await CreateAsync(client, Card());
+        var       id     = await CreateAsync(client, Card());
 
         using var response = await client.PutAsJsonAsync($"{Url}/{id}",
-            Card(code: "C0009", name: "Yeni Ünvan", customer: false, supplier: true, currency: "USD"));
+                                                         Card("C0009", "Yeni Ünvan", false, true, currency: "USD"));
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var body = await GetAsync(client, id);
@@ -331,33 +319,31 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task Update_CodeOfAnotherCard_Returns409CodeTaken()
-    {
+    public async Task Update_CodeOfAnotherCard_Returns409CodeTaken() {
         using var client = await Manager();
-        await CreateAsync(client, Card(code: "C0001"));
-        var second = await CreateAsync(client, Card(code: "C0002"));
+        await CreateAsync(client, Card("C0001"));
+        var second = await CreateAsync(client, Card("C0002"));
 
-        using var response = await client.PutAsJsonAsync($"{Url}/{second}", Card(code: "C0001"));
+        using var response = await client.PutAsJsonAsync($"{Url}/{second}", Card("C0001"));
 
         response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await response.ErrorCodeAsync()).ShouldBe("code_taken");
     }
 
     [Test]
-    public async Task CurrencyLocked_EvenIfOnlyCancelledMovement()
-    {
+    public async Task CurrencyLocked_EvenIfOnlyCancelledMovement() {
         using var client = await Manager();
-        var id = await CreateAsync(client, Card(opening: new { amount = 100m, direction = "debit", date = "2026-01-01" }));
+        var id = await CreateAsync(client,
+                                   Card(opening: new { amount = 100m, direction = "debit", date = "2026-01-01" }));
 
         var tenant = new FixedTenant(Tenant);
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql(TestEnvironment.ConnectionString)
             .AddInterceptors(new TenantInterceptor(tenant))
             .Options;
-        await using (var db = new ApplicationDbContext(options, tenant))
-        {
+        await using (var db = new ApplicationDbContext(options, tenant)) {
             var entry = await db.LedgerEntries.SingleAsync(e => e.CurrentAccountId == id);
-            entry.CancelledAt = DateTimeOffset.UtcNow;
+            entry.CancelledAt  = DateTimeOffset.UtcNow;
             entry.CancelReason = "Hatalı giriş";
             await db.SaveChangesAsync();
         }
@@ -374,20 +360,22 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task Delete_WithoutMovements_Returns204()
-    {
+    public async Task Delete_WithoutMovements_Returns204() {
         using var client = await Manager();
-        var id = await CreateAsync(client, Card(address: new { title = "Merkez", line = "Adres", isBilling = true, isShipping = false }));
+        var id = await CreateAsync(client,
+                                   Card(address: new {
+                                                         title      = "Merkez", line = "Adres", isBilling = true,
+                                                         isShipping = false
+                                                     }));
 
         (await client.DeleteAsync($"{Url}/{id}")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await client.GetAsync($"{Url}/{id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
 
     [Test]
-    public async Task Deactivate_ThenActivate()
-    {
+    public async Task Deactivate_ThenActivate() {
         using var client = await Manager();
-        var id = await CreateAsync(client, Card());
+        var       id     = await CreateAsync(client, Card());
 
         (await client.PostAsync($"{Url}/{id}/deactivate", null)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await GetAsync(client, id)).GetProperty("isActive").GetBoolean().ShouldBeFalse();
@@ -397,13 +385,12 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task ReadOnly_CannotWrite_Returns403()
-    {
+    public async Task ReadOnly_CannotWrite_Returns403() {
         using var manager = await Manager();
-        var id = await CreateAsync(manager, Card());
-        using var reader = await Factory.ClientAsync(Tenant, "cari.read");
+        var       id      = await CreateAsync(manager, Card());
+        using var reader  = await Factory.ClientAsync(Tenant, "cari.read");
 
-        (await reader.PostAsJsonAsync(Url, Card(code: "C0002"))).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await reader.PostAsJsonAsync(Url, Card("C0002"))).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await reader.PutAsJsonAsync($"{Url}/{id}", Card())).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await reader.DeleteAsync($"{Url}/{id}")).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await reader.PostAsync($"{Url}/{id}/deactivate", null)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
@@ -412,10 +399,9 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task OtherTenant_Get_Returns404()
-    {
+    public async Task OtherTenant_Get_Returns404() {
         using var owner = await Manager();
-        var id = await CreateAsync(owner, Card());
+        var       id    = await CreateAsync(owner, Card());
         using var other = await Manager(Guid.CreateVersion7());
 
         (await other.GetAsync($"{Url}/{id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
@@ -426,11 +412,16 @@ public class CardTests : TestBase
     }
 
     [Test]
-    public async Task NoTenant_Returns403()
-    {
+    public async Task NoTenant_Returns403() {
         using var client = await Factory.ClientWithoutTenantAsync("cari.read", "cari.manage");
 
         (await client.GetAsync(Url)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         (await client.PostAsJsonAsync(Url, Card())).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    private sealed class FixedTenant(
+        Guid? tenantId
+    ) : ICurrentTenant {
+        public Guid? TenantId => tenantId;
     }
 }

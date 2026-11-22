@@ -1,12 +1,12 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <RootNamespace>ERP.Domain</RootNamespace>
-    <AssemblyName>ERP.Domain</AssemblyName>
-  </PropertyGroup>
+    <PropertyGroup>
+        <RootNamespace>ERP.Domain</RootNamespace>
+        <AssemblyName>ERP.Domain</AssemblyName>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="MediatR.Contracts" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="MediatR.Contracts"/>
+    </ItemGroup>
 
 </Project>

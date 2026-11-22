@@ -5,12 +5,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <FrameworkReference Include="Microsoft.AspNetCore.App" />
-        <PackageReference Include="StackExchange.Redis" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+        <PackageReference Include="StackExchange.Redis"/>
     </ItemGroup>
 
     <ItemGroup>
-        <InternalsVisibleTo Include="Modaryo.Sessions.Tests" />
+        <InternalsVisibleTo Include="Modaryo.Sessions.Tests"/>
     </ItemGroup>
 
 </Project>

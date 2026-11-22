@@ -33,3 +33,5 @@ Thumbs.db
 # Markdown: yalnızca README.md dosyaları depoya girer
 *.md
 !README.md
+docs
+.claude
