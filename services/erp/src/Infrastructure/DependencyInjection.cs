@@ -1,10 +1,12 @@
 ﻿using ERP.Application.Common.Interfaces;
 using ERP.Infrastructure.Data;
 using ERP.Infrastructure.Data.Interceptors;
+using ERP.Infrastructure.Internal;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Modaryo.Internal;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -29,5 +31,9 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ApplicationDbContextInitialiser>();
 
         builder.Services.AddSingleton(TimeProvider.System);
+
+        builder.Services.AddScoped<IdempotencyStore>();
+        builder.Services.AddScoped<IInternalIdempotencyStore>(sp => sp.GetRequiredService<IdempotencyStore>());
+        builder.Services.AddHostedService<IdempotencyPurgeService>();
     }
 }

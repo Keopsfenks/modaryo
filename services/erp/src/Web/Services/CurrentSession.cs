@@ -1,5 +1,6 @@
 ﻿using System.Security.Claims;
 using ERP.Application.Common.Interfaces;
+using Modaryo.Internal;
 using Modaryo.Sessions;
 
 namespace ERP.Web.Services;
@@ -12,7 +13,11 @@ public sealed class CurrentSession(
 
     public Guid? UserId => Context?.User.GetUserId();
 
-    public string? UserFullName => Context?.User.FindFirstValue(ClaimTypes.Name);
+    /// <summary>İç API çağrısında "sistem:{servis}"; kullanıcı oturumunda kullanıcının adı.</summary>
+    public string? UserFullName
+        => Context?.User.FindFirstValue(InternalClaimTypes.Service) is { Length: > 0 } service
+               ? $"sistem:{service}"
+               : Context?.User.FindFirstValue(ClaimTypes.Name);
 
     public bool HasModule(string key) {
         return Context?.User.HasModule(key) ?? false;

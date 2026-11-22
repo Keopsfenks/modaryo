@@ -1,0 +1,11 @@
+{
+    "secret": "test-secret",
+    "method": "POST",
+    "pathAndQuery": "/internal/einvoice/send?x=1",
+    "timestamp": 1767225600,
+    "tenant": "0193a6f3-0a42-7c11-8e2b-6d9f4a3c5b21",
+    "body": "{\"invoice\":\"A-1\",\"amount\":\"10.50\"}",
+    "bodySha256Hex": "01076d3f956d8d656c707d4ab845fc4f01cadd5d553a03077519673fb03cf7f7",
+    "canonicalString": "POST\n/internal/einvoice/send?x=1\n1767225600\n0193a6f3-0a42-7c11-8e2b-6d9f4a3c5b21\n01076d3f956d8d656c707d4ab845fc4f01cadd5d553a03077519673fb03cf7f7",
+    "signatureHex": "defc9160ff2ebb420aaef50d6c30cadf47faaafeec211f175076a8c94727a4a6"
+}

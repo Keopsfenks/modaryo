@@ -19,5 +19,6 @@ public class MigrationTests : TestBase {
         tables.ShouldContain("ledger_entries");
         tables.ShouldContain("tenant_settings");
         tables.ShouldContain("erp_audit_entries");
+        tables.ShouldContain("idempotency_records");
     }
 }

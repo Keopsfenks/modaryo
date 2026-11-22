@@ -1,4 +1,5 @@
 using ERP.Infrastructure.Data;
+using Modaryo.Internal;
 using Modaryo.Sessions;
 using Scalar.AspNetCore;
 
@@ -34,8 +35,11 @@ app.UseFileServer();
 
 // GET dışındaki her istekte "X-Modaryo-Csrf: 1" zorunlu (spec 6.8). CORS bilerek kapalı.
 // Oturumu kimlik servisi açar; ERP yalnızca Valkey'den okur (Modaryo.Sessions).
-app.UseModaryoCsrf();
+// İç API (/internal/*) oturum ve CSRF kuralından muaftır; HMAC imzasıyla doğrulanır (Modaryo.Internal).
+app.UseWhen(context => !InternalAuthMiddleware.IsInternalPath(context.Request.Path),
+            branch => branch.UseModaryoCsrf());
 app.UseAuthentication();
+app.UseModaryoInternal();
 app.UseAuthorization();
 
 app.MapOpenApi();

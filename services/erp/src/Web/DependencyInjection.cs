@@ -5,6 +5,7 @@ using ERP.Application.Common.Interfaces;
 using ERP.Web.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Modaryo.Internal;
 using Modaryo.Sessions;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -21,6 +22,7 @@ public static class DependencyInjection {
         Guard.Against.NullOrWhiteSpace(valkeyConnectionString, message: "Connection string 'Valkey' not found.");
         builder.Services.AddModaryoSessions(valkeyConnectionString);
         builder.Services.AddAuthorization();
+        builder.Services.AddModaryoInternal(builder.Configuration);
 
         builder.Services.Configure<ForwardedHeadersOptions>(options => {
                                                                 // Varsayılan KnownProxies yalnızca loopback: geliştirmede Next.js proxy aynı makinede çalışır.

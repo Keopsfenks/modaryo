@@ -17,9 +17,11 @@ public class ErpApiFactory(
         builder.UseEnvironment("Development");
         builder.UseSetting($"ConnectionStrings:{Shared.Services.Database}", connectionString);
         builder.UseSetting("ConnectionStrings:Valkey",                      ValkeyConnectionString);
+        Platform.InternalProbes.Configure(builder);
         builder.ConfigureTestServices(services => {
                                           services.AddSingleton<IStartupFilter, LoopbackClientStartupFilter>();
                                           Platform.GuardProbes.Register(services);
+                                          Platform.InternalProbes.Register(services);
                                       });
     }
 
