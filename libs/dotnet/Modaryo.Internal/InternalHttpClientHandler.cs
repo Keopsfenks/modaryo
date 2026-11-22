@@ -1,4 +1,4 @@
-namespace Modaryo.Internal;
+﻿namespace Modaryo.Internal;
 
 /// <summary>
 ///     Giden isteği imzalar: X-Modaryo-Service, X-Modaryo-Timestamp ve X-Modaryo-Signature başlıklarını ekler.
@@ -19,6 +19,9 @@ public sealed class InternalHttpClientHandler(
         var tenant = request.Headers.TryGetValues(InternalHeaders.Tenant, out var values)
                          ? values.FirstOrDefault()
                          : null;
+        var idempotencyKey = request.Headers.TryGetValues(InternalHeaders.IdempotencyKey, out var keys)
+                                 ? keys.FirstOrDefault()
+                                 : null;
         var body = request.Content is null ? [] : await request.Content.ReadAsByteArrayAsync(ct);
         var timestamp = _time.GetUtcNow().ToUnixTimeSeconds();
 
@@ -29,7 +32,7 @@ public sealed class InternalHttpClientHandler(
         request.Headers.Add(InternalHeaders.Timestamp, timestamp.ToString(System.Globalization.CultureInfo.InvariantCulture));
         request.Headers.Add(InternalHeaders.Signature,
                             InternalSignature.Compute(secret, request.Method.Method, pathAndQuery, timestamp, tenant,
-                                                      body));
+                                                      idempotencyKey, body));
 
         return await base.SendAsync(request, ct);
     }

@@ -1,4 +1,4 @@
-using ERP.Domain.Platform;
+﻿using ERP.Domain.Platform;
 using ERP.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Modaryo.Internal;
@@ -17,6 +17,18 @@ public sealed class IdempotencyStore(
                                                            string            key,
                                                            Guid              tenantId,
                                                            string            requestHash,
+                                                           TimeSpan          pendingTimeout,
+                                                           CancellationToken ct
+    ) {
+        return await ReserveAsync(caller, key, tenantId, requestHash, pendingTimeout, retried: false, ct);
+    }
+
+    private async Task<IdempotencyReservation> ReserveAsync(string            caller,
+                                                           string            key,
+                                                           Guid              tenantId,
+                                                           string            requestHash,
+                                                           TimeSpan          pendingTimeout,
+                                                           bool              retried,
                                                            CancellationToken ct
     ) {
         var record = new IdempotencyRecord {
@@ -34,14 +46,27 @@ public sealed class IdempotencyStore(
 
         var existing = await db.IdempotencyRecords.AsNoTracking()
                            .FirstOrDefaultAsync(r => r.Caller == caller && r.Key == key, ct);
-        if (existing is null) // arada silinmiş (5xx sonrası serbest bırakılmış): bir kez daha dene
-            return await ReserveAsync(caller, key, tenantId, requestHash, ct);
+        // Arada silinmiş (5xx sonrası serbest bırakılmış): en çok bir kez daha dene.
+        if (existing is null)
+            return retried
+                       ? new IdempotencyReservation(IdempotencyOutcome.InProgress)
+                       : await ReserveAsync(caller, key, tenantId, requestHash, pendingTimeout, true, ct);
 
         if (existing.RequestHash != requestHash) return new IdempotencyReservation(IdempotencyOutcome.Conflict);
 
-        return existing.Status == 0
-                   ? new IdempotencyReservation(IdempotencyOutcome.InProgress)
-                   : new IdempotencyReservation(IdempotencyOutcome.Replay, existing.Status, existing.ResponseJson);
+        if (existing.Status != 0)
+            return new IdempotencyReservation(IdempotencyOutcome.Replay, existing.Status, existing.ResponseJson);
+
+        // Bekleyen kayıt zaman aşımına uğradıysa (işleyen süreç çökmüş olabilir) devral: sil ve bir kez yeniden ayır.
+        if (!retried && existing.CreatedAt < time.GetUtcNow() - pendingTimeout) {
+            var createdAt = existing.CreatedAt;
+            await db.IdempotencyRecords
+                .Where(r => r.Caller == caller && r.Key == key && r.Status == 0 && r.CreatedAt == createdAt)
+                .ExecuteDeleteAsync(ct);
+            return await ReserveAsync(caller, key, tenantId, requestHash, pendingTimeout, true, ct);
+        }
+
+        return new IdempotencyReservation(IdempotencyOutcome.InProgress);
     }
 
     public async Task CompleteAsync(string caller, string key, int status, string responseJson, CancellationToken ct) {

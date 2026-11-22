@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Time.Testing;
@@ -13,6 +13,7 @@ public class InternalSignatureTests {
         string PathAndQuery,
         long   Timestamp,
         string Tenant,
+        string IdempotencyKey,
         string Body,
         string BodySha256Hex,
         string CanonicalString,
@@ -31,11 +32,11 @@ public class InternalSignatureTests {
         var body = Encoding.UTF8.GetBytes(v.Body);
 
         Convert.ToHexStringLower(SHA256.HashData(body)).ShouldBe(v.BodySha256Hex);
-        InternalSignature.CanonicalString(v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, body)
+        InternalSignature.CanonicalString(v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, v.IdempotencyKey, body)
             .ShouldBe(v.CanonicalString);
-        InternalSignature.Compute(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, body)
+        InternalSignature.Compute(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, v.IdempotencyKey, body)
             .ShouldBe(v.SignatureHex);
-        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, body, v.SignatureHex)
+        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, v.IdempotencyKey, body, v.SignatureHex)
             .ShouldBeTrue();
     }
 
@@ -43,25 +44,29 @@ public class InternalSignatureTests {
     public void Verify_ConstantTimeAndRejectsWrongSecret() {
         var v         = LoadVector();
         var body      = Encoding.UTF8.GetBytes(v.Body);
-        var signature = InternalSignature.Compute(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, body);
+        var signature = InternalSignature.Compute(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, v.IdempotencyKey, body);
 
-        InternalSignature.Verify("wrong", v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, body, signature)
+        InternalSignature.Verify("wrong", v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, v.IdempotencyKey, body, signature)
             .ShouldBeFalse();
-        InternalSignature.Verify(v.Secret, "PUT", v.PathAndQuery, v.Timestamp, v.Tenant, body, signature)
+        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, "baska-anahtar", body, signature)
             .ShouldBeFalse();
-        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, null, body, signature)
+        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, null, body, signature)
             .ShouldBeFalse();
-        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp + 1, v.Tenant, body, signature)
+        InternalSignature.Verify(v.Secret, "PUT", v.PathAndQuery, v.Timestamp, v.Tenant, v.IdempotencyKey, body, signature)
             .ShouldBeFalse();
-        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, "x"u8, signature)
+        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, null, v.IdempotencyKey, body, signature)
+            .ShouldBeFalse();
+        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp + 1, v.Tenant, v.IdempotencyKey, body, signature)
+            .ShouldBeFalse();
+        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, v.IdempotencyKey, "x"u8, signature)
             .ShouldBeFalse();
 
         // Bozuk, kısa, uzun ve onaltılık olmayan değerler istisna atmadan reddedilir.
         foreach (var bad in new[] { "", "zz", signature[..^2], signature + "00", new string('g', 64) })
-            InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, body, bad)
+            InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, v.IdempotencyKey, body, bad)
                 .ShouldBeFalse();
 
-        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, body,
+        InternalSignature.Verify(v.Secret, v.Method, v.PathAndQuery, v.Timestamp, v.Tenant, v.IdempotencyKey, body,
                                  signature.ToUpperInvariant()).ShouldBeTrue();
     }
 
@@ -78,6 +83,7 @@ public class InternalSignatureTests {
             Content = new StringContent("{\"a\":1}", Encoding.UTF8, "application/json")
         };
         request.Headers.Add(InternalHeaders.Tenant, tenant);
+        request.Headers.Add(InternalHeaders.IdempotencyKey, "idem-1");
         using var _ = await client.SendAsync(request);
 
         var sent = inner.Request!;
@@ -85,7 +91,7 @@ public class InternalSignatureTests {
         var timestamp = long.Parse(sent.Headers.GetValues(InternalHeaders.Timestamp).Single());
         timestamp.ShouldBe(1_800_000_000);
         InternalSignature.Verify("s3cret", "POST", "/internal/einvoice/send?x=1&y=%C3%A7", timestamp, tenant,
-                                 "{\"a\":1}"u8, sent.Headers.GetValues(InternalHeaders.Signature).Single())
+                                 "idem-1", "{\"a\":1}"u8, sent.Headers.GetValues(InternalHeaders.Signature).Single())
             .ShouldBeTrue();
     }
 
@@ -100,7 +106,7 @@ public class InternalSignatureTests {
 
         var sent      = inner.Request!;
         var timestamp = long.Parse(sent.Headers.GetValues(InternalHeaders.Timestamp).Single());
-        InternalSignature.Verify("s3cret", "GET", "/internal/ping", timestamp, null, [],
+        InternalSignature.Verify("s3cret", "GET", "/internal/ping", timestamp, null, null, [],
                                  sent.Headers.GetValues(InternalHeaders.Signature).Single()).ShouldBeTrue();
     }
 

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using ERP.Domain.Platform;
 using ERP.Infrastructure.Data;
 using ERP.Infrastructure.Internal;
@@ -24,7 +24,8 @@ public class InternalApiTests : TestBase {
                                              string     caller         = InternalProbes.TestCaller,
                                              string     secret         = InternalProbes.Secret,
                                              string?    signedTenant   = "same",
-                                             string?    signedBody     = null
+                                             string?    signedBody     = null,
+                                             string?    signedKey      = "same"
     ) {
         var ts      = timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var tenantS = tenant?.ToString("D");
@@ -33,6 +34,7 @@ public class InternalApiTests : TestBase {
 
         var signature = InternalSignature.Compute(secret, method.Method, pathAndQuery, ts,
                                                   signedTenant == "same" ? tenantS : signedTenant,
+                                                  signedKey == "same" ? idempotencyKey : signedKey,
                                                   Encoding.UTF8.GetBytes(signedBody ?? body ?? ""));
         request.Headers.Add(InternalHeaders.Service,   caller);
         request.Headers.Add(InternalHeaders.Timestamp, ts.ToString());
@@ -112,6 +114,78 @@ public class InternalApiTests : TestBase {
     }
 
     [Test]
+    public async Task Internal_TamperedIdempotencyKey_Returns401() {
+        using var client = Client();
+        // İmza "k-signed" için atıldı, istek başka anahtarla gönderiliyor.
+        using var request = Signed(HttpMethod.Post, "/internal/test/counter", body: "{}", tenant: Tenant,
+                                   idempotencyKey: "k-sent", signedKey: "k-signed");
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+        InternalProbes.Counter.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task Internal_OversizeContentLength_Returns413() {
+        using var client  = Client();
+        var       big     = new string('a', 1_048_576 + 1);
+        using var request = Signed(HttpMethod.Post, "/internal/test/counter", body: big, tenant: Tenant, idempotencyKey: "big-1");
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.RequestEntityTooLarge);
+        (await response.ErrorCodeAsync()).ShouldBe("internal_body_too_large");
+        InternalProbes.Counter.ShouldBe(0);
+    }
+
+    [Test]
+    public async Task Internal_UnknownCallerWithBigBody_Returns401WithoutReadingBody() {
+        using var client  = Client();
+        var       big     = new string('a', 1_048_576 + 1);
+        using var request = Signed(HttpMethod.Post, "/internal/test/counter", body: big, tenant: Tenant, idempotencyKey: "big-2", caller: "nobody");
+        using var response = await client.SendAsync(request);
+
+        // Gövde sınırı kontrolünden (413) önce çağıran doğrulanır: bilinmeyen çağıran genel 401 alır.
+        response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
+    }
+
+    [Test]
+    public async Task Internal_StalePendingReservation_IsTakenOver() {
+        var body = "{\"a\":1}";
+        await using (var scope = Factory.Services.CreateAsyncScope()) {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.IdempotencyRecords.Add(new IdempotencyRecord {
+                Caller = "test", Key = "stale-1", TenantId = Tenant,
+                RequestHash = InternalAuthMiddleware.RequestHash("POST", "/internal/test/counter", Tenant.ToString("D"), Encoding.UTF8.GetBytes(body)),
+                Status = 0, ResponseJson = "", CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-10)
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = Client();
+        using var request = Signed(HttpMethod.Post, "/internal/test/counter", body: body, tenant: Tenant, idempotencyKey: "stale-1");
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        InternalProbes.Counter.ShouldBe(1);
+    }
+
+    [Test]
+    public async Task Internal_ParallelIdenticalWrites_ExecuteOnce() {
+        using var client = Client();
+        var tasks = Enumerable.Range(0, 8).Select(async _ => {
+                                                      using var request = Signed(HttpMethod.Post, "/internal/test/counter", body: "{\"a\":1}",
+                                                                                 tenant: Tenant, idempotencyKey: "race-1");
+                                                      using var response = await client.SendAsync(request);
+                                                      return response.StatusCode;
+                                                  });
+        var results = await Task.WhenAll(tasks);
+
+        InternalProbes.Counter.ShouldBe(1);
+        results.ShouldAllBe(s => s == HttpStatusCode.OK || s == HttpStatusCode.Conflict);
+        results.ShouldContain(HttpStatusCode.OK);
+    }
+
+    [Test]
     public async Task Internal_UnknownCallerOrWrongSecretOrMissingHeaders_Return401() {
         using var client = Client();
 
@@ -155,7 +229,7 @@ public class InternalApiTests : TestBase {
         bad.Headers.Add(InternalHeaders.Timestamp, ts.ToString());
         bad.Headers.Add(InternalHeaders.Tenant,    "bozuk");
         bad.Headers.Add(InternalHeaders.Signature,
-                        InternalSignature.Compute(InternalProbes.Secret, "GET", "/internal/test/whoami", ts, "bozuk", []));
+                        InternalSignature.Compute(InternalProbes.Secret, "GET", "/internal/test/whoami", ts, "bozuk", null, []));
         (await client.SendAsync(bad)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 

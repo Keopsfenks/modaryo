@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 
 namespace Modaryo.Internal;
@@ -20,16 +20,18 @@ public static class InternalClaimTypes {
 /// <summary>
 ///     İmza = hex(HMAC-SHA256(secret, "{METHOD}\n{pathAndQuery}\n{timestamp}\n{tenant}\n{sha256hex(body)}")).
 ///     {tenant} X-Modaryo-Tenant değeridir (yoksa boş); böylece tenant başlığı da imzalanır.
+///     {idempotencyKey} Idempotency-Key başlığıdır (yoksa boş); anahtar da imzalanır.
 /// </summary>
 public static class InternalSignature {
     public static string CanonicalString(string             method,
                                          string             pathAndQuery,
                                          long               timestamp,
                                          string?            tenant,
+                                         string?            idempotencyKey,
                                          ReadOnlySpan<byte> body
     ) {
         var bodyHash = Convert.ToHexStringLower(SHA256.HashData(body));
-        return $"{method}\n{pathAndQuery}\n{timestamp}\n{tenant}\n{bodyHash}";
+        return $"{method}\n{pathAndQuery}\n{timestamp}\n{tenant}\n{idempotencyKey}\n{bodyHash}";
     }
 
     public static string Compute(string             secret,
@@ -37,9 +39,10 @@ public static class InternalSignature {
                                  string             pathAndQuery,
                                  long               timestamp,
                                  string?            tenant,
+                                 string?            idempotencyKey,
                                  ReadOnlySpan<byte> body
     ) {
-        return Convert.ToHexStringLower(ComputeBytes(secret, method, pathAndQuery, timestamp, tenant, body));
+        return Convert.ToHexStringLower(ComputeBytes(secret, method, pathAndQuery, timestamp, tenant, idempotencyKey, body));
     }
 
     /// <summary>İmzayı sabit zamanlı karşılaştırır; bozuk onaltılık metin istisna değil false döner.</summary>
@@ -48,10 +51,11 @@ public static class InternalSignature {
                               string             pathAndQuery,
                               long               timestamp,
                               string?            tenant,
+                              string?            idempotencyKey,
                               ReadOnlySpan<byte> body,
                               string             signatureHex
     ) {
-        var expected = ComputeBytes(secret, method, pathAndQuery, timestamp, tenant, body);
+        var expected = ComputeBytes(secret, method, pathAndQuery, timestamp, tenant, idempotencyKey, body);
         if (signatureHex is null || !TryDecodeHex(signatureHex, out var actual)) return false;
 
         return CryptographicOperations.FixedTimeEquals(expected, actual);
@@ -62,9 +66,10 @@ public static class InternalSignature {
                                        string             pathAndQuery,
                                        long               timestamp,
                                        string?            tenant,
+                                       string?            idempotencyKey,
                                        ReadOnlySpan<byte> body
     ) {
-        var canonical = CanonicalString(method, pathAndQuery, timestamp, tenant, body);
+        var canonical = CanonicalString(method, pathAndQuery, timestamp, tenant, idempotencyKey, body);
         return HMACSHA256.HashData(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(canonical));
     }
 

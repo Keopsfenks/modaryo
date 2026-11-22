@@ -1,4 +1,4 @@
-namespace Modaryo.Internal;
+﻿namespace Modaryo.Internal;
 
 public enum IdempotencyOutcome {
     /// <summary>Anahtar bu istek için ayrıldı; istek çalıştırılmalı.</summary>
@@ -22,11 +22,15 @@ public sealed record IdempotencyReservation(
 
 /// <summary>Idempotency kayıtlarının deposu; servis uygular (ERP: PostgreSQL). Anahtar: (Caller, Key).</summary>
 public interface IInternalIdempotencyStore {
-    /// <summary>Önce bekleyen kaydı ekler (yarışa karşı güvenli); varsa mevcut kaydın durumunu döndürür.</summary>
+    /// <summary>
+    ///     Önce bekleyen kaydı ekler (yarışa karşı güvenli); varsa mevcut kaydın durumunu döndürür.
+    ///     <paramref name="pendingTimeout" /> süresinden eski, aynı özetli bekleyen kayıt silinip yeniden ayrılır (en çok bir kez).
+    /// </summary>
     Task<IdempotencyReservation> ReserveAsync(string            caller,
                                               string            key,
                                               Guid              tenantId,
                                               string            requestHash,
+                                              TimeSpan          pendingTimeout,
                                               CancellationToken ct);
 
     Task CompleteAsync(string caller, string key, int status, string responseJson, CancellationToken ct);

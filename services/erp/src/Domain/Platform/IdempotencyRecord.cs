@@ -1,4 +1,4 @@
-namespace ERP.Domain.Platform;
+﻿namespace ERP.Domain.Platform;
 
 /// <summary>
 ///     İç API yazma isteklerinin idempotency kaydı. Anahtar (Caller, Key). Status 0: istek hâlâ işleniyor

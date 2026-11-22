@@ -1,4 +1,4 @@
-# Sözleşmeler (contracts)
+﻿# Sözleşmeler (contracts)
 
 Servisler arası ortak sözleşme belgeleri. Python/Go servisleri bu klasörü esas alır.
 
@@ -39,8 +39,8 @@ Tarayıcıda yalnızca `modaryo_sid` cookie'si vardır. Kaydı yalnızca kimlik 
 
 Servisten servise (Go/Python → ERP) imzalı HTTP çağrıları. Yol öneki `/internal/*`; Next.js üzerinden asla yönlendirilmez.
 Oturum ve CSRF başlığı kuralından muaftır, oturum cookie'siyle erişilemez. Bilinen test vektörü: `fixtures/internal-signature-v1.json`
-(`secret`, `method`, `pathAndQuery`, `timestamp`, `tenant`, `body` girdileri; `bodySha256Hex`, `canonicalString`, `signatureHex` beklenen değerler).
-Kütüphane: `libs/dotnet/Modaryo.Internal`; Go uygulaması aynı vektörü kullanır.
+(`secret`, `method`, `pathAndQuery`, `timestamp`, `tenant`, `idempotencyKey`, `body` girdileri; `bodySha256Hex`, `canonicalString`, `signatureHex` beklenen değerler).
+Kütüphane: `libs/dotnet/Modaryo.Internal`; Go uygulaması aynı vektörü kullanır. Vektör dosyası bilerek BOM'suz UTF-8'dir (Go'nun JSON çözücüsü BOM'u reddeder); düzenlerken BOM eklemeyin.
 
 ### Başlıklar
 
@@ -50,18 +50,20 @@ Kütüphane: `libs/dotnet/Modaryo.Internal`; Go uygulaması aynı vektörü kull
 | `X-Modaryo-Timestamp` | Unix saniye (UTC); zorunlu |
 | `X-Modaryo-Signature` | Küçük harfli onaltılık HMAC-SHA256; zorunlu |
 | `X-Modaryo-Tenant` | Firma UUID; `/internal/ping` dışındaki tüm yollarda zorunlu. İmzaya dahildir |
-| `Idempotency-Key` | GET/HEAD dışındaki tüm isteklerde zorunlu (en çok 200 karakter) |
+| `Idempotency-Key` | GET/HEAD dışındaki tüm isteklerde zorunlu (en çok 200 karakter). İmzaya dahildir |
 
 ### İmza
 
 ```
 signature = hex( HMAC-SHA256( secret, canonical ) )
-canonical = "{METHOD}\n{pathAndQuery}\n{timestamp}\n{tenant}\n{sha256hex(body)}"
+canonical = "{METHOD}\n{pathAndQuery}\n{timestamp}\n{tenant}\n{idempotencyKey}\n{sha256hex(body)}"
 ```
 
 - `METHOD` büyük harfli (`GET`, `POST`...). `pathAndQuery` istemcinin gönderdiği ham yol + sorgu dizesidir (örn. `/internal/ping?x=1`); sunucu da ham istek hedefini kullanır.
 - `tenant`: `X-Modaryo-Tenant` değeri, başlık yoksa boş metin. Böylece tenant başlığı değiştirilemez.
+- `idempotencyKey`: `Idempotency-Key` başlığı değeri, başlık yoksa (örn. GET) boş metin. Böylece anahtar da değiştirilemez.
 - `sha256hex(body)`: istek gövdesinin (ham bayt, gövde yoksa boş) küçük harfli onaltılık SHA-256'sı.
+- Gövde en çok 1 MiB olabilir (`Internal:MaxBodyBytes`); aşılırsa `413 internal_body_too_large`. Başlıkları eksik, bilinmeyen çağıranlı veya zaman damgası eski istekte gövde okunmadan 401 döner.
 - Sunucu imzayı sabit zamanlı karşılaştırır. Zaman sapması: en çok ±300 sn (`Internal:MaxSkewSeconds`).
 
 ### Yapılandırma (ERP)
@@ -75,6 +77,7 @@ Geliştirme sırları yalnızca `appsettings.Development.json` içindedir; kodda
 - İstek özeti = SHA-256(`method \n pathAndQuery \n tenant \n body`). İstek çalışmadan önce bekleyen kayıt eklenir.
 - Aynı anahtar + aynı özet, tamamlanmışsa: kayıtlı durum ve gövde aynen döner (istek yeniden çalıştırılmaz).
 - Aynı anahtar + farklı özet: `409 idempotency_conflict`. Aynı anahtar + aynı özet ama istek hâlâ işleniyor: `409 idempotency_conflict` (ileti, işlendiğini söyler).
+- Bekleyen kayıt 5 dakikadan (`Internal:PendingTimeoutSeconds`) eskiyse (işleyen süreç çökmüş olabilir) aynı çağıran, anahtar ve özetle gelen yeni istek kaydı devralır; daha tazeyse 409.
 - Yanıt durumu < 500 ise saklanır (4xx dahil); 5xx veya istisnada kayıt silinir, aynı anahtarla yeniden denenebilir. Kayıtlar 7 gün sonra silinir.
 
 ### Hatalar (ProblemDetails, `code` alanı)
@@ -85,6 +88,7 @@ Geliştirme sırları yalnızca `appsettings.Development.json` içindedir; kodda
 | 403 | `internal_forbidden` | Çağıran doğrulandı ama yol izinli öneklerinden birinde değil |
 | 400 | `internal_tenant_invalid` | `X-Modaryo-Tenant` eksik (ping hariç) veya geçerli UUID değil |
 | 400 | `idempotency_key_required` | Yazma isteğinde `Idempotency-Key` yok |
+| 413 | `internal_body_too_large` | Gövde `MaxBodyBytes` sınırını aşıyor (Content-Length veya okunan bayt) |
 | 409 | `idempotency_conflict` | Anahtar başka bir istekle kullanılmış veya istek hâlâ işleniyor |
 
 ### Kimlik

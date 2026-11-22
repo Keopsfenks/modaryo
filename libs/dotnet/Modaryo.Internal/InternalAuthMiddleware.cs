@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -14,16 +14,18 @@ namespace Modaryo.Internal;
 ///     "/internal/*" istekleri için: HMAC imzası + zaman aşımı doğrulaması, çağıranın yol izni, tenant başlığı
 ///     ve yazma isteklerinde idempotency. Doğrulanan istekte kimlik yalnızca servis adı ve tenant'tır
 ///     (kullanıcı, izin ve modül yoktur).
+///     Gövde okunmadan önce gövdesiz kontroller (başlıklar, çağıran, sır, zaman sapması, gövde sınırı) yapılır.
 /// </summary>
 public sealed class InternalAuthMiddleware(
-    RequestDelegate             next,
-    IOptions<InternalOptions>   options,
-    TimeProvider                time
+    RequestDelegate           next,
+    IOptions<InternalOptions> options,
+    TimeProvider              time
 ) {
     public const string AuthenticationType = "ModaryoInternal";
     public const string UnauthorizedCode   = "internal_unauthorized";
     public const string ForbiddenCode      = "internal_forbidden";
     public const string TenantInvalidCode  = "internal_tenant_invalid";
+    public const string BodyTooLargeCode   = "internal_body_too_large";
     public const string KeyRequiredCode    = "idempotency_key_required";
     public const string ConflictCode       = "idempotency_conflict";
     public const string PingPath           = "/internal/ping";
@@ -35,8 +37,16 @@ public sealed class InternalAuthMiddleware(
         return path.StartsWithSegments("/internal", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>İstek özeti: SHA-256(method \n pathAndQuery \n tenant \n body), küçük harfli onaltılık.</summary>
+    public static string RequestHash(string method, string pathAndQuery, string tenant, ReadOnlySpan<byte> body) {
+        using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        sha.AppendData(Encoding.UTF8.GetBytes($"{method}\n{pathAndQuery}\n{tenant}\n"));
+        sha.AppendData(body);
+        return Convert.ToHexStringLower(sha.GetHashAndReset());
+    }
+
     public async Task InvokeAsync(HttpContext context) {
-        if (!InternalAuthMiddleware.IsInternalPath(context.Request.Path)) {
+        if (!IsInternalPath(context.Request.Path)) {
             await next(context);
             return;
         }
@@ -44,20 +54,46 @@ public sealed class InternalAuthMiddleware(
         // Oturum kimliği iç yollarda geçerli sayılmaz; imza doğrulanana kadar anonim.
         context.User = new ClaimsPrincipal(new ClaimsIdentity());
 
-        var request      = context.Request;
-        var pathAndQuery = RawPathAndQuery(context);
+        var request = context.Request;
+        var opts    = options.Value;
 
-        var body = await ReadBodyAsync(request, context.RequestAborted);
-
-        var tenantHeader = request.Headers[InternalHeaders.Tenant].ToString();
-        var caller       = Authenticate(request, pathAndQuery, tenantHeader, body);
-        if (caller is null) {
-            await Problem(context, StatusCodes.Status401Unauthorized, UnauthorizedCode, "Kimlik doğrulanamadı.",
-                          "İç API isteği doğrulanamadı.");
+        // Gövdesiz ön kontroller: hepsi aynı genel 401.
+        var pre = PreAuthenticate(request, opts);
+        if (pre is null) {
+            await Unauthorized(context);
             return;
         }
 
-        var (service, config) = caller.Value;
+        var (service, config, timestamp, signature) = pre.Value;
+
+        // Gövde sınırı: imza henüz doğrulanmadı ama çağıran bilinen ve zaman damgası taze; yine de sınırlı oku.
+        var max = opts.MaxBodyBytes;
+        if (context.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } sizeFeature)
+            sizeFeature.MaxRequestBodySize = max;
+
+        if (request.ContentLength > max) {
+            await BodyTooLarge(context);
+            return;
+        }
+
+        var body = await ReadBodyAsync(request, max, context.RequestAborted);
+        if (body is null) {
+            await BodyTooLarge(context);
+            return;
+        }
+
+        var pathAndQuery   = RawPathAndQuery(context);
+        var tenantHeader   = request.Headers[InternalHeaders.Tenant].ToString();
+        var idempotencyKey = request.Headers[InternalHeaders.IdempotencyKey].ToString();
+
+        var valid = InternalSignature.Verify(config.Secret, request.Method, pathAndQuery, timestamp,
+                                             tenantHeader.Length == 0 ? null : tenantHeader,
+                                             idempotencyKey.Length == 0 ? null : idempotencyKey, body, signature);
+        if (!valid) {
+            await Unauthorized(context);
+            return;
+        }
+
         if (!IsRouteAllowed(config, request.Path)) {
             await Problem(context, StatusCodes.Status403Forbidden, ForbiddenCode, "İstek reddedildi.",
                           "Bu servis bu yola erişemez.");
@@ -89,13 +125,14 @@ public sealed class InternalAuthMiddleware(
             return;
         }
 
-        await RunIdempotentAsync(context, service, tenantId.Value, pathAndQuery, tenantHeader, body);
+        await RunIdempotentAsync(context, service, tenantId.Value, pathAndQuery, tenantHeader, idempotencyKey, body,
+                                 TimeSpan.FromSeconds(opts.PendingTimeoutSeconds));
     }
 
-    private (string Service, InternalCaller Config)? Authenticate(HttpRequest request,
-                                                                  string      pathAndQuery,
-                                                                  string      tenant,
-                                                                  byte[]      body
+    /// <summary>Başlıklar, bilinen çağıran, boş olmayan sır ve zaman sapması; gövde ve imza okunmaz.</summary>
+    private (string Service, InternalCaller Config, long Timestamp, string Signature)? PreAuthenticate(
+        HttpRequest     request,
+        InternalOptions opts
     ) {
         var service      = request.Headers[InternalHeaders.Service].ToString();
         var timestampRaw = request.Headers[InternalHeaders.Timestamp].ToString();
@@ -105,14 +142,11 @@ public sealed class InternalAuthMiddleware(
             !long.TryParse(timestampRaw, NumberStyles.None, CultureInfo.InvariantCulture, out var timestamp))
             return null;
 
-        var opts = options.Value;
         if (!opts.Callers.TryGetValue(service, out var config) || string.IsNullOrEmpty(config.Secret)) return null;
 
         if (Math.Abs(time.GetUtcNow().ToUnixTimeSeconds() - timestamp) > opts.MaxSkewSeconds) return null;
 
-        var valid = InternalSignature.Verify(config.Secret, request.Method, pathAndQuery, timestamp,
-                                             tenant.Length == 0 ? null : tenant, body, signature);
-        return valid ? (service, config) : null;
+        return (service, config, timestamp, signature);
     }
 
     private async Task RunIdempotentAsync(HttpContext context,
@@ -120,9 +154,10 @@ public sealed class InternalAuthMiddleware(
                                           Guid        tenantId,
                                           string      pathAndQuery,
                                           string      tenantHeader,
-                                          byte[]      body
+                                          string      key,
+                                          byte[]      body,
+                                          TimeSpan    pendingTimeout
     ) {
-        var key = context.Request.Headers[InternalHeaders.IdempotencyKey].ToString();
         if (key.Length == 0 || key.Length > MaxIdempotencyKeyLength) {
             await Problem(context, StatusCodes.Status400BadRequest, KeyRequiredCode, "Geçersiz istek.",
                           $"Yazma istekleri için '{InternalHeaders.IdempotencyKey}' başlığı zorunludur.");
@@ -133,7 +168,7 @@ public sealed class InternalAuthMiddleware(
         var hash  = RequestHash(context.Request.Method, pathAndQuery, tenantHeader, body);
         var ct    = context.RequestAborted;
 
-        var reservation = await store.ReserveAsync(caller, key, tenantId, hash, ct);
+        var reservation = await store.ReserveAsync(caller, key, tenantId, hash, pendingTimeout, ct);
         switch (reservation.Outcome) {
             case IdempotencyOutcome.Conflict:
                 await Problem(context, StatusCodes.Status409Conflict, ConflictCode, "Çakışma.",
@@ -154,7 +189,7 @@ public sealed class InternalAuthMiddleware(
         }
 
         var original = context.Response.Body;
-        var buffer   = new MemoryStream();
+        await using var buffer = new MemoryStream();
         context.Response.Body = buffer;
         var completed = false;
         try {
@@ -176,14 +211,6 @@ public sealed class InternalAuthMiddleware(
             // 5xx veya istisna: ayrılan kayıt silinir ki aynı anahtarla yeniden deneme çalışabilsin.
             if (!completed) await store.ReleaseAsync(caller, key, CancellationToken.None);
         }
-    }
-
-    private static string RequestHash(string method, string pathAndQuery, string tenant, byte[] body) {
-        var head = Encoding.UTF8.GetBytes($"{method}\n{pathAndQuery}\n{tenant}\n");
-        using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        sha.AppendData(head);
-        sha.AppendData(body);
-        return Convert.ToHexStringLower(sha.GetHashAndReset());
     }
 
     private static bool IsRouteAllowed(InternalCaller caller, PathString path) {
@@ -217,12 +244,35 @@ public sealed class InternalAuthMiddleware(
                context.Request.QueryString.ToUriComponent();
     }
 
-    private static async Task<byte[]> ReadBodyAsync(HttpRequest request, CancellationToken ct) {
+    /// <summary>Gövdeyi en çok <paramref name="max" /> bayt okur ve başa sarar; sınır aşılırsa null.</summary>
+    private static async Task<byte[]?> ReadBodyAsync(HttpRequest request, long max, CancellationToken ct) {
         request.EnableBuffering();
-        using var memory = new MemoryStream();
-        await request.Body.CopyToAsync(memory, ct);
+        await using var memory = new MemoryStream();
+        var             chunk  = new byte[16 * 1024];
+        int             read;
+        try {
+            while ((read = await request.Body.ReadAsync(chunk, ct)) > 0) {
+                if (memory.Length + read > max) return null;
+
+                memory.Write(chunk, 0, read);
+            }
+        }
+        catch (Microsoft.AspNetCore.Http.BadHttpRequestException e) when (e.StatusCode == StatusCodes.Status413PayloadTooLarge) {
+            return null;
+        }
+
         request.Body.Position = 0;
         return memory.ToArray();
+    }
+
+    private static Task Unauthorized(HttpContext context) {
+        return Problem(context, StatusCodes.Status401Unauthorized, UnauthorizedCode, "Kimlik doğrulanamadı.",
+                       "İç API isteği doğrulanamadı.");
+    }
+
+    private static Task BodyTooLarge(HttpContext context) {
+        return Problem(context, StatusCodes.Status413PayloadTooLarge, BodyTooLargeCode, "İstek çok büyük.",
+                       "İç API istek gövdesi izin verilen boyutu aşıyor.");
     }
 
     private static Task Problem(HttpContext context, int status, string code, string title, string detail) {
