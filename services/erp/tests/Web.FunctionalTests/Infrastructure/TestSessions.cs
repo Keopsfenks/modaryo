@@ -13,4 +13,14 @@ public static class TestSessions
         var sid = await ContractSessions.StoreAsync(record);
         return factory.CreateClientWithSession(sid);
     }
+
+    /// <summary>Aktif firması olmayan (tenant_id null) oturumla istemci üretir.</summary>
+    public static async Task<HttpClient> ClientWithoutTenantAsync(this ErpApiFactory factory, params string[] permissions)
+    {
+        var record = ContractSessions.Example();
+        record["tenant_id"] = null;
+        record["permissions"] = new JsonArray(permissions.Select(p => (JsonNode?)JsonValue.Create(p)).ToArray());
+        var sid = await ContractSessions.StoreAsync(record);
+        return factory.CreateClientWithSession(sid);
+    }
 }

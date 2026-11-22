@@ -1,0 +1,134 @@
+using ERP.Application.Common.Interfaces;
+using ERP.Application.Common.Security;
+using ERP.Domain.CurrentAccounts;
+
+namespace ERP.Application.CurrentAccounts.Commands;
+
+[Authorize(Permission = CariPermissions.Manage)]
+public sealed record CreateCurrentAccountCommand : IRequest<CurrentAccountDto>, ICardFields
+{
+    public string Code { get; init; } = string.Empty;
+
+    public string Name { get; init; } = string.Empty;
+
+    public AccountKind Kind { get; init; }
+
+    public string? TaxNumber { get; init; }
+
+    public string? TaxOffice { get; init; }
+
+    public bool IsEInvoiceTaxpayer { get; init; }
+
+    public bool IsCustomer { get; init; }
+
+    public bool IsSupplier { get; init; }
+
+    public string? Phone { get; init; }
+
+    public string? Email { get; init; }
+
+    public string? Notes { get; init; }
+
+    public string Currency { get; init; } = "TRY";
+
+    public int DefaultDueDays { get; init; } = 30;
+
+    public decimal? CreditLimit { get; init; }
+
+    public AddressInput? Address { get; init; }
+
+    public OpeningBalanceInput? OpeningBalance { get; init; }
+}
+
+public sealed class CreateCurrentAccountCommandValidator : AbstractValidator<CreateCurrentAccountCommand>
+{
+    public CreateCurrentAccountCommandValidator()
+    {
+        this.AddCardRules();
+
+        RuleFor(c => c.Address!.Title).NotEmpty().MaximumLength(100)
+            .WithMessage("Adres başlığı 1 ile 100 karakter arasında olmalıdır.").When(c => c.Address is not null);
+        RuleFor(c => c.Address!.Line).NotEmpty().MaximumLength(500)
+            .WithMessage("Adres 1 ile 500 karakter arasında olmalıdır.").When(c => c.Address is not null);
+        RuleFor(c => c.Address!).Must(a => a.IsBilling || a.IsShipping)
+            .WithMessage("Adres fatura veya sevk adresi olarak işaretlenmelidir.").When(c => c.Address is not null);
+
+        RuleFor(c => c.OpeningBalance!.Amount).GreaterThan(0m).LessThanOrEqualTo(CardRules.MaxAmount)
+            .WithMessage("Açılış tutarı 0 değerinden büyük ve 999.999.999.999,99 değerinden küçük olmalıdır.")
+            .When(c => c.OpeningBalance is not null);
+        RuleFor(c => c.OpeningBalance!.Direction)
+            .Must(d => d is "debit" or "credit").WithMessage("Açılış yönü borç (debit) veya alacak (credit) olmalıdır.")
+            .When(c => c.OpeningBalance is not null);
+        RuleFor(c => c.OpeningBalance!.Date).NotEqual(default(DateOnly)).WithMessage("Açılış tarihi zorunludur.")
+            .When(c => c.OpeningBalance is not null);
+    }
+}
+
+public sealed class CreateCurrentAccountCommandHandler(IApplicationDbContext db, TimeProvider time)
+    : IRequestHandler<CreateCurrentAccountCommand, CurrentAccountDto>
+{
+    public async Task<CurrentAccountDto> Handle(CreateCurrentAccountCommand request, CancellationToken ct)
+    {
+        var code = request.Code.Trim();
+        var taxNumber = CardRules.Clean(request.TaxNumber);
+
+        if (await db.CurrentAccounts.AnyAsync(a => a.Code == code, ct))
+        {
+            throw CariErrors.CodeTaken();
+        }
+
+        if (taxNumber is not null && await db.CurrentAccounts.AnyAsync(a => a.TaxNumber == taxNumber, ct))
+        {
+            throw CariErrors.TaxNumberTaken();
+        }
+
+        var account = new CurrentAccount();
+        CardRules.Apply(account, request);
+        db.CurrentAccounts.Add(account);
+
+        if (request.Address is { } input)
+        {
+            db.CurrentAccountAddresses.Add(new CurrentAccountAddress
+            {
+                CurrentAccountId = account.Id,
+                Title = input.Title.Trim(),
+                Line = input.Line.Trim(),
+                District = CardRules.Clean(input.District),
+                City = CardRules.Clean(input.City),
+                PostalCode = CardRules.Clean(input.PostalCode),
+                Country = CardRules.Clean(input.Country) ?? "Türkiye",
+                IsBilling = input.IsBilling,
+                IsShipping = input.IsShipping,
+                IsDefaultBilling = input.IsBilling,
+                IsDefaultShipping = input.IsShipping,
+            });
+        }
+
+        if (request.OpeningBalance is { } opening)
+        {
+            var debit = opening.Direction == "debit";
+            db.LedgerEntries.Add(new LedgerEntry
+            {
+                CurrentAccountId = account.Id,
+                Type = LedgerEntryType.Opening,
+                Source = LedgerEntrySource.Manual,
+                Date = opening.Date,
+                Description = "Açılış bakiyesi",
+                Debit = debit ? opening.Amount : 0,
+                Credit = debit ? 0 : opening.Amount,
+                Currency = account.Currency,
+            });
+        }
+
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (CariErrors.FromUniqueViolation(ex) is { } conflict)
+        {
+            throw conflict;
+        }
+
+        return await CurrentAccountReader.GetDtoAsync(db, account.Id, CurrentAccountClock.Today(time), ct);
+    }
+}

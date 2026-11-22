@@ -22,11 +22,4 @@ public class MigrationTests : TestBase
         tables.ShouldContain("current_account_addresses");
         tables.ShouldContain("ledger_entries");
     }
-
-    [Test]
-    [Ignore("Task 4")]
-    public void AppException_MapsToProblemWithCode()
-    {
-        // Task 4'teki Create_DuplicateCode_Returns409CodeTaken ile tamamlanır.
-    }
 }

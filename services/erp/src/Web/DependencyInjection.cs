@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Azure.Identity;
 using ERP.Application.Common.Interfaces;
 using ERP.Infrastructure.Data;
@@ -30,6 +32,10 @@ public static class DependencyInjection
         });
 
         builder.Services.AddHttpContextAccessor();
+
+        // Enum'lar JSON'da camelCase string ("corporate", "opening").
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)));
 
         builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
 
