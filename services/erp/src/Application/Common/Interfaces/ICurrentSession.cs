@@ -1,4 +1,4 @@
-namespace ERP.Application.Common.Interfaces;
+﻿namespace ERP.Application.Common.Interfaces;
 
 /// <summary>İsteği yapan oturum (Valkey'deki kayıttan). Oturum yoksa UserId null.</summary>
 public interface ICurrentSession {
@@ -18,4 +18,7 @@ public interface ICurrentSession {
     string? UserAgent { get; }
 
     bool HasPermission(string permission);
+
+    /// <summary>Modül anahtarı firmada açık mı?</summary>
+    bool HasModule(string key);
 }

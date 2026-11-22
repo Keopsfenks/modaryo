@@ -51,7 +51,7 @@ public sealed class SessionAuthenticationHandler(
 
         if (record.CariId is { } cariId) claims.Add(new Claim(SessionClaimTypes.CariId, cariId.ToString("D")));
 
-        claims.AddRange(record.Modules.Select(m => new Claim(SessionClaimTypes.Module, m)));
+        claims.AddRange((record.Modules ?? []).Select(m => new Claim(SessionClaimTypes.Module, m)));
 
         if (record.BranchIds is null)
             claims.Add(new Claim(SessionClaimTypes.Branch, SessionKeys.AllBranches));
@@ -60,7 +60,7 @@ public sealed class SessionAuthenticationHandler(
 
         if (record.TenantId is { } tenantId) claims.Add(new Claim(SessionClaimTypes.TenantId, tenantId.ToString("D")));
 
-        claims.AddRange(record.Permissions.Select(p => new Claim(SessionClaimTypes.Permission, p)));
+        claims.AddRange((record.Permissions ?? []).Select(p => new Claim(SessionClaimTypes.Permission, p)));
 
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name));
         return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));

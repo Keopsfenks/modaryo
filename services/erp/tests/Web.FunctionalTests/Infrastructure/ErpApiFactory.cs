@@ -17,7 +17,10 @@ public class ErpApiFactory(
         builder.UseEnvironment("Development");
         builder.UseSetting($"ConnectionStrings:{Shared.Services.Database}", connectionString);
         builder.UseSetting("ConnectionStrings:Valkey",                      ValkeyConnectionString);
-        builder.ConfigureTestServices(services => services.AddSingleton<IStartupFilter, LoopbackClientStartupFilter>());
+        builder.ConfigureTestServices(services => {
+                                          services.AddSingleton<IStartupFilter, LoopbackClientStartupFilter>();
+                                          Platform.GuardProbes.Register(services);
+                                      });
     }
 
     /// <summary>Verilen oturum kimliğini cookie olarak gönderen, CSRF başlığı ekli istemci.</summary>

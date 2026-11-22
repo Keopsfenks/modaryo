@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
@@ -7,6 +7,7 @@ namespace ERP.Application.Common.Behaviours;
 
 /// <summary>
 ///     [Authorize] taşıyan isteklerde: oturum yoksa 401; izin istenmiş ve aktif firma yoksa ya da izin yoksa 403.
+///     [RequireModule] taşıyan isteklerde modül kapalıysa 403 "module_disabled".
 /// </summary>
 public class AuthorizationBehaviour<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull {
@@ -29,6 +30,10 @@ public class AuthorizationBehaviour<TRequest, TResponse> : IPipelineBehavior<TRe
                 if (_session.TenantId is null || !_session.HasPermission(permission))
                     throw new ForbiddenAccessException();
         }
+
+        foreach (var module in request.GetType().GetCustomAttributes<RequireModuleAttribute>())
+            if (!_session.HasModule(module.ModuleKey))
+                throw new AppException(403, "module_disabled", "Bu modül firmanızda kapalı.");
 
         return await next();
     }

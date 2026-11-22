@@ -89,7 +89,19 @@ public class TenantFilterTests {
     private sealed class FixedTenant(
         Guid? tenantId
     ) : ICurrentTenant {
-        public Guid? TenantId => tenantId;
+        public Guid?                  TenantId           => tenantId;
+        public Guid?                  UserId             => null;
+        public string?                UserFullName       => null;
+        public IReadOnlyList<Guid>?   BranchIds          => [];
+        public decimal                MaxDiscountPercent => 0m;
+
+        public bool HasModule(string key) {
+            return false;
+        }
+
+        public bool CanAccessBranch(Guid branchId) {
+            return false;
+        }
     }
 
     private sealed class TestDbContext(

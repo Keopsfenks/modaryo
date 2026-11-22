@@ -74,6 +74,24 @@ public class PipelineTests
     }
 
     [Test]
+    public async Task Handler_NullModules_TreatedAsEmpty()
+    {
+        var record = ValkeyFixture.NewRecord(DateTimeOffset.UtcNow, TimeSpan.FromHours(24));
+        var json = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(record, SessionRecord.Json))!.AsObject();
+        json["modules"] = null;
+        json["permissions"] = null;
+        var sid = await ValkeyFixture.StoreAsync(json.ToJsonString(), TimeSpan.FromHours(8));
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/whoami");
+        request.Headers.Add("Cookie", $"{SessionKeys.CookieName}={sid}");
+        using var response = await _client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        body.RootElement.GetProperty("permissions").GetArrayLength().ShouldBe(0);
+    }
+
+    [Test]
     public async Task Handler_NoCookie_Returns401()
     {
         using var response = await _client.GetAsync("/whoami");
