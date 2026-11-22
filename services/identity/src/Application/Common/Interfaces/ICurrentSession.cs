@@ -7,6 +7,9 @@ public interface ICurrentSession
 
     Guid? TenantId { get; }
 
+    /// <summary>Oturum kaydındaki ad (denetim kaydında işlemi yapan olarak yazılır).</summary>
+    string? FullName { get; }
+
     string? SidHash { get; }
 
     /// <summary>Aktif oturumlar ekranındaki kimlik.</summary>

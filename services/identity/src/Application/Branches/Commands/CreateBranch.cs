@@ -1,3 +1,4 @@
+using IdentityService.Application.Audit;
 using IdentityService.Application.Common.Interfaces;
 using IdentityService.Application.Common.Security;
 using IdentityService.Application.Companies;
@@ -23,7 +24,7 @@ public class CreateBranchCommandValidator : AbstractValidator<CreateBranchComman
     }
 }
 
-public class CreateBranchCommandHandler(IApplicationDbContext db, CompanyAccess access, BranchRules rules, TimeProvider time)
+public class CreateBranchCommandHandler(IApplicationDbContext db, CompanyAccess access, BranchRules rules, TimeProvider time, IAuditLog audit)
     : IRequestHandler<CreateBranchCommand, BranchDto>
 {
     public async Task<BranchDto> Handle(CreateBranchCommand request, CancellationToken ct)
@@ -40,6 +41,7 @@ public class CreateBranchCommandHandler(IApplicationDbContext db, CompanyAccess 
             CreatedAt = time.GetUtcNow(),
         };
         db.Branches.Add(branch);
+        audit.Record(AuditActions.BranchCreated, AuditEntities.Branch, branch.Id.ToString(), null, AuditSnapshots.Branch(branch));
         await rules.SaveCodeChangeAsync(code, null, ct);
         return BranchRules.ToDto(branch);
     }

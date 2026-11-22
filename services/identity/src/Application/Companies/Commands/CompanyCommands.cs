@@ -1,3 +1,4 @@
+using IdentityService.Application.Audit;
 using IdentityService.Application.Common.Interfaces;
 using IdentityService.Application.Common.Security;
 using IdentityService.Domain.Constants;
@@ -98,7 +99,7 @@ public record ChangeMemberRoleCommand : IRequest
     public Guid RoleId { get; init; }
 }
 
-public class ChangeMemberRoleCommandHandler(IApplicationDbContext db, CompanyAccess access, MembershipChanges changes, Roles.RoleRules roleRules)
+public class ChangeMemberRoleCommandHandler(IApplicationDbContext db, CompanyAccess access, MembershipChanges changes, Roles.RoleRules roleRules, IAuditLog audit)
     : IRequestHandler<ChangeMemberRoleCommand>
 {
     public async Task Handle(ChangeMemberRoleCommand request, CancellationToken ct)
@@ -119,6 +120,8 @@ public class ChangeMemberRoleCommandHandler(IApplicationDbContext db, CompanyAcc
         roleRules.EnsureRoleAssignable(newRole);
         await access.EnsureNotLastOwnerAsync(target, ct);
 
+        audit.Record(AuditActions.MemberRoleChanged, AuditEntities.Member, target.UserId.ToString(),
+            AuditSnapshots.MemberRole(target.RoleId, target.Role.Name), AuditSnapshots.MemberRole(newRole.Id, newRole.Name));
         target.RoleId = newRole.Id;
         await db.SaveChangesAsync(ct);
         await changes.OnRoleChangedAsync(target.UserId, target.TenantId, ct);
@@ -128,7 +131,7 @@ public class ChangeMemberRoleCommandHandler(IApplicationDbContext db, CompanyAcc
 [Authorize(Permission = Permissions.MembersManage)]
 public record RemoveMemberCommand(Guid UserId) : IRequest;
 
-public class RemoveMemberCommandHandler(IApplicationDbContext db, CompanyAccess access, MembershipChanges changes)
+public class RemoveMemberCommandHandler(IApplicationDbContext db, CompanyAccess access, MembershipChanges changes, IAuditLog audit)
     : IRequestHandler<RemoveMemberCommand>
 {
     public async Task Handle(RemoveMemberCommand request, CancellationToken ct)
@@ -142,6 +145,8 @@ public class RemoveMemberCommandHandler(IApplicationDbContext db, CompanyAccess 
 
         await access.EnsureNotLastOwnerAsync(target, ct);
 
+        audit.Record(AuditActions.MemberRemoved, AuditEntities.Member, target.UserId.ToString(),
+            AuditSnapshots.MemberRole(target.RoleId, target.Role.Name), null);
         db.Memberships.Remove(target);
         await db.SaveChangesAsync(ct);
         await changes.OnLeftAsync(target.UserId, target.TenantId, ct);

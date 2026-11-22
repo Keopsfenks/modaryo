@@ -1,3 +1,4 @@
+using IdentityService.Application.Audit.Queries;
 using IdentityService.Application.Branches;
 using IdentityService.Application.Branches.Commands;
 using IdentityService.Application.Branches.Queries;
@@ -40,6 +41,7 @@ public class Companies : IEndpointGroup
         groupBuilder.MapPost(CreateBranch, "current/branches");
         groupBuilder.MapPut(UpdateBranch, "current/branches/{id:guid}");
         groupBuilder.MapDelete(DeleteBranch, "current/branches/{id:guid}");
+        groupBuilder.MapGet(ListAudit, "current/audit");
         groupBuilder.MapGet(GetModules, "current/modules");
         groupBuilder.MapPut(SetModules, "current/modules");
         groupBuilder.MapGet(ListInvitations, "current/invitations");
@@ -47,6 +49,11 @@ public class Companies : IEndpointGroup
         groupBuilder.MapPost(ResendInvitation, "current/invitations/{id:guid}/resend");
         groupBuilder.MapDelete(RevokeInvitation, "current/invitations/{id:guid}");
     }
+
+    [EndpointSummary("Denetim kaydı")]
+    [EndpointDescription("denetim.read gerekir. Rol, modül, şube ve üye değişiklikleri önceki/sonraki değerleriyle, yeniden eskiye listelenir. pageSize varsayılan 50, en çok 200; entityType: role | modules | branch | member.")]
+    public static async Task<Ok<AuditPageDto>> ListAudit(ISender sender, int? page, int? pageSize, string? entityType) =>
+        TypedResults.Ok(await sender.Send(new ListAuditQuery { Page = page, PageSize = pageSize, EntityType = entityType }));
 
     [EndpointSummary("Firmanın modülleri")]
     [EndpointDescription("Tüm modül kataloğu; açık olanlar enabled=true ile işaretlidir.")]

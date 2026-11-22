@@ -40,6 +40,7 @@ public static class DependencyInjection
 
         builder.Services.AddModaryoIdentity(builder.Configuration);
         builder.Services.AddScoped<IUserAccounts, UserAccounts>();
+        builder.Services.AddScoped<IAuditLog, IdentityService.Infrastructure.Audit.AuditLog>();
 
         builder.Services.AddDataProtection()
             .SetApplicationName("Modaryo.Identity")

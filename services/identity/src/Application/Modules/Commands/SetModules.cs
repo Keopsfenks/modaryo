@@ -1,3 +1,4 @@
+using IdentityService.Application.Audit;
 using IdentityService.Application.Common.Exceptions;
 using IdentityService.Application.Common.Interfaces;
 using IdentityService.Application.Common.Security;
@@ -15,7 +16,7 @@ public record SetModulesCommand : IRequest<IReadOnlyList<ModuleDto>>
     public string[] Enabled { get; init; } = [];
 }
 
-public class SetModulesCommandHandler(IApplicationDbContext db, CompanyAccess access, MembershipChanges changes)
+public class SetModulesCommandHandler(IApplicationDbContext db, CompanyAccess access, MembershipChanges changes, IAuditLog audit)
     : IRequestHandler<SetModulesCommand, IReadOnlyList<ModuleDto>>
 {
     public async Task<IReadOnlyList<ModuleDto>> Handle(SetModulesCommand request, CancellationToken ct)
@@ -32,7 +33,9 @@ public class SetModulesCommandHandler(IApplicationDbContext db, CompanyAccess ac
         var tenant = await db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct)
             ?? throw new NotFoundException(tenantId.ToString(), "Company");
 
+        var before = AuditSnapshots.Modules(tenant.EnabledModules);
         tenant.EnabledModules = ModuleKeys.All.Select(m => m.Key).Where(requested.Contains).ToList();
+        audit.Record(AuditActions.ModulesUpdated, AuditEntities.Modules, tenantId.ToString(), before, AuditSnapshots.Modules(tenant.EnabledModules));
         await db.SaveChangesAsync(ct);
 
         await changes.RefreshTenantAsync(tenantId, ct);

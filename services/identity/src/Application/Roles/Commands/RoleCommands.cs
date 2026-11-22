@@ -1,3 +1,4 @@
+using IdentityService.Application.Audit;
 using IdentityService.Application.Common.Exceptions;
 using IdentityService.Application.Common.Interfaces;
 using IdentityService.Application.Common.Security;
@@ -46,7 +47,7 @@ public record CreateRoleCommand : RoleWriteBase, IRequest<RoleDto>
 
 public class CreateRoleCommandValidator : RoleWriteValidator<CreateRoleCommand>;
 
-public class CreateRoleCommandHandler(IApplicationDbContext db, CompanyAccess access, RoleRules rules, MembershipChanges changes)
+public class CreateRoleCommandHandler(IApplicationDbContext db, CompanyAccess access, RoleRules rules, MembershipChanges changes, IAuditLog audit)
     : IRequestHandler<CreateRoleCommand, RoleDto>
 {
     public async Task<RoleDto> Handle(CreateRoleCommand request, CancellationToken ct)
@@ -68,6 +69,7 @@ public class CreateRoleCommandHandler(IApplicationDbContext db, CompanyAccess ac
         RoleRules.ApplyPermissions(role, permissions);
         RoleRules.ApplyBranches(role, branchIds);
         db.TenantRoles.Add(role);
+        audit.Record(AuditActions.RoleCreated, AuditEntities.Role, role.Id.ToString(), null, AuditSnapshots.Role(role));
         await db.SaveChangesAsync(ct);
 
         await changes.OnRoleDefinitionChangedAsync(role.Id, ct);
@@ -83,7 +85,7 @@ public record UpdateRoleCommand : RoleWriteBase, IRequest<RoleDto>
 
 public class UpdateRoleCommandValidator : RoleWriteValidator<UpdateRoleCommand>;
 
-public class UpdateRoleCommandHandler(IApplicationDbContext db, RoleRules rules, MembershipChanges changes)
+public class UpdateRoleCommandHandler(IApplicationDbContext db, RoleRules rules, MembershipChanges changes, IAuditLog audit)
     : IRequestHandler<UpdateRoleCommand, RoleDto>
 {
     public async Task<RoleDto> Handle(UpdateRoleCommand request, CancellationToken ct)
@@ -105,11 +107,13 @@ public class UpdateRoleCommandHandler(IApplicationDbContext db, RoleRules rules,
         rules.EnsureScopeGrantable(discount, allBranches, branchIds,
             (role.MaxDiscountPercent, role.AllBranches, role.Branches.Select(b => b.BranchId).ToArray()));
 
+        var before = AuditSnapshots.Role(role);
         role.Name = name;
         role.MaxDiscountPercent = discount;
         role.AllBranches = allBranches;
         RoleRules.ApplyPermissions(role, permissions);
         RoleRules.ApplyBranches(role, branchIds);
+        audit.Record(AuditActions.RoleUpdated, AuditEntities.Role, role.Id.ToString(), before, AuditSnapshots.Role(role));
         await db.SaveChangesAsync(ct);
 
         await changes.OnRoleDefinitionChangedAsync(role.Id, ct);
@@ -120,7 +124,7 @@ public class UpdateRoleCommandHandler(IApplicationDbContext db, RoleRules rules,
 [Authorize(Permission = Domain.Constants.Permissions.RolesManage)]
 public record DeleteRoleCommand(Guid Id) : IRequest;
 
-public class DeleteRoleCommandHandler(IApplicationDbContext db, RoleRules rules, MembershipChanges changes, TimeProvider time)
+public class DeleteRoleCommandHandler(IApplicationDbContext db, RoleRules rules, MembershipChanges changes, TimeProvider time, IAuditLog audit)
     : IRequestHandler<DeleteRoleCommand>
 {
     public async Task Handle(DeleteRoleCommand request, CancellationToken ct)
@@ -142,6 +146,7 @@ public class DeleteRoleCommandHandler(IApplicationDbContext db, RoleRules rules,
         // Kapanmış (kabul/iptal/süresi dolmuş) davetler rolü tutmaya devam edemez.
         db.Invitations.RemoveRange(invitations);
         db.TenantRoles.Remove(role);
+        audit.Record(AuditActions.RoleDeleted, AuditEntities.Role, role.Id.ToString(), AuditSnapshots.Role(role), null);
         await db.SaveChangesAsync(ct);
 
         await changes.OnRoleDefinitionChangedAsync(role.Id, ct);
@@ -152,7 +157,7 @@ public class DeleteRoleCommandHandler(IApplicationDbContext db, RoleRules rules,
 [Authorize(Permission = Domain.Constants.Permissions.RolesManage)]
 public record ResetRoleCommand(Guid Id) : IRequest<RoleDto>;
 
-public class ResetRoleCommandHandler(IApplicationDbContext db, RoleRules rules, MembershipChanges changes)
+public class ResetRoleCommandHandler(IApplicationDbContext db, RoleRules rules, MembershipChanges changes, IAuditLog audit)
     : IRequestHandler<ResetRoleCommand, RoleDto>
 {
     public async Task<RoleDto> Handle(ResetRoleCommand request, CancellationToken ct)
@@ -167,7 +172,9 @@ public class ResetRoleCommandHandler(IApplicationDbContext db, RoleRules rules, 
         var defaults = SystemRoles.DefaultPermissions[role.SystemKey];
         rules.EnsureGrantable(defaults, role.Permissions.Select(p => p.Permission));
 
+        var before = AuditSnapshots.Role(role);
         RoleRules.ApplyPermissions(role, defaults);
+        audit.Record(AuditActions.RoleReset, AuditEntities.Role, role.Id.ToString(), before, AuditSnapshots.Role(role));
         await db.SaveChangesAsync(ct);
 
         await changes.OnRoleDefinitionChangedAsync(role.Id, ct);

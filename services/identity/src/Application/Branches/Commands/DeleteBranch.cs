@@ -1,3 +1,4 @@
+using IdentityService.Application.Audit;
 using IdentityService.Application.Common.Interfaces;
 using IdentityService.Application.Common.Security;
 using IdentityService.Application.Companies;
@@ -12,7 +13,7 @@ namespace IdentityService.Application.Branches.Commands;
 [Authorize(Permission = Permissions.SettingsBranches)]
 public record DeleteBranchCommand(Guid Id) : IRequest;
 
-public class DeleteBranchCommandHandler(IApplicationDbContext db, CompanyAccess access, BranchRules rules, MembershipChanges changes)
+public class DeleteBranchCommandHandler(IApplicationDbContext db, CompanyAccess access, BranchRules rules, MembershipChanges changes, IAuditLog audit)
     : IRequestHandler<DeleteBranchCommand>
 {
     public async Task Handle(DeleteBranchCommand request, CancellationToken ct)
@@ -41,6 +42,7 @@ public class DeleteBranchCommandHandler(IApplicationDbContext db, CompanyAccess 
             membership.Branches.RemoveAll(b => b.BranchId == branch.Id);
         }
 
+        audit.Record(AuditActions.BranchDeleted, AuditEntities.Branch, branch.Id.ToString(), AuditSnapshots.Branch(branch), null);
         db.Branches.Remove(branch);
         await db.SaveChangesAsync(ct);
 

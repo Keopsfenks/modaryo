@@ -21,6 +21,7 @@ public class AuthorizationBehaviourTests
     {
         public Guid? UserId => userId;
         public Guid? TenantId => tenantId;
+        public string? FullName => null;
         public string? SidHash => userId is null ? null : "hash";
         public string? SessionId => userId is null ? null : "id";
         public IReadOnlyList<string> Permissions => permissions;

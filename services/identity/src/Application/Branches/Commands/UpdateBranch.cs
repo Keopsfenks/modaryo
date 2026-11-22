@@ -1,3 +1,4 @@
+using IdentityService.Application.Audit;
 using IdentityService.Application.Common.Interfaces;
 using IdentityService.Application.Companies;
 using IdentityService.Application.Common.Security;
@@ -26,7 +27,7 @@ public class UpdateBranchCommandValidator : AbstractValidator<UpdateBranchComman
     }
 }
 
-public class UpdateBranchCommandHandler(BranchRules rules, CompanyAccess access, MembershipChanges changes) : IRequestHandler<UpdateBranchCommand, BranchDto>
+public class UpdateBranchCommandHandler(BranchRules rules, CompanyAccess access, MembershipChanges changes, IAuditLog audit) : IRequestHandler<UpdateBranchCommand, BranchDto>
 {
     public async Task<BranchDto> Handle(UpdateBranchCommand request, CancellationToken ct)
     {
@@ -41,9 +42,11 @@ public class UpdateBranchCommandHandler(BranchRules rules, CompanyAccess access,
         await rules.EnsureCodeFreeAsync(code, branch.Id, ct);
 
         var activeChanged = branch.IsActive != request.IsActive;
+        var before = AuditSnapshots.Branch(branch);
         branch.Code = code;
         branch.Name = request.Name.Trim();
         branch.IsActive = request.IsActive;
+        audit.Record(AuditActions.BranchUpdated, AuditEntities.Branch, branch.Id.ToString(), before, AuditSnapshots.Branch(branch));
         await rules.SaveCodeChangeAsync(code, branch.Id, ct);
 
         if (activeChanged)

@@ -12,6 +12,8 @@ public sealed class CurrentSession(IHttpContextAccessor accessor) : ICurrentSess
 
     public Guid? TenantId => Context?.User.GetTenantId();
 
+    public string? FullName => Context?.User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
+
     public string? SidHash => Context?.User.GetSidHash();
 
     public string? SessionId => Context?.User.GetSessionId();

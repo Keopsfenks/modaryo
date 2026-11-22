@@ -1,3 +1,4 @@
+using IdentityService.Application.Audit;
 using IdentityService.Application.Common.Interfaces;
 using IdentityService.Application.Common.Security;
 using IdentityService.Application.Roles;
@@ -18,7 +19,7 @@ public record SetMemberBranchesCommand : IRequest
     public Guid[]? BranchIds { get; init; }
 }
 
-public class SetMemberBranchesCommandHandler(IApplicationDbContext db, CompanyAccess access, RoleRules rules, MembershipChanges changes)
+public class SetMemberBranchesCommandHandler(IApplicationDbContext db, CompanyAccess access, RoleRules rules, MembershipChanges changes, IAuditLog audit)
     : IRequestHandler<SetMemberBranchesCommand>
 {
     public async Task Handle(SetMemberBranchesCommand request, CancellationToken ct)
@@ -56,11 +57,13 @@ public class SetMemberBranchesCommandHandler(IApplicationDbContext db, CompanyAc
             rules.EnsureBranchesWithinCallerScope(ids);
         }
 
+        var before = AuditSnapshots.MemberBranches(target);
         target.BranchesRestricted = request.BranchIds is not null;
         target.Branches.RemoveAll(b => !ids.Contains(b.BranchId));
         var existing = target.Branches.Select(b => b.BranchId).ToHashSet();
         target.Branches.AddRange(ids.Where(b => !existing.Contains(b))
             .Select(b => new MembershipBranch { MembershipId = target.Id, BranchId = b }));
+        audit.Record(AuditActions.MemberBranchesChanged, AuditEntities.Member, target.UserId.ToString(), before, AuditSnapshots.MemberBranches(target));
         await db.SaveChangesAsync(ct);
 
         await changes.OnRoleChangedAsync(target.UserId, target.TenantId, ct);
