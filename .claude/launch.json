@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "identity",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "services/identity/src/Web", "--launch-profile", "http"],
+      "port": 5100
+    },
+    {
+      "name": "erp",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "services/erp/src/Web", "--launch-profile", "http"],
+      "port": 5282
+    }
+  ]
+}

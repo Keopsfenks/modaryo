@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Modaryo.Sessions.Tests/Modaryo.Sessions.Tests.csproj" />
+  <Project Path="Modaryo.Sessions/Modaryo.Sessions.csproj" />
+</Solution>
