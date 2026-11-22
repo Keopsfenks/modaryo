@@ -16,4 +16,12 @@ public static class Permissions
     public const string CariRead = "cari.read";
     public const string CariManage = "cari.manage";
     public const string CariMovements = "cari.movements";
+
+    public const string RolesRead = "roller.read";
+    public const string RolesManage = "roller.manage";
+
+    public const string SettingsModules = "ayarlar.moduller";
+    public const string SettingsBranches = "ayarlar.subeler";
+
+    public const string AuditRead = "denetim.read";
 }
