@@ -4,6 +4,8 @@ using IdentityService.Application.Companies.Queries;
 using IdentityService.Application.Invitations;
 using IdentityService.Application.Invitations.Commands;
 using IdentityService.Application.Invitations.Queries;
+using IdentityService.Application.Modules.Commands;
+using IdentityService.Application.Modules.Queries;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace IdentityService.Web.Endpoints;
@@ -22,11 +24,25 @@ public class Companies : IEndpointGroup
         groupBuilder.MapGet(GetMembers, "current/members");
         groupBuilder.MapPatch(ChangeMemberRole, "current/members/{userId:guid}");
         groupBuilder.MapDelete(RemoveMember, "current/members/{userId:guid}");
+        groupBuilder.MapGet(GetModules, "current/modules");
+        groupBuilder.MapPut(SetModules, "current/modules");
         groupBuilder.MapGet(ListInvitations, "current/invitations");
         groupBuilder.MapPost(CreateInvitation, "current/invitations");
         groupBuilder.MapPost(ResendInvitation, "current/invitations/{id:guid}/resend");
         groupBuilder.MapDelete(RevokeInvitation, "current/invitations/{id:guid}");
     }
+
+    [EndpointSummary("Firmanın modülleri")]
+    [EndpointDescription("Tüm modül kataloğu; açık olanlar enabled=true ile işaretlidir.")]
+    public static async Task<Ok<IReadOnlyList<ModuleDto>>> GetModules(ISender sender) =>
+        TypedResults.Ok(await sender.Send(new GetModulesQuery()));
+
+    public sealed record SetModulesRequest(string[] Enabled);
+
+    [EndpointSummary("Modülleri aç/kapat")]
+    [EndpointDescription("Gövdedeki liste açık modüllerin tamamıdır. Bilinmeyen anahtar 400 unknown_module. Üyelerin açık oturumları hemen güncellenir.")]
+    public static async Task<Ok<IReadOnlyList<ModuleDto>>> SetModules(ISender sender, SetModulesRequest request) =>
+        TypedResults.Ok(await sender.Send(new SetModulesCommand { Enabled = request.Enabled }));
 
     [EndpointSummary("Bekleyen davetler")]
     public static async Task<Ok<IReadOnlyList<InvitationDto>>> ListInvitations(ISender sender) =>

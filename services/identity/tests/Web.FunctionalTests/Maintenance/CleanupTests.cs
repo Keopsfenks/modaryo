@@ -112,7 +112,7 @@ public class CleanupTests : TestBase
         using (var scope = _factory.Services.CreateScope())
         {
             await scope.ServiceProvider.GetRequiredService<ISessionStore>().CreateAsync(
-                new NewSession(user.Id, user.Email, user.FullName, null, [], true, null, null), CancellationToken.None);
+                new NewSession(user.Id, user.Email, user.FullName, IdentityService.Application.Auth.SessionGrant.None, true, null, null), CancellationToken.None);
         }
         Clock.Advance(TimeSpan.FromDays(30));
 

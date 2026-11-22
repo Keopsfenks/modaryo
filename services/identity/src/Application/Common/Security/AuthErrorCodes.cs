@@ -12,4 +12,5 @@ public static class AuthErrorCodes
     public const string AlreadyMember = "already_member";
     public const string AccountExists = "account_exists";
     public const string RateLimited = "rate_limited";
+    public const string UnknownModule = "unknown_module";
 }

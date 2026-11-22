@@ -15,12 +15,12 @@ public sealed class SessionIssuer(ISessionStore store, ActiveTenantResolver reso
             await store.DeleteAsync(previous, ct);
         }
 
-        var (tenantId, permissions) = await resolver.ResolveAsync(user.Id, preferredTenantId, ct);
+        var grant = await resolver.ResolveAsync(user.Id, preferredTenantId, ct);
 
         var created = await store.CreateAsync(
-            new NewSession(user.Id, user.Email, user.FullName, tenantId, permissions, rememberMe, current.Ip, current.UserAgent), ct);
+            new NewSession(user.Id, user.Email, user.FullName, grant, rememberMe, current.Ip, current.UserAgent), ct);
 
-        var info = await resolver.BuildSessionInfoAsync(user.Id, tenantId, ct);
+        var info = await resolver.BuildSessionInfoAsync(user.Id, grant.TenantId, ct);
         return new IssuedSession(created, info);
     }
 }

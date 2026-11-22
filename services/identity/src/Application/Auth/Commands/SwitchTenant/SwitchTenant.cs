@@ -17,10 +17,10 @@ public class SwitchTenantCommandHandler(ISessionStore store, ICurrentSession cur
     public async Task<SessionInfo> Handle(SwitchTenantCommand request, CancellationToken ct)
     {
         var userId = current.UserId!.Value;
-        var permissions = await resolver.PermissionsForAsync(userId, request.TenantId, ct)
+        var grant = await resolver.GrantForAsync(userId, request.TenantId, ct)
             ?? throw new ForbiddenAccessException();
 
-        if (!await store.UpdateTenantAsync(current.SidHash!, request.TenantId, permissions, ct))
+        if (!await store.UpdateGrantAsync(current.SidHash!, grant, ct))
         {
             throw new UnauthorizedAccessException();
         }

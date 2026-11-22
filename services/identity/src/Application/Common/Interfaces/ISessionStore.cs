@@ -4,8 +4,7 @@ public sealed record NewSession(
     Guid UserId,
     string Email,
     string FullName,
-    Guid? TenantId,
-    string[] Permissions,
+    Auth.SessionGrant Grant,
     bool RememberMe,
     string? Ip,
     string? UserAgent);
@@ -23,11 +22,14 @@ public interface ISessionStore
 {
     Task<CreatedSession> CreateAsync(NewSession session, CancellationToken ct);
 
-    /// <summary>Tek oturumun aktif firmasını ve izinlerini günceller. Oturum yoksa false.</summary>
-    Task<bool> UpdateTenantAsync(string sidHash, Guid? tenantId, string[] permissions, CancellationToken ct);
+    /// <summary>Tek oturumun yetki paketini (firma, izinler, modüller, şubeler...) günceller. Oturum yoksa false.</summary>
+    Task<bool> UpdateGrantAsync(string sidHash, Auth.SessionGrant grant, CancellationToken ct);
 
-    /// <summary>Kullanıcının yalnızca <paramref name="tenantId"/> firmasında açık olan oturumlarını günceller.</summary>
-    Task UpdateTenantForUserAsync(Guid userId, Guid tenantId, Guid? newTenantId, string[] permissions, CancellationToken ct);
+    /// <summary>
+    /// Kullanıcının aktif firması <paramref name="tenantId"/> olan oturumlarının yetki paketini değiştirir
+    /// (<paramref name="grant"/> başka firmaya ya da <see cref="Auth.SessionGrant.None"/>'a işaret edebilir).
+    /// </summary>
+    Task UpdateGrantForUserAsync(Guid userId, Guid tenantId, Auth.SessionGrant grant, CancellationToken ct);
 
     /// <summary>Kullanıcının canlı oturumları; süresi dolmuş index üyelerini temizler.</summary>
     Task<IReadOnlyList<StoredSession>> ListForUserAsync(Guid userId, CancellationToken ct);

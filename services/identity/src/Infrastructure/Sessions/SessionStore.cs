@@ -1,4 +1,5 @@
 using System.Text.Json;
+using IdentityService.Application.Auth;
 using IdentityService.Application.Common.Interfaces;
 using Modaryo.Sessions;
 using StackExchange.Redis;
@@ -26,8 +27,13 @@ public sealed class SessionStore(IConnectionMultiplexer redis, TimeProvider time
             UserId = session.UserId,
             Email = session.Email,
             FullName = session.FullName,
-            TenantId = session.TenantId,
-            Permissions = session.Permissions,
+            TenantId = session.Grant.TenantId,
+            Permissions = session.Grant.Permissions,
+            Modules = session.Grant.Modules,
+            BranchIds = session.Grant.BranchIds,
+            MaxDiscountPct = session.Grant.MaxDiscountPct,
+            UserType = session.Grant.UserType,
+            CariId = session.Grant.CariId,
             RememberMe = session.RememberMe,
             CreatedAt = now.ToUnixTimeSeconds(),
             AbsoluteExpiresAt = now.Add(absolute).ToUnixTimeSeconds(),
@@ -54,7 +60,7 @@ public sealed class SessionStore(IConnectionMultiplexer redis, TimeProvider time
         }
     }
 
-    public async Task<bool> UpdateTenantAsync(string sidHash, Guid? tenantId, string[] permissions, CancellationToken ct)
+    public async Task<bool> UpdateGrantAsync(string sidHash, SessionGrant grant, CancellationToken ct)
     {
         var record = await GetAsync(sidHash, ct);
         if (record is null)
@@ -62,19 +68,30 @@ public sealed class SessionStore(IConnectionMultiplexer redis, TimeProvider time
             return false;
         }
 
-        return await ReplaceAsync(sidHash, record with { TenantId = tenantId, Permissions = permissions }, ct);
+        return await ReplaceAsync(sidHash, Apply(record, grant), ct);
     }
 
-    public async Task UpdateTenantForUserAsync(Guid userId, Guid tenantId, Guid? newTenantId, string[] permissions, CancellationToken ct)
+    public async Task UpdateGrantForUserAsync(Guid userId, Guid tenantId, SessionGrant grant, CancellationToken ct)
     {
         foreach (var session in await ListForUserAsync(userId, ct))
         {
             if (session.Record.TenantId == tenantId)
             {
-                await ReplaceAsync(session.SidHash, session.Record with { TenantId = newTenantId, Permissions = permissions }, ct);
+                await ReplaceAsync(session.SidHash, Apply(session.Record, grant), ct);
             }
         }
     }
+
+    private static SessionRecord Apply(SessionRecord record, SessionGrant grant) => record with
+    {
+        TenantId = grant.TenantId,
+        Permissions = grant.Permissions,
+        Modules = grant.Modules,
+        BranchIds = grant.BranchIds,
+        MaxDiscountPct = grant.MaxDiscountPct,
+        UserType = grant.UserType,
+        CariId = grant.CariId,
+    };
 
     public async Task<IReadOnlyList<StoredSession>> ListForUserAsync(Guid userId, CancellationToken ct)
     {

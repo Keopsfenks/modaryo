@@ -1,3 +1,4 @@
+using IdentityService.Application.Auth;
 using IdentityService.Application.Common.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Modaryo.Sessions;
@@ -22,8 +23,11 @@ public class SessionStoreTests : TestBase
     [TearDown]
     public void Dispose() => _scope.Dispose();
 
+    private static SessionGrant Grant(Guid? tenantId, string[] permissions) =>
+        new(tenantId, permissions, [], null, 0m, "employee", null);
+
     private static NewSession NewSession(Guid userId, Guid? tenantId = null, bool rememberMe = false) =>
-        new(userId, "ali@ornek.com", "Ali Veli", tenantId, tenantId is null ? [] : ["*"], rememberMe, "203.0.113.5", "test-agent");
+        new(userId, "ali@ornek.com", "Ali Veli", Grant(tenantId, tenantId is null ? [] : ["*"]), rememberMe, "203.0.113.5", "test-agent");
 
     [Test]
     public async Task Create_WritesRecordWithTtlAndIndex()
@@ -69,7 +73,7 @@ public class SessionStoreTests : TestBase
         var created = await _store.CreateAsync(NewSession(Guid.CreateVersion7()), CancellationToken.None);
         await _store.DeleteAsync(created.SidHash, CancellationToken.None);
 
-        var updated = await _store.UpdateTenantAsync(created.SidHash, Guid.CreateVersion7(), ["*"], CancellationToken.None);
+        var updated = await _store.UpdateGrantAsync(created.SidHash, Grant(Guid.CreateVersion7(), ["*"]), CancellationToken.None);
 
         updated.ShouldBeFalse();
         (await _db.KeyExistsAsync(SessionKeys.SessionKey(created.SidHash))).ShouldBeFalse();
@@ -82,26 +86,31 @@ public class SessionStoreTests : TestBase
         var key = SessionKeys.SessionKey(created.SidHash);
         await _db.KeyExpireAsync(key, TimeSpan.FromSeconds(100));
 
-        (await _store.UpdateTenantAsync(created.SidHash, Guid.CreateVersion7(), ["*"], CancellationToken.None)).ShouldBeTrue();
+        (await _store.UpdateGrantAsync(created.SidHash, Grant(Guid.CreateVersion7(), ["*"]), CancellationToken.None)).ShouldBeTrue();
 
         (await _db.KeyTimeToLiveAsync(key))!.Value.ShouldBeLessThanOrEqualTo(TimeSpan.FromSeconds(100));
     }
 
     [Test]
-    public async Task UpdateTenant_ChangesTenantAndPermissions()
+    public async Task UpdateGrant_ChangesTenantAndGrantFields()
     {
         var created = await _store.CreateAsync(NewSession(Guid.CreateVersion7()), CancellationToken.None);
         var tenantId = Guid.CreateVersion7();
 
-        await _store.UpdateTenantAsync(created.SidHash, tenantId, ["members.read"], CancellationToken.None);
+        await _store.UpdateGrantAsync(created.SidHash, new SessionGrant(tenantId, ["members.read"], ["pos"], [], 12.5m, "dealer", Guid.Empty), CancellationToken.None);
 
         var stored = (await _store.ListForUserAsync(created.Record.UserId, CancellationToken.None)).Single();
         stored.Record.TenantId.ShouldBe(tenantId);
         stored.Record.Permissions.ShouldBe(["members.read"]);
+        stored.Record.Modules.ShouldBe(["pos"]);
+        stored.Record.BranchIds.ShouldNotBeNull().ShouldBeEmpty();
+        stored.Record.MaxDiscountPct.ShouldBe(12.5m);
+        stored.Record.UserType.ShouldBe("dealer");
+        stored.Record.CariId.ShouldBe(Guid.Empty);
     }
 
     [Test]
-    public async Task UpdateTenantForUser_OnlyTouchesMatchingTenant()
+    public async Task UpdateGrantForUser_OnlyTouchesMatchingTenant()
     {
         var userId = Guid.CreateVersion7();
         var tenantA = Guid.CreateVersion7();
@@ -109,7 +118,7 @@ public class SessionStoreTests : TestBase
         var inA = await _store.CreateAsync(NewSession(userId, tenantA), CancellationToken.None);
         var inB = await _store.CreateAsync(NewSession(userId, tenantB), CancellationToken.None);
 
-        await _store.UpdateTenantForUserAsync(userId, tenantA, null, [], CancellationToken.None);
+        await _store.UpdateGrantForUserAsync(userId, tenantA, SessionGrant.None, CancellationToken.None);
 
         var sessions = await _store.ListForUserAsync(userId, CancellationToken.None);
         sessions.Single(s => s.SidHash == inA.SidHash).Record.TenantId.ShouldBeNull();
