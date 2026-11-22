@@ -19,6 +19,29 @@ public class CurrentAccounts : IEndpointGroup
         groupBuilder.MapPost(DeactivateCurrentAccount, "{id:guid}/deactivate");
         groupBuilder.MapPost(ActivateCurrentAccount, "{id:guid}/activate");
         groupBuilder.MapDelete(DeleteCurrentAccount, "{id:guid}");
+        groupBuilder.MapPost(AddAddress, "{id:guid}/addresses");
+        groupBuilder.MapPut(UpdateAddress, "{id:guid}/addresses/{addressId:guid}");
+        groupBuilder.MapDelete(DeleteAddress, "{id:guid}/addresses/{addressId:guid}");
+    }
+
+    [EndpointSummary("Cari adresi ekle")]
+    [EndpointDescription("Fatura ve sevk için ayrı ayrı: o türün ilk adresi otomatik varsayılan olur; yeni varsayılan seçilirse eskisinin işareti kalkar. En az biri (fatura/sevk) işaretli olmalıdır.")]
+    public static async Task<Created<AddressDto>> AddAddress(ISender sender, Guid id, AddressInput address)
+    {
+        var created = await sender.Send(new AddAddressCommand(id, address));
+        return TypedResults.Created($"/api/erp/current-accounts/{id}", created);
+    }
+
+    [EndpointSummary("Cari adresi güncelle")]
+    public static async Task<Ok<AddressDto>> UpdateAddress(ISender sender, Guid id, Guid addressId, AddressInput address) =>
+        TypedResults.Ok(await sender.Send(new UpdateAddressCommand(id, addressId, address)));
+
+    [EndpointSummary("Cari adresi sil")]
+    [EndpointDescription("Varsayılan adres silinirse aynı türdeki en eski adres varsayılan olur.")]
+    public static async Task<NoContent> DeleteAddress(ISender sender, Guid id, Guid addressId)
+    {
+        await sender.Send(new DeleteAddressCommand(id, addressId));
+        return TypedResults.NoContent();
     }
 
     [EndpointSummary("Cari listesi")]

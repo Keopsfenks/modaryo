@@ -46,12 +46,7 @@ public sealed class CreateCurrentAccountCommandValidator : AbstractValidator<Cre
     {
         this.AddCardRules();
 
-        RuleFor(c => c.Address!.Title).NotEmpty().MaximumLength(100)
-            .WithMessage("Adres başlığı 1 ile 100 karakter arasında olmalıdır.").When(c => c.Address is not null);
-        RuleFor(c => c.Address!.Line).NotEmpty().MaximumLength(500)
-            .WithMessage("Adres 1 ile 500 karakter arasında olmalıdır.").When(c => c.Address is not null);
-        RuleFor(c => c.Address!).Must(a => a.IsBilling || a.IsShipping)
-            .WithMessage("Adres fatura veya sevk adresi olarak işaretlenmelidir.").When(c => c.Address is not null);
+        RuleFor(c => c.Address!).SetValidator(new AddressInputValidator()).When(c => c.Address is not null);
 
         RuleFor(c => c.OpeningBalance!.Amount).GreaterThan(0m).LessThanOrEqualTo(CardRules.MaxAmount)
             .WithMessage("Açılış tutarı 0 değerinden büyük ve 999.999.999.999,99 değerinden küçük olmalıdır.")
@@ -88,20 +83,10 @@ public sealed class CreateCurrentAccountCommandHandler(IApplicationDbContext db,
 
         if (request.Address is { } input)
         {
-            db.CurrentAccountAddresses.Add(new CurrentAccountAddress
-            {
-                CurrentAccountId = account.Id,
-                Title = input.Title.Trim(),
-                Line = input.Line.Trim(),
-                District = CardRules.Clean(input.District),
-                City = CardRules.Clean(input.City),
-                PostalCode = CardRules.Clean(input.PostalCode),
-                Country = CardRules.Clean(input.Country) ?? "Türkiye",
-                IsBilling = input.IsBilling,
-                IsShipping = input.IsShipping,
-                IsDefaultBilling = input.IsBilling,
-                IsDefaultShipping = input.IsShipping,
-            });
+            var address = new CurrentAccountAddress { CurrentAccountId = account.Id };
+            AddressRules.Apply(address, input);
+            AddressRules.ResolveDefaults([address], address, input.IsDefaultBilling, input.IsDefaultShipping);
+            db.CurrentAccountAddresses.Add(address);
         }
 
         if (request.OpeningBalance is { } opening)

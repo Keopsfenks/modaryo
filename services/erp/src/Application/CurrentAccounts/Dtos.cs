@@ -66,6 +66,10 @@ public sealed record AddressInput
     public bool IsBilling { get; init; }
 
     public bool IsShipping { get; init; }
+
+    public bool IsDefaultBilling { get; init; }
+
+    public bool IsDefaultShipping { get; init; }
 }
 
 public sealed record OpeningBalanceInput
