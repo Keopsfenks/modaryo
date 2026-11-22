@@ -53,6 +53,31 @@ describe("AddressesTab", () => {
         expect(within(dialog).getByText("Fatura veya teslimat adresinden en az biri seçilmeli.")).toBeInTheDocument();
     });
 
+    it("Addresses_Dialog_RejectsTooLongPostalCode", async () => {
+        const { user } = renderWithTheme(<Harness initial={dto()} />);
+
+        await user.click(screen.getByRole("button", { name: "Adres ekle" }));
+        const dialog = screen.getByRole("dialog");
+        await user.type(within(dialog).getByLabelText("Başlık"), "Depo");
+        await user.type(within(dialog).getByLabelText("Adres"), "Sanayi Sk. 5");
+        await user.click(within(dialog).getByLabelText("Fatura adresi"));
+        await user.type(within(dialog).getByLabelText("Posta kodu"), "1".repeat(21));
+        await user.click(within(dialog).getByRole("button", { name: "Kaydet" }));
+
+        expect(within(dialog).getByText("Posta kodu en çok 20 karakter olabilir.")).toBeInTheDocument();
+    });
+
+    it("Addresses_Dialog_CurrentDefaultCheckboxIsLockedWithHint", async () => {
+        const { user } = renderWithTheme(<Harness initial={dto({ addresses: [addressDto()] })} />);
+
+        await user.click(screen.getByRole("button", { name: "Merkez adresini düzenle" }));
+        const dialog = screen.getByRole("dialog");
+
+        expect(within(dialog).getByLabelText("Varsayılan fatura adresi")).toBeChecked();
+        expect(within(dialog).getByLabelText("Varsayılan fatura adresi")).toBeDisabled();
+        expect(within(dialog).getByText("Başka bir adresi varsayılan yaparak değiştirebilirsiniz.")).toBeInTheDocument();
+    });
+
     it("Addresses_DeleteRemovesCard", async () => {
         const a1 = addressDto();
         const a2 = addressDto({ id: "addr-2", title: "Depo", line: "Sanayi Sk. 5", isDefaultBilling: false });

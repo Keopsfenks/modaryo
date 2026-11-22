@@ -86,7 +86,9 @@ export default function AccountList({ role, title }: AccountListProps) {
             Yeni cari
         </Button>
     );
-    const isEmpty = result !== null && result.total === 0 && !search && !includeInactive && !error;
+    const isEmpty = result !== null && result.total === 0 && !search && !error;
+    const emptyTitle = role === "customer" ? "Henüz müşteri yok" : role === "supplier" ? "Henüz tedarikçi yok" : !includeInactive ? "Gösterilecek cari yok" : "Henüz cari yok";
+    const emptyHint = role || !includeInactive ? "Yeni bir cari kartı oluşturabilir veya pasifleri göstermeyi deneyebilirsiniz." : "İlk cari kartınızı oluşturarak başlayın.";
 
     return (
         <>
@@ -112,10 +114,10 @@ export default function AccountList({ role, title }: AccountListProps) {
                 ) : isEmpty ? (
                     <Box sx={{ py: 6, textAlign: "center" }}>
                         <Typography variant="h6" sx={{ mb: 1 }}>
-                            Henüz cari yok
+                            {emptyTitle}
                         </Typography>
                         <Typography color="text.secondary" sx={{ mb: 2 }}>
-                            İlk cari kartınızı oluşturarak başlayın.
+                            {emptyHint}
                         </Typography>
                         {canManage && newButton}
                     </Box>
@@ -175,6 +177,7 @@ export default function AccountList({ role, title }: AccountListProps) {
                             rowsPerPage={pageSize}
                             rowsPerPageOptions={[25, 50, 100]}
                             labelRowsPerPage="Sayfa başına"
+                            labelDisplayedRows={({ from, to, count }) => `${from}–${to} / ${count}`}
                             onPageChange={(_, next) => setPage(next)}
                             onRowsPerPageChange={(e) => {
                                 setPageSize(Number(e.target.value));

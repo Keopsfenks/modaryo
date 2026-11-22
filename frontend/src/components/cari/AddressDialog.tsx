@@ -33,6 +33,8 @@ type Values = Record<TextKey, string> & {
 
 type Errors = Partial<Record<string, string>>;
 
+const LOCKED_HINT = "Başka bir adresi varsayılan yaparak değiştirebilirsiniz.";
+
 const blankToNull = (text: string) => text.trim() || null;
 
 function validate(v: Values): Errors {
@@ -41,6 +43,10 @@ function validate(v: Values): Errors {
     const line = v.line.trim();
     if (title.length < 1 || title.length > 100) errors.title = "Başlık 1 ile 100 karakter arasında olmalı.";
     if (line.length < 1 || line.length > 500) errors.line = "Adres 1 ile 500 karakter arasında olmalı.";
+    if (v.district.trim().length > 100) errors.district = "İlçe en çok 100 karakter olabilir.";
+    if (v.city.trim().length > 100) errors.city = "İl en çok 100 karakter olabilir.";
+    if (v.postalCode.trim().length > 20) errors.postalCode = "Posta kodu en çok 20 karakter olabilir.";
+    if (v.country.trim().length > 100) errors.country = "Ülke en çok 100 karakter olabilir.";
     if (!v.isBilling && !v.isShipping) errors.type = "Fatura veya teslimat adresinden en az biri seçilmeli.";
     return errors;
 }
@@ -62,6 +68,10 @@ export default function AddressDialog({ accountId, address, onClose, onSaved }: 
     const [errors, setErrors] = useState<Errors>({});
     const [alert, setAlert] = useState<ApiError | null>(null);
     const [busy, setBusy] = useState(false);
+
+    // Sunucu mevcut varsayılanı işaret kalkınca düşürmez; kutuyu kilitleyip nedenini söyleriz.
+    const lockedBilling = Boolean(address?.isDefaultBilling) && v.isBilling && v.isDefaultBilling;
+    const lockedShipping = Boolean(address?.isDefaultShipping) && v.isShipping && v.isDefaultShipping;
 
     const set = <K extends keyof Values>(key: K, value: Values[K]) => setV((prev) => ({ ...prev, [key]: value }));
     const text = (key: TextKey, label: string, extra: Partial<React.ComponentProps<typeof TextField>> = {}) => (
@@ -136,12 +146,13 @@ export default function AddressDialog({ accountId, address, onClose, onSaved }: 
                                 control={
                                     <Checkbox
                                         checked={v.isBilling && v.isDefaultBilling}
-                                        disabled={!v.isBilling}
+                                        disabled={!v.isBilling || lockedBilling}
                                         onChange={(e) => set("isDefaultBilling", e.target.checked)}
                                     />
                                 }
                                 label="Varsayılan fatura adresi"
                             />
+                            {lockedBilling && <FormHelperText>{LOCKED_HINT}</FormHelperText>}
                         </Grid>
                         <Grid size={{ xs: 12, sm: 6 }}>
                             <FormControlLabel
@@ -152,12 +163,13 @@ export default function AddressDialog({ accountId, address, onClose, onSaved }: 
                                 control={
                                     <Checkbox
                                         checked={v.isShipping && v.isDefaultShipping}
-                                        disabled={!v.isShipping}
+                                        disabled={!v.isShipping || lockedShipping}
                                         onChange={(e) => set("isDefaultShipping", e.target.checked)}
                                     />
                                 }
                                 label="Varsayılan teslimat adresi"
                             />
+                            {lockedShipping && <FormHelperText>{LOCKED_HINT}</FormHelperText>}
                         </Grid>
                         {errors.type && (
                             <Grid size={12}>

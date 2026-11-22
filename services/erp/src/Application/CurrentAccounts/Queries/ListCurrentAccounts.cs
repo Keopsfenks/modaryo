@@ -14,7 +14,7 @@ public sealed class ListCurrentAccountsQueryValidator : AbstractValidator<ListCu
     {
         RuleFor(q => q.Role).Must(r => r is "customer" or "supplier").When(q => !string.IsNullOrEmpty(q.Role))
             .WithMessage("Rol müşteri (customer) veya tedarikçi (supplier) olmalıdır.");
-        RuleFor(q => q.Page).GreaterThanOrEqualTo(1).WithMessage("Sayfa 1 veya daha büyük olmalıdır.");
+        RuleFor(q => q.Page).InclusiveBetween(1, 100000).WithMessage("Sayfa 1 ile 100000 arasında olmalıdır.");
         RuleFor(q => q.PageSize).InclusiveBetween(1, 100).WithMessage("Sayfa boyutu 1 ile 100 arasında olmalıdır.");
     }
 }
@@ -42,8 +42,9 @@ public sealed class ListCurrentAccountsQueryHandler(IApplicationDbContext db, Ti
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
-            var term = request.Search.Trim().ToLowerInvariant();
-            query = query.Where(a => a.Name.ToLower().Contains(term) || a.Code.ToLower().Contains(term)
+            var term = CardRules.FoldSearch(request.Search);
+            query = query.Where(a => a.Name.ToLower().Replace("ı", "i").Contains(term)
+                || a.Code.ToLower().Replace("ı", "i").Contains(term)
                 || (a.TaxNumber != null && a.TaxNumber.Contains(term)));
         }
 

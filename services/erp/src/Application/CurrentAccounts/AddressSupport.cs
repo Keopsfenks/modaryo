@@ -12,6 +12,10 @@ public sealed class AddressInputValidator : AbstractValidator<AddressInput>
             .WithMessage("Adres başlığı 1 ile 100 karakter arasında olmalıdır.");
         RuleFor(a => a.Line).NotEmpty().MaximumLength(500)
             .WithMessage("Adres 1 ile 500 karakter arasında olmalıdır.");
+        RuleFor(a => a.District).MaximumLength(100).WithMessage("İlçe en çok 100 karakter olabilir.");
+        RuleFor(a => a.City).MaximumLength(100).WithMessage("Şehir en çok 100 karakter olabilir.");
+        RuleFor(a => a.PostalCode).MaximumLength(20).WithMessage("Posta kodu en çok 20 karakter olabilir.");
+        RuleFor(a => a.Country).MaximumLength(100).WithMessage("Ülke en çok 100 karakter olabilir.");
         RuleFor(a => a).Must(a => a.IsBilling || a.IsShipping)
             .WithMessage("Adres fatura veya sevk adresi olarak işaretlenmelidir.");
     }

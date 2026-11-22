@@ -58,6 +58,15 @@ describe("AccountForm", () => {
         await waitFor(() => expect(screen.getByLabelText("Kod")).toHaveValue("C-0007"));
     });
 
+    it("Form_NewCardPrefillsThirtyDueDays", async () => {
+        mockNextCode();
+
+        renderWithTheme(<AccountForm onSaved={vi.fn()} />);
+
+        await waitFor(() => expect(screen.getByLabelText("Kod")).toHaveValue("C-0007"));
+        expect(screen.getByLabelText(/vade/i)).toHaveValue("30");
+    });
+
     it("Form_VknValidation", async () => {
         mockNextCode();
         const sent: { body?: unknown } = {};

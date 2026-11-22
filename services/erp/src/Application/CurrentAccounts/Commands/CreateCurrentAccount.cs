@@ -57,6 +57,9 @@ public sealed class CreateCurrentAccountCommandValidator : AbstractValidator<Cre
         RuleFor(c => c.OpeningBalance!.Direction)
             .Must(d => d is "debit" or "credit").WithMessage("Açılış yönü borç (debit) veya alacak (credit) olmalıdır.")
             .When(c => c.OpeningBalance is not null);
+        RuleFor(c => c.OpeningBalance!.Date).Must(CardRules.IsValidDate)
+            .WithMessage(CardRules.DateMessage)
+            .When(c => c.OpeningBalance is not null && c.OpeningBalance.Date != default);
         RuleFor(c => c.OpeningBalance!.Date).NotEqual(default(DateOnly)).WithMessage("Açılış tarihi zorunludur.")
             .When(c => c.OpeningBalance is not null);
     }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
@@ -14,6 +15,17 @@ public static class CardRules
     /// <summary>En fazla 2 ondalık basamak (veritabanında sessiz yuvarlamayı önler).</summary>
     public static bool HasValidScale(decimal amount) => decimal.Round(amount, 2) == amount;
 
+    public static readonly DateOnly MinDate = new(2000, 1, 1);
+
+    public static readonly DateOnly MaxDate = new(2100, 12, 31);
+
+    public static bool IsValidDate(DateOnly date) => date >= MinDate && date <= MaxDate;
+
+    public const string DateMessage = "Tarih 01.01.2000 ile 31.12.2100 arasında olmalıdır.";
+
+    /// <summary>Arama terimini veritabanındaki lower(...).Replace("ı","i") ile aynı biçimde katlar (Türkçe I/ı/İ/i).</summary>
+    public static string FoldSearch(string search) => search.Trim().ToLower(CultureInfo.GetCultureInfo("tr-TR")).Replace('ı', 'i');
+
     public static void AddCardRules<T>(this AbstractValidator<T> v) where T : ICardFields
     {
         v.RuleFor(c => c.Name).NotEmpty().WithMessage("Ünvan / ad soyad zorunludur.")
@@ -23,6 +35,11 @@ public static class CardRules
         v.RuleFor(c => c.DefaultDueDays).InclusiveBetween(0, 365).WithMessage("Varsayılan vade 0 ile 365 gün arasında olmalıdır.");
         v.RuleFor(c => c.CreditLimit).GreaterThanOrEqualTo(0m).When(c => c.CreditLimit is not null)
             .WithMessage("Kredi limiti 0 değerinden küçük olamaz.");
+        v.RuleFor(c => c.CreditLimit).LessThanOrEqualTo(MaxAmount).When(c => c.CreditLimit is not null)
+            .WithMessage("Kredi limiti 999.999.999.999,99 değerinden büyük olamaz.");
+        v.RuleFor(c => c.CreditLimit).Must(l => HasValidScale(l!.Value)).When(c => c.CreditLimit is not null)
+            .WithMessage("Kredi limiti en fazla 2 ondalık basamak içerebilir.");
+        v.RuleFor(c => c.Kind).IsInEnum().WithMessage("Cari türü geçersiz.");
         v.RuleFor(c => c.Currency).Must(c => Currencies.Contains(c)).WithMessage("Para birimi TRY, USD, EUR veya GBP olmalıdır.");
         v.RuleFor(c => c).Must(c => c.IsCustomer || c.IsSupplier)
             .WithName("IsCustomer").WithMessage("Cari en az müşteri veya tedarikçi olarak işaretlenmelidir.");

@@ -90,7 +90,7 @@ function initialValues(initial: CurrentAccountDto | undefined, defaultRole: Acco
         email: initial?.email ?? "",
         notes: initial?.notes ?? "",
         currency: initial?.currency ?? "TRY",
-        defaultDueDays: String(initial?.defaultDueDays ?? 0),
+        defaultDueDays: String(initial?.defaultDueDays ?? 30),
         creditLimit: initial?.creditLimit == null ? "" : String(initial.creditLimit).replace(".", ","),
         addressTitle: "",
         addressLine: "",

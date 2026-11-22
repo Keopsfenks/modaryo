@@ -55,6 +55,7 @@ export default function StatementTab({ account }: { account: CurrentAccountDto }
 
     const currency = account.currency;
     const bold = { fontWeight: 600 };
+    const invalidRange = Boolean(range.from && range.to && range.from > range.to);
 
     return (
         <DashboardCard title="Ekstre">
@@ -81,6 +82,8 @@ export default function StatementTab({ account }: { account: CurrentAccountDto }
                     size="small"
                     value={range.from}
                     onChange={(e) => setRange({ ...range, from: e.target.value })}
+                    error={invalidRange}
+                    helperText={invalidRange ? "Başlangıç bitişten sonra olamaz." : undefined}
                     slotProps={{ inputLabel: { shrink: true } }}
                 />
                 <TextField
@@ -91,7 +94,7 @@ export default function StatementTab({ account }: { account: CurrentAccountDto }
                     onChange={(e) => setRange({ ...range, to: e.target.value })}
                     slotProps={{ inputLabel: { shrink: true } }}
                 />
-                <Button variant="contained" disabled={!range.from || !range.to} onClick={() => setApplied(range)}>
+                <Button variant="contained" disabled={!range.from || !range.to || invalidRange} onClick={() => setApplied(range)}>
                     Uygula
                 </Button>
                 <Button variant="outlined" onClick={() => window.print()}>

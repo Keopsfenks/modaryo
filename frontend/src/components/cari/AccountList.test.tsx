@@ -103,13 +103,46 @@ describe("AccountList", () => {
         expect(link).toHaveAttribute("href", "/cari/yeni?rol=tedarikci");
     });
 
-    it("List_EmptyShowsMessage", async () => {
+    it("List_EmptyShowsMessageAndNewButton", async () => {
         setup([]);
 
         render(<AccountList title="Cari Hesaplar" />);
 
-        expect(await screen.findByText("Henüz cari yok")).toBeInTheDocument();
+        expect(await screen.findByText("Gösterilecek cari yok")).toBeInTheDocument();
         expect(screen.getAllByRole("link", { name: /yeni cari/i })).toHaveLength(1);
+    });
+
+    it("List_EmptyForRoleSaysCustomerOrSupplier", async () => {
+        setup([]);
+
+        render(<AccountList title="Müşteriler" role="customer" />);
+
+        expect(await screen.findByText("Henüz müşteri yok")).toBeInTheDocument();
+        expect(screen.getAllByRole("link", { name: /yeni cari/i })).toHaveLength(1);
+    });
+
+    it("List_EmptyForSupplierRole", async () => {
+        setup([]);
+
+        render(<AccountList title="Tedarikçiler" role="supplier" />);
+
+        expect(await screen.findByText("Henüz tedarikçi yok")).toBeInTheDocument();
+    });
+
+    it("List_EmptyWithInactiveHiddenSaysNothingToShow", async () => {
+        setup([]);
+
+        render(<AccountList title="Cari Hesaplar" />);
+
+        expect(await screen.findByText("Gösterilecek cari yok")).toBeInTheDocument();
+    });
+
+    it("List_PaginationLabelIsTurkish", async () => {
+        setup([item(), item({ id: "acc-2", code: "C-0002" })]);
+
+        render(<AccountList title="Cari Hesaplar" />);
+
+        expect(await screen.findByText("1–2 / 2")).toBeInTheDocument();
     });
 
     it("List_RowClickNavigates", async () => {

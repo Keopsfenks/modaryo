@@ -194,6 +194,93 @@ public class CardTests : TestBase
     }
 
     [Test]
+    public async Task List_Search_FoldsTurkishDottedAndDotlessI()
+    {
+        using var client = await Manager();
+        await CreateAsync(client, Card(code: "C0001", name: "YILMAZ TİCARET"));
+        await CreateAsync(client, Card(code: "C0002", name: "Işık Ltd"));
+
+        async Task<string[]> Codes(string term)
+        {
+            var body = await (await client.GetAsync($"{Url}?search={Uri.EscapeDataString(term)}")).JsonAsync();
+            return body.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("code").GetString()!).ToArray();
+        }
+
+        (await Codes("yılmaz")).ShouldBe(["C0001"]);
+        (await Codes("Yılmaz")).ShouldBe(["C0001"]);
+        (await Codes("ışık")).ShouldBe(["C0002"]);
+        (await Codes("tic")).ShouldBe(["C0001"]);
+    }
+
+    [Test]
+    public async Task Create_PostalCodeTooLong_Returns400()
+    {
+        using var client = await Manager();
+        var address = new { title = "Merkez", line = "Adres", postalCode = new string('1', 21), isBilling = true, isShipping = false };
+
+        using var response = await client.PostAsJsonAsync(Url, Card(address: address));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task Create_CreditLimitWithThreeDecimals_Returns400()
+    {
+        using var client = await Manager();
+        var card = Card();
+        card["creditLimit"] = 10.123m;
+
+        using var response = await client.PostAsJsonAsync(Url, card);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task Create_UnknownKind_Returns400()
+    {
+        using var client = await Manager();
+        var card = Card();
+        card["kind"] = 5;
+
+        using var response = await client.PostAsJsonAsync(Url, card);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task AddEntry_DateBefore2000_Returns400()
+    {
+        using var client = await Manager();
+        var id = await CreateAsync(client, Card());
+
+        using var response = await client.PostAsJsonAsync($"{Url}/{id}/entries",
+            new { type = "debit", date = "1899-12-31", amount = 10m });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task Create_OpeningDateBefore2000_Returns400()
+    {
+        using var client = await Manager();
+
+        using var response = await client.PostAsJsonAsync(Url,
+            Card(opening: new { amount = 10m, direction = "debit", date = "1899-12-31" }));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task List_PageTooLarge_Returns400()
+    {
+        using var client = await Manager();
+
+        using var response = await client.GetAsync($"{Url}?page=200000");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
     public async Task List_Paginates()
     {
         using var client = await Manager();

@@ -103,6 +103,22 @@ describe("StatementTab", () => {
         expect(calls[1].get("to")).toBe("2026-02-28");
     });
 
+    it("Statement_FromAfterTo_DisablesApplyAndExplains", async () => {
+        setup([row()]);
+        const { user } = renderTab();
+        await screen.findByText("F-100");
+
+        const from = screen.getByLabelText("Başlangıç");
+        await user.clear(from);
+        await user.type(from, "2026-03-10");
+        const to = screen.getByLabelText("Bitiş");
+        await user.clear(to);
+        await user.type(to, "2026-03-01");
+
+        expect(screen.getByText("Başlangıç bitişten sonra olamaz.")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Uygula" })).toBeDisabled();
+    });
+
     it("Statement_PrintCallsWindowPrint", async () => {
         setup([row()]);
         const print = vi.spyOn(window, "print").mockImplementation(() => {});

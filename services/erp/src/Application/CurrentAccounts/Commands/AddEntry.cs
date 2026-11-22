@@ -34,6 +34,7 @@ public sealed class AddEntryCommandValidator : AbstractValidator<AddEntryCommand
         RuleFor(c => c.Type).Must(t => t is "opening" or "debit" or "credit")
             .WithMessage("Hareket türü açılış (opening), borç (debit) veya alacak (credit) olmalıdır.");
         RuleFor(c => c.Date).NotEqual(default(DateOnly)).WithMessage("Hareket tarihi zorunludur.");
+        RuleFor(c => c.Date).Must(CardRules.IsValidDate).When(c => c.Date != default).WithMessage(CardRules.DateMessage);
         RuleFor(c => c.Amount).GreaterThan(0m).LessThanOrEqualTo(CardRules.MaxAmount)
             .WithMessage("Tutar 0 değerinden büyük ve 999.999.999.999,99 değerinden küçük olmalıdır.");
         RuleFor(c => c.Amount).Must(CardRules.HasValidScale).WithMessage("Tutar en fazla 2 ondalık basamak içerebilir.");
