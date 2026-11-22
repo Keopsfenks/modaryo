@@ -92,6 +92,7 @@ public class AddressTests : TestBase
         using var client = await Manager();
         var card = await CreateCardAsync(client);
         var a = await AddAsync(client, card, Address("A", billing: true));
+        await Task.Delay(5);
         var b = await AddAsync(client, card, Address("B", billing: true));
         await Task.Delay(5);
         await AddAsync(client, card, Address("C", billing: true));
@@ -112,6 +113,28 @@ public class AddressTests : TestBase
         all = await AddressesAsync(client, card);
         ByTitle(all, "A").GetProperty("isDefaultBilling").GetBoolean().ShouldBeTrue();
         a.GetProperty("id").GetGuid().ShouldNotBe(Guid.Empty);
+    }
+
+    [Test]
+    public async Task Update_WithoutDefaultFlag_KeepsCurrentDefault()
+    {
+        using var client = await Manager();
+        var card = await CreateCardAsync(client);
+        await AddAsync(client, card, Address("A", billing: true));
+        await Task.Delay(5);
+        await AddAsync(client, card, Address("B", billing: true));
+        await Task.Delay(5);
+        var c = await AddAsync(client, card, Address("C", billing: true, defaultBilling: true));
+
+        using var response = await client.PutAsJsonAsync($"{Url}/{card}/addresses/{c.GetProperty("id").GetGuid()}",
+            Address("C yeni", billing: true, defaultBilling: false));
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await response.JsonAsync()).GetProperty("isDefaultBilling").GetBoolean().ShouldBeTrue();
+        var all = await AddressesAsync(client, card);
+        ByTitle(all, "C yeni").GetProperty("isDefaultBilling").GetBoolean().ShouldBeTrue();
+        ByTitle(all, "A").GetProperty("isDefaultBilling").GetBoolean().ShouldBeFalse();
+        ByTitle(all, "B").GetProperty("isDefaultBilling").GetBoolean().ShouldBeFalse();
     }
 
     [Test]

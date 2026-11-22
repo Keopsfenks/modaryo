@@ -40,14 +40,16 @@ public static class AddressRules
         bool requestedDefaultBilling, bool requestedDefaultShipping)
     {
         var billing = all.Where(a => a.IsBilling).ToList();
-        changed.IsDefaultBilling = changed.IsBilling && (requestedDefaultBilling || billing.Count == 1);
+        // false (veya gönderilmemiş) bayrak mevcut varsayılanı düşürmez; varsayılan yalnızca başka adres seçilince,
+        // tür kapatılınca ya da silinince taşınır.
+        changed.IsDefaultBilling = changed.IsBilling && (requestedDefaultBilling || changed.IsDefaultBilling || billing.Count == 1);
         if (changed.IsDefaultBilling)
         {
             billing.Where(a => a != changed).ToList().ForEach(a => a.IsDefaultBilling = false);
         }
 
         var shipping = all.Where(a => a.IsShipping).ToList();
-        changed.IsDefaultShipping = changed.IsShipping && (requestedDefaultShipping || shipping.Count == 1);
+        changed.IsDefaultShipping = changed.IsShipping && (requestedDefaultShipping || changed.IsDefaultShipping || shipping.Count == 1);
         if (changed.IsDefaultShipping)
         {
             shipping.Where(a => a != changed).ToList().ForEach(a => a.IsDefaultShipping = false);
