@@ -26,10 +26,17 @@ public class CreateCompanyCommandHandler(IApplicationDbContext db, ICurrentSessi
         var userId = current.UserId!.Value;
         var now = time.GetUtcNow();
 
-        var tenant = new Tenant { Name = request.Name.Trim(), CreatedAt = now, CreatedByUserId = userId };
+        var tenant = new Tenant
+        {
+            Name = request.Name.Trim(),
+            CreatedAt = now,
+            CreatedByUserId = userId,
+            AppliedPermissionSetVersion = SystemRoles.LatestPermissionSetVersion,
+        };
         var roles = SystemRoles.CreateDefaults(tenant.Id);
 
         db.Tenants.Add(tenant);
+        db.Branches.Add(new Branch { TenantId = tenant.Id, Code = "MRK", Name = "Merkez", IsDefault = true, CreatedAt = now });
         db.TenantRoles.AddRange(roles);
         db.Memberships.Add(new Membership
         {

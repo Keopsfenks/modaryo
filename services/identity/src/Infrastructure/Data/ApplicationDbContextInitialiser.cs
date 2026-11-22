@@ -78,10 +78,17 @@ public class ApplicationDbContextInitialiser(
 
             var user = await users.CreateAsync(DemoEmail, "Demo Kullanıcı", password, emailConfirmed: true, CancellationToken.None);
             var now = time.GetUtcNow();
-            var tenant = new Tenant { Name = "Demo Firma", CreatedAt = now, CreatedByUserId = user.Id };
+            var tenant = new Tenant
+            {
+                Name = "Demo Firma",
+                CreatedAt = now,
+                CreatedByUserId = user.Id,
+                AppliedPermissionSetVersion = SystemRoles.LatestPermissionSetVersion,
+            };
             var roles = SystemRoles.CreateDefaults(tenant.Id);
 
             context.Tenants.Add(tenant);
+            context.Branches.Add(new Branch { TenantId = tenant.Id, Code = "MRK", Name = "Merkez", IsDefault = true, CreatedAt = now });
             context.TenantRoles.AddRange(roles);
             context.Memberships.Add(new Membership
             {

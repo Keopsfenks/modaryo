@@ -9,6 +9,9 @@ public static class SystemRoles
     public const string Admin = "admin";
     public const string Member = "member";
 
+    /// <summary>Güncel hazır rol izin seti sürümü (Görev 6 bunu hesaplanan özellikle değiştirir).</summary>
+    public const int LatestPermissionSetVersion = 1;
+
     /// <summary>Hazır rollerin izinleri (tek kaynak). Yeni modül izinleri buraya eklenir; açılışta mevcut firmalara dağıtılır.</summary>
     public static IReadOnlyDictionary<string, string[]> DefaultPermissions { get; } = new Dictionary<string, string[]>
     {

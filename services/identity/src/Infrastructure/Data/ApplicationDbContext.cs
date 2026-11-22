@@ -21,6 +21,10 @@ public class ApplicationDbContext : IdentityUserContext<ApplicationUser, Guid>, 
 
     public DbSet<Invitation> Invitations => Set<Invitation>();
 
+    public DbSet<Branch> Branches => Set<Branch>();
+
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+
     /// <summary>E-posta doğrulama / şifre sıfırlama kodlarını imzalayan anahtarlar (servis yeniden başlasa da linkler çalışsın).</summary>
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
 

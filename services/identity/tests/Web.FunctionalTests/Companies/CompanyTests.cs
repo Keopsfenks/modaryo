@@ -1,5 +1,7 @@
 using System.Text.Json;
 using IdentityService.Application.Common.Interfaces;
+using IdentityService.Domain.Constants;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IdentityService.Web.FunctionalTests.Companies;
@@ -265,5 +267,39 @@ public class CompanyTests : TestBase
 
         response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
         member.Dispose();
+    }
+
+    [Test]
+    public async Task CreateCompany_CreatesDefaultMerkezBranch()
+    {
+        using var client = await Factory.SignedInClientAsync("ali@ornek.com");
+        var tenantId = await client.CreateCompanyAsync();
+
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+        var branches = await db.Branches.Where(b => b.TenantId == tenantId).ToListAsync();
+
+        var branch = branches.ShouldHaveSingleItem();
+        branch.IsDefault.ShouldBeTrue();
+        branch.IsActive.ShouldBeTrue();
+        branch.Code.ShouldBe("MRK");
+        branch.Name.ShouldBe("Merkez");
+    }
+
+    [Test]
+    public async Task CreateCompany_StartsWithNoModulesAndLatestPermissionSet()
+    {
+        using var client = await Factory.SignedInClientAsync("ali@ornek.com");
+        var tenantId = await client.CreateCompanyAsync();
+
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+        var tenant = await db.Tenants.SingleAsync(t => t.Id == tenantId);
+
+        tenant.EnabledModules.ShouldBeEmpty();
+        tenant.AppliedPermissionSetVersion.ShouldBe(SystemRoles.LatestPermissionSetVersion);
+        var roles = await db.TenantRoles.Where(r => r.TenantId == tenantId).ToListAsync();
+        roles.ShouldAllBe(r => r.AllBranches && r.MaxDiscountPercent == 0m);
+        (await db.Memberships.SingleAsync(m => m.TenantId == tenantId)).Kind.ShouldBe("employee");
     }
 }

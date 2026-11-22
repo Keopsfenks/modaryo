@@ -1,3 +1,4 @@
+using IdentityService.Domain.Constants;
 using IdentityService.Domain.Entities;
 using IdentityService.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,8 @@ public class TenantConfiguration : IEntityTypeConfiguration<Tenant>
     {
         builder.ToTable("tenants");
         builder.Property(t => t.Name).HasMaxLength(100).IsRequired();
+        builder.Property(t => t.EnabledModules).HasColumnType("text[]").HasDefaultValueSql("'{}'").IsRequired();
+        builder.Property(t => t.AppliedPermissionSetVersion).HasDefaultValue(1);
     }
 }
 
@@ -25,6 +28,10 @@ public class TenantRoleConfiguration : IEntityTypeConfiguration<TenantRole>
         builder.HasIndex(r => new { r.TenantId, r.SystemKey }).IsUnique().HasFilter("\"SystemKey\" IS NOT NULL");
         builder.HasMany(r => r.Permissions).WithOne().HasForeignKey(p => p.RoleId).OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(r => r.Permissions).AutoInclude();
+        builder.Property(r => r.MaxDiscountPercent).HasPrecision(5, 2).HasDefaultValue(0m);
+        builder.Property(r => r.AllBranches).HasDefaultValue(true);
+        builder.ToTable(t => t.HasCheckConstraint("CK_tenant_roles_MaxDiscountPercent", "\"MaxDiscountPercent\" >= 0 AND \"MaxDiscountPercent\" <= 100"));
+        builder.HasMany(r => r.Branches).WithOne().HasForeignKey(b => b.RoleId).OnDelete(DeleteBehavior.Cascade);
     }
 }
 
@@ -45,6 +52,8 @@ public class MembershipConfiguration : IEntityTypeConfiguration<Membership>
         builder.ToTable("memberships");
         builder.HasIndex(m => new { m.TenantId, m.UserId }).IsUnique();
         builder.HasIndex(m => m.UserId);
+        builder.Property(m => m.Kind).HasMaxLength(20).HasDefaultValue(MembershipKinds.Employee).IsRequired();
+        builder.HasMany(m => m.Branches).WithOne().HasForeignKey(b => b.MembershipId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne(m => m.Tenant).WithMany().HasForeignKey(m => m.TenantId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne(m => m.Role).WithMany().HasForeignKey(m => m.RoleId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Cascade);

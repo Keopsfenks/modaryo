@@ -12,5 +12,9 @@ public interface IApplicationDbContext
 
     DbSet<Invitation> Invitations { get; }
 
+    DbSet<Branch> Branches { get; }
+
+    DbSet<AuditEntry> AuditEntries { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 }
