@@ -109,6 +109,21 @@ public sealed class RoleRules(IApplicationDbContext db, CompanyAccess access, IC
         }
     }
 
+    /// <summary>Üye şube daraltması: "*" taşımayan ve şube kısıtı olan çağıran, kendi şube kapsamı dışındaki şubeyi veremez.</summary>
+    public void EnsureBranchesWithinCallerScope(IEnumerable<Guid> branchIds)
+    {
+        var mine = current.BranchIds;
+        if (current.HasPermission(Permissions.All) || mine is null)
+        {
+            return;
+        }
+
+        if (branchIds.Any(b => !mine.Contains(b)))
+        {
+            throw NotGrantable("Erişiminiz olmayan bir şubeyi üyeye veremezsiniz.");
+        }
+    }
+
     /// <summary>Üyeye/davete rol atarken: rolün izinleri, iskonto sınırı ve şube kapsamı çağıranın sahip olduklarından fazla olamaz.</summary>
     public void EnsureRoleAssignable(TenantRole role)
     {

@@ -21,6 +21,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<MembershipChanges>();
         builder.Services.AddScoped<CompanyAccess>();
         builder.Services.AddScoped<IdentityService.Application.Roles.RoleRules>();
+        builder.Services.AddScoped<IdentityService.Application.Branches.BranchRules>();
         builder.Services.AddScoped<InvitationService>();
 
         builder.Services.AddMediatR(cfg => {

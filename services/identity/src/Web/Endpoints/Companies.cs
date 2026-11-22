@@ -1,3 +1,6 @@
+using IdentityService.Application.Branches;
+using IdentityService.Application.Branches.Commands;
+using IdentityService.Application.Branches.Queries;
 using IdentityService.Application.Companies;
 using IdentityService.Application.Companies.Commands;
 using IdentityService.Application.Companies.Queries;
@@ -32,6 +35,11 @@ public class Companies : IEndpointGroup
         groupBuilder.MapGet(GetMembers, "current/members");
         groupBuilder.MapPatch(ChangeMemberRole, "current/members/{userId:guid}");
         groupBuilder.MapDelete(RemoveMember, "current/members/{userId:guid}");
+        groupBuilder.MapPut(SetMemberBranches, "current/members/{userId:guid}/branches");
+        groupBuilder.MapGet(ListBranches, "current/branches");
+        groupBuilder.MapPost(CreateBranch, "current/branches");
+        groupBuilder.MapPut(UpdateBranch, "current/branches/{id:guid}");
+        groupBuilder.MapDelete(DeleteBranch, "current/branches/{id:guid}");
         groupBuilder.MapGet(GetModules, "current/modules");
         groupBuilder.MapPut(SetModules, "current/modules");
         groupBuilder.MapGet(ListInvitations, "current/invitations");
@@ -162,6 +170,44 @@ public class Companies : IEndpointGroup
     public static async Task<NoContent> ChangeMemberRole(ISender sender, Guid userId, ChangeRoleRequest request)
     {
         await sender.Send(new ChangeMemberRoleCommand { UserId = userId, RoleId = request.RoleId });
+        return TypedResults.NoContent();
+    }
+
+    public sealed record SetMemberBranchesRequest(Guid[]? BranchIds);
+
+    [EndpointSummary("Üyenin şube erişimini daralt")]
+    [EndpointDescription("Rol kapsamının içinde daraltır; null veya boş liste daraltmayı kaldırır. Şubeler firmanın aktif şubeleri olmalı (400). Çağıran kendi kapsamı dışındaki şubeyi veremez (403 permission_not_grantable). Üyenin açık oturumları hemen güncellenir.")]
+    public static async Task<NoContent> SetMemberBranches(ISender sender, Guid userId, SetMemberBranchesRequest request)
+    {
+        await sender.Send(new SetMemberBranchesCommand { UserId = userId, BranchIds = request.BranchIds });
+        return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("Firmanın şubeleri")]
+    [EndpointDescription("Aktif şubeler önce, sonra koda göre. Her üye görebilir.")]
+    public static async Task<Ok<IReadOnlyList<BranchDto>>> ListBranches(ISender sender) =>
+        TypedResults.Ok(await sender.Send(new ListBranchesQuery()));
+
+    public sealed record BranchRequest(string Code, string Name, bool IsActive = true);
+
+    [EndpointSummary("Şube oluştur")]
+    [EndpointDescription("ayarlar.subeler gerekir. Kod firmada benzersizdir ve büyük harfe çevrilir (409 branch_code_taken).")]
+    public static async Task<Created<BranchDto>> CreateBranch(ISender sender, BranchRequest request)
+    {
+        var branch = await sender.Send(new CreateBranchCommand { Code = request.Code, Name = request.Name });
+        return TypedResults.Created($"/api/identity/companies/current/branches/{branch.Id}", branch);
+    }
+
+    [EndpointSummary("Şubeyi güncelle")]
+    [EndpointDescription("Varsayılan şube pasif yapılamaz (409 branch_is_default); kod çakışması 409 branch_code_taken.")]
+    public static async Task<Ok<BranchDto>> UpdateBranch(ISender sender, Guid id, BranchRequest request) =>
+        TypedResults.Ok(await sender.Send(new UpdateBranchCommand { Id = id, Code = request.Code, Name = request.Name, IsActive = request.IsActive }));
+
+    [EndpointSummary("Şubeyi sil")]
+    [EndpointDescription("Varsayılan şube silinemez (409 branch_is_default). Rollerdeki ve üyelerdeki şube kayıtları silinir, açık oturumlar yenilenir.")]
+    public static async Task<NoContent> DeleteBranch(ISender sender, Guid id)
+    {
+        await sender.Send(new DeleteBranchCommand(id));
         return TypedResults.NoContent();
     }
 

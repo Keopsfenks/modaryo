@@ -29,6 +29,7 @@ public class GetMembersQueryHandler(IApplicationDbContext db, CompanyAccess acce
         var tenantId = access.TenantId;
         var memberships = await db.Memberships.AsNoTracking()
             .Include(m => m.Role)
+            .Include(m => m.Branches)
             .Where(m => m.TenantId == tenantId)
             .OrderBy(m => m.JoinedAt)
             .ToListAsync(ct);
@@ -37,7 +38,8 @@ public class GetMembersQueryHandler(IApplicationDbContext db, CompanyAccess acce
         return memberships
             .Where(m => people.ContainsKey(m.UserId))
             .Select(m => new MemberDto(m.UserId, people[m.UserId].Email, people[m.UserId].FullName,
-                m.RoleId, m.Role.Name, m.Role.SystemKey, m.JoinedAt))
+                m.RoleId, m.Role.Name, m.Role.SystemKey, m.JoinedAt,
+                m.Branches.Count == 0 ? null : m.Branches.Select(b => b.BranchId).Order().ToArray()))
             .ToList();
     }
 }

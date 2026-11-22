@@ -17,4 +17,6 @@ public static class AuthErrorCodes
     public const string RoleInUse = "role_in_use";
     public const string RoleNameTaken = "role_name_taken";
     public const string PermissionNotGrantable = "permission_not_grantable";
+    public const string BranchIsDefault = "branch_is_default";
+    public const string BranchCodeTaken = "branch_code_taken";
 }
