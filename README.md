@@ -54,7 +54,7 @@ Geliştirme ortamında servisler açılırken migration'ları kendileri uygular.
 
 Oturum kuralları: tüm `GET` dışı isteklerde `X-Modaryo-Csrf: 1` başlığı zorunludur; oturum `modaryo_sid` cookie'sindedir.
 Python/Go servisleri için oturum sözleşmesi: `docs/superpowers/specs/2026-11-21-kimlik-dogrulama-design.md` (bölüm 6)
-ve örnek kayıt `docs/contracts/session-v1.example.json`.
+ve örnek kayıt `contracts/session-v1.example.json`.
 
 ## Testler
 

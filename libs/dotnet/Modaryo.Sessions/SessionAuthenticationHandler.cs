@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
@@ -11,7 +12,11 @@ public static class SessionAuthenticationDefaults
     public const string Scheme = "ModaryoSession";
 }
 
-public sealed class SessionAuthenticationOptions : AuthenticationSchemeOptions;
+public sealed class SessionAuthenticationOptions : AuthenticationSchemeOptions
+{
+    /// <summary>Bu serviste kabul edilen kullanıcı türleri; varsayılan olarak yalnızca çalışan.</summary>
+    public ISet<string> AllowedUserTypes { get; } = new HashSet<string> { SessionUserTypes.Employee };
+}
 
 /// <summary>
 /// "modaryo_sid" cookie'sini Valkey'deki kayda çevirir. Cookie yoksa veya kayıt geçersizse
@@ -38,6 +43,11 @@ public sealed class SessionAuthenticationHandler(
         }
 
         var record = lookup.Record;
+        if (!SessionUserTypes.IsKnown(record.UserType) || !Options.AllowedUserTypes.Contains(record.UserType))
+        {
+            return AuthenticateResult.NoResult();
+        }
+
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, record.UserId.ToString("D")),
@@ -45,7 +55,25 @@ public sealed class SessionAuthenticationHandler(
             new(ClaimTypes.Name, record.FullName),
             new(SessionClaimTypes.SessionId, record.Id),
             new(SessionClaimTypes.SidHash, lookup.SidHash),
+            new(SessionClaimTypes.UserType, record.UserType),
+            new(SessionClaimTypes.MaxDiscountPct, record.MaxDiscountPct.ToString(CultureInfo.InvariantCulture)),
         };
+
+        if (record.CariId is { } cariId)
+        {
+            claims.Add(new Claim(SessionClaimTypes.CariId, cariId.ToString("D")));
+        }
+
+        claims.AddRange(record.Modules.Select(m => new Claim(SessionClaimTypes.Module, m)));
+
+        if (record.BranchIds is null)
+        {
+            claims.Add(new Claim(SessionClaimTypes.Branch, SessionKeys.AllBranches));
+        }
+        else
+        {
+            claims.AddRange(record.BranchIds.Select(b => new Claim(SessionClaimTypes.Branch, b.ToString("D"))));
+        }
 
         if (record.TenantId is { } tenantId)
         {

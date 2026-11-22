@@ -10,6 +10,8 @@ public static class SessionKeys
     public const string CsrfHeader = "X-Modaryo-Csrf";
     public const int CurrentVersion = 1;
     public const string AllPermissions = "*";
+    /// <summary>"branch" claim değeri: kullanıcı tüm şubelere erişebilir (oturum kaydında branch_ids null).</summary>
+    public const string AllBranches = "*";
 
     /// <summary>32 baytlık kriptografik rastgele oturum kimliği (base64url, dolgusuz).</summary>
     public static string NewSid() => Base64Url(RandomNumberGenerator.GetBytes(32));

@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "id": "a1b2c3d4e5f60718",
+  "user_id": "0193a6f2-6c1e-7b3a-9d4e-2f5a8c7b1e90",
+  "email": "bayi@ornek.com",
+  "full_name": "Bayi Kullanıcı",
+  "tenant_id": "0193a6f3-0a42-7c11-8e2b-6d9f4a3c5b21",
+  "permissions": ["cari.read", "satis.create"],
+  "remember_me": false,
+  "created_at": 1795200000,
+  "absolute_expires_at": 1795286400,
+  "idle_timeout_s": 28800,
+  "ip": "203.0.113.5",
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+  "user_type": "dealer",
+  "cari_id": "0193a6f4-1b53-7d22-9f3c-7ea05b4d6c32",
+  "modules": ["cari", "satis"],
+  "branch_ids": ["0193a6f5-2c64-7e33-8a4d-8fb16c5e7d43", "0193a6f5-2c64-7e33-8a4d-8fb16c5e7d44"],
+  "max_discount_pct": 7.5
+}

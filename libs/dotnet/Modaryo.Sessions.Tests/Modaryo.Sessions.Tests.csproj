@@ -30,7 +30,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="..\..\..\docs\contracts\session-v1.example.json" Link="session-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="..\..\..\contracts\session-v1.example.json" Link="session-v1.example.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
 </Project>

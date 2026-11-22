@@ -5,7 +5,7 @@ using StackExchange.Redis;
 namespace ERP.Web.FunctionalTests.Infrastructure;
 
 /// <summary>
-/// Kimlik servisini başlatmadan, sözleşme örneğinden (docs/contracts/session-v1.example.json) Valkey'e oturum yazar.
+/// Kimlik servisini başlatmadan, sözleşme örneğinden (contracts/session-v1.example.json) Valkey'e oturum yazar.
 /// ERP'nin, kimlik servisinin yazdığı biçimi okuyabildiğinin kanıtı.
 /// </summary>
 public static class ContractSessions
