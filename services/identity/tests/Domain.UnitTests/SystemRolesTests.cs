@@ -33,7 +33,8 @@ public class SystemRolesTests
 
         admin.Permissions.Select(p => p.Permission).ShouldBe(
             ["company.update", "members.read", "members.invite", "members.manage", "cari.read", "cari.manage", "cari.movements",
-             "roller.read", "roller.manage", "ayarlar.moduller", "ayarlar.subeler", "denetim.read"],
+             "roller.read", "roller.manage", "ayarlar.moduller", "ayarlar.subeler", "denetim.read",
+             "ayarlar.firma", "ayarlar.genel", "ayarlar.finans"],
             ignoreOrder: true);
     }
 

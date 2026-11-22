@@ -22,6 +22,9 @@ public static class Permissions
 
     public const string SettingsModules = "ayarlar.moduller";
     public const string SettingsBranches = "ayarlar.subeler";
+    public const string SettingsCompany = "ayarlar.firma";
+    public const string SettingsGeneral = "ayarlar.genel";
+    public const string SettingsFinance = "ayarlar.finans";
 
     public const string AuditRead = "denetim.read";
 }

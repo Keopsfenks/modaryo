@@ -3,6 +3,7 @@ using System.Reflection;
 using ERP.Application.Common.Interfaces;
 using ERP.Domain.Common;
 using ERP.Domain.CurrentAccounts;
+using ERP.Domain.Settings;
 using Microsoft.EntityFrameworkCore;
 
 namespace ERP.Infrastructure.Data;
@@ -28,6 +29,10 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<CurrentAccountAddress> CurrentAccountAddresses => Set<CurrentAccountAddress>();
 
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
+
+    public DbSet<TenantSetting> TenantSettings => Set<TenantSetting>();
+
+    public DbSet<ErpAuditEntry> AuditEntries => Set<ErpAuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder) {
         base.OnModelCreating(builder);

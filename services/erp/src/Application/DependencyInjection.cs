@@ -9,6 +9,8 @@ public static class DependencyInjection {
         builder.Services.AddAutoMapper(cfg =>
                                            cfg.AddMaps(Assembly.GetExecutingAssembly()));
 
+        builder.Services.AddScoped<ERP.Application.Settings.ITenantSettings, ERP.Application.Settings.TenantSettingsService>();
+
         builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
         builder.Services.AddMediatR(cfg => {

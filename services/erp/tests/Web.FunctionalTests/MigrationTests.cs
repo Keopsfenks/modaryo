@@ -17,5 +17,7 @@ public class MigrationTests : TestBase {
         tables.ShouldContain("current_accounts");
         tables.ShouldContain("current_account_addresses");
         tables.ShouldContain("ledger_entries");
+        tables.ShouldContain("tenant_settings");
+        tables.ShouldContain("erp_audit_entries");
     }
 }

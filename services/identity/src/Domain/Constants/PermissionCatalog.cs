@@ -33,6 +33,9 @@ public static class PermissionCatalog
 
             new(Permissions.SettingsModules, null, "Ayarlar", "Modülleri yönet", "Firma için modülleri açıp kapatabilir."),
             new(Permissions.SettingsBranches, null, "Ayarlar", "Şubeleri yönet", "Şube tanımlayabilir ve düzenleyebilir."),
+            new(Permissions.SettingsCompany, null, "Ayarlar", "Firma bilgilerini yönet", "Unvan, vergi bilgileri, adres ve banka hesaplarını görüntüleyip düzenleyebilir."),
+            new(Permissions.SettingsGeneral, null, "Ayarlar", "Genel ayarları yönet", "Para birimi, ondalık basamak, çalışma günleri ve tatil günlerini düzenleyebilir."),
+            new(Permissions.SettingsFinance, null, "Ayarlar", "Mali ayarları yönet", "Dönem kilidi gibi mali ayarları düzenleyebilir."),
 
             new(Permissions.CariRead, null, "Cari hesaplar", "Cari hesapları görüntüle", "Cari hesapları, ekstreleri ve vade bilgilerini görüntüleyebilir."),
             new(Permissions.CariManage, null, "Cari hesaplar", "Cari hesapları yönet", "Cari hesap oluşturabilir, düzenleyebilir ve pasife alabilir."),

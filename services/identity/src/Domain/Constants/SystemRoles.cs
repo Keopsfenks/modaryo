@@ -27,6 +27,9 @@ public static class SystemRoles
                 Permissions.SettingsBranches, Permissions.AuditRead,
             ],
             []),
+        new(3,
+            [Permissions.SettingsCompany, Permissions.SettingsGeneral, Permissions.SettingsFinance],
+            []),
     ];
 
     public static int LatestPermissionSetVersion { get; } = PermissionSetVersions.Max(v => v.Version);

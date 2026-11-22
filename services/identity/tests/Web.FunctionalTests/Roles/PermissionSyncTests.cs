@@ -22,7 +22,7 @@ public class PermissionSyncTests : TestBase
         return await scope.ServiceProvider.GetRequiredService<SystemRolePermissionSync>().RunAsync(CancellationToken.None);
     }
 
-    private static async Task<(Guid TenantId, Guid CustomRoleId)> SeedLegacyTenantAsync(int version = 1)
+    private static async Task<(Guid TenantId, Guid CustomRoleId)> SeedLegacyTenantAsync(int version = 1, string[]? adminPermissions = null)
     {
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -30,7 +30,7 @@ public class PermissionSyncTests : TestBase
         db.Tenants.Add(tenant);
         db.TenantRoles.Add(LegacyRole(tenant.Id, "Sahip", "owner", ["*"]));
         db.TenantRoles.Add(LegacyRole(tenant.Id, "Yönetici", "admin",
-            AdminV1));
+            adminPermissions ?? AdminV1));
         db.TenantRoles.Add(LegacyRole(tenant.Id, "Kullanıcı", "member", ["members.read", "cari.read"]));
         var custom = LegacyRole(tenant.Id, "Muhasebe", null, ["members.read"]);
         db.TenantRoles.Add(custom);
@@ -41,8 +41,12 @@ public class PermissionSyncTests : TestBase
     private static readonly string[] AdminV1 =
         ["company.update", "members.read", "members.invite", "members.manage", "cari.read", "cari.manage", "cari.movements"];
 
-    private static readonly string[] NewCodes =
+    private static readonly string[] V2Codes =
         ["ayarlar.moduller", "ayarlar.subeler", "denetim.read", "roller.manage", "roller.read"];
+
+    private static readonly string[] V3Codes = ["ayarlar.finans", "ayarlar.firma", "ayarlar.genel"];
+
+    private static readonly string[] NewCodes = V2Codes.Concat(V3Codes).ToArray();
 
     private static TenantRole LegacyRole(Guid tenantId, string name, string? systemKey, string[] permissions)
     {
@@ -70,6 +74,19 @@ public class PermissionSyncTests : TestBase
         added.ShouldBeGreaterThanOrEqualTo(5);
         var admin = await PermissionsOfAsync(tenantId, "admin");
         admin.ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "members.read"]);
+        (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
+    }
+
+    [Test]
+    public async Task Sync_AppliesVersion3SettingsPermissionsToAdmin()
+    {
+        var (tenantId, _) = await SeedLegacyTenantAsync(2, AdminV1.Concat(V2Codes).ToArray());
+
+        var added = await SyncAsync();
+
+        added.ShouldBeGreaterThanOrEqualTo(3);
+        (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
         (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "members.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
     }

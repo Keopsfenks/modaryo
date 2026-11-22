@@ -265,6 +265,88 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.ToTable("ledger_entries", (string)null);
                 });
 
+            modelBuilder.Entity("ERP.Domain.Settings.ErpAuditEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ActorLabel")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("After")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Before")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "At")
+                        .IsDescending(false, true);
+
+                    b.ToTable("erp_audit_entries", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Settings.TenantSetting", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Category")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Json")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer");
+
+                    b.HasKey("TenantId", "Category");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("tenant_settings", (string)null);
+                });
+
             modelBuilder.Entity("ERP.Domain.CurrentAccounts.CurrentAccountAddress", b =>
                 {
                     b.HasOne("ERP.Domain.CurrentAccounts.CurrentAccount", null)
