@@ -9,19 +9,34 @@ public static class SystemRoles
     public const string Admin = "admin";
     public const string Member = "member";
 
-    /// <summary>Güncel hazır rol izin seti sürümü (Görev 6 bunu hesaplanan özellikle değiştirir).</summary>
-    public const int LatestPermissionSetVersion = 1;
+    /// <summary>
+    /// Hazır rol izin seti sürümleri. Her sürüm yalnızca o sürümde eklenen izinleri taşır; yeni izin eklemek için yeni sürüm açılır.
+    /// Senkronizasyon her firmaya bir sürümü yalnızca bir kez uygular, böylece yöneticinin sonradan kaldırdığı izin geri eklenmez.
+    /// </summary>
+    public static IReadOnlyList<PermissionSetVersion> PermissionSetVersions { get; } =
+    [
+        new(1,
+            [
+                Permissions.CompanyUpdate, Permissions.MembersRead, Permissions.MembersInvite, Permissions.MembersManage,
+                Permissions.CariRead, Permissions.CariManage, Permissions.CariMovements,
+            ],
+            [Permissions.MembersRead, Permissions.CariRead]),
+        new(2,
+            [
+                Permissions.RolesRead, Permissions.RolesManage, Permissions.SettingsModules,
+                Permissions.SettingsBranches, Permissions.AuditRead,
+            ],
+            []),
+    ];
 
-    /// <summary>Hazır rollerin izinleri (tek kaynak). Yeni modül izinleri buraya eklenir; açılışta mevcut firmalara dağıtılır.</summary>
+    public static int LatestPermissionSetVersion { get; } = PermissionSetVersions.Max(v => v.Version);
+
+    /// <summary>Hazır rollerin izinleri: tüm sürümlerin birleşimi (yeni firmalar ve rol sıfırlama bunu kullanır).</summary>
     public static IReadOnlyDictionary<string, string[]> DefaultPermissions { get; } = new Dictionary<string, string[]>
     {
         [Owner] = [Permissions.All],
-        [Admin] =
-        [
-            Permissions.CompanyUpdate, Permissions.MembersRead, Permissions.MembersInvite, Permissions.MembersManage,
-            Permissions.CariRead, Permissions.CariManage, Permissions.CariMovements,
-        ],
-        [Member] = [Permissions.MembersRead, Permissions.CariRead],
+        [Admin] = PermissionSetVersions.SelectMany(v => v.AddToAdmin).Distinct().ToArray(),
+        [Member] = PermissionSetVersions.SelectMany(v => v.AddToMember).Distinct().ToArray(),
     };
 
     public static IReadOnlyList<TenantRole> CreateDefaults(Guid tenantId) =>
@@ -38,3 +53,6 @@ public static class SystemRoles
         return role;
     }
 }
+
+/// <summary>Bir izin seti sürümünde admin ve member hazır rollerine eklenen izinler.</summary>
+public sealed record PermissionSetVersion(int Version, string[] AddToAdmin, string[] AddToMember);

@@ -32,7 +32,8 @@ public class SystemRolesTests
         var admin = SystemRoles.CreateDefaults(TenantId).Single(r => r.SystemKey == SystemRoles.Admin);
 
         admin.Permissions.Select(p => p.Permission).ShouldBe(
-            ["company.update", "members.read", "members.invite", "members.manage", "cari.read", "cari.manage", "cari.movements"],
+            ["company.update", "members.read", "members.invite", "members.manage", "cari.read", "cari.manage", "cari.movements",
+             "roller.read", "roller.manage", "ayarlar.moduller", "ayarlar.subeler", "denetim.read"],
             ignoreOrder: true);
     }
 
