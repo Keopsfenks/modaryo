@@ -5,7 +5,7 @@ Kendi kendine üye olunan, çok kiracılı (SaaS) bir ERP. Mikroservis mimarisin
 | Klasör | İçerik |
 |---|---|
 | `services/identity` | Kimlik ve firma servisi (.NET) — kayıt, giriş, oturum, firma, rol, davet |
-| `services/erp` | ERP iş servisi (.NET) |
+| `services/erp` | ERP iş servisi (.NET) — cari hesaplar (müşteri/tedarikçi, hareketler, ekstre, vade takibi) |
 | `libs/dotnet/Modaryo.Sessions` | .NET servislerinin ortak oturum okuma / CSRF / izin kodu |
 | `frontend` | Next.js arayüzü |
 | `infra` | Yerel altyapı (Docker Compose) |
@@ -81,6 +81,13 @@ istekleri Next.js tarafından servislere aktarılır (`IDENTITY_API_URL`, `ERP_A
 | `/baslangic` | Firması olmayan kullanıcı: firma oluştur veya bekleyen daveti kabul et |
 | `/hesap` | Profil, şifre değiştirme, aktif oturumlar |
 | `/firma/uyeler` | Üyeler, roller, davetler, firmadan ayrılma |
+| `/finans/cari-hesaplar`, `/satis/musteriler`, `/satin-alma/tedarikciler` | Cari listeleri (tümü / müşteriler / tedarikçiler): arama, bakiye (B/A), vadesi geçmiş tutar, limit aşımı |
+| `/cari/yeni`, `/cari/[id]` | Yeni cari; cari detayı (Genel, Adresler, Hareketler, Ekstre, Vade, Açık faturalar) |
+| `/finans/vade-takibi` | Para birimi bazında tahsil edilecek / ödenecek özet ve en çok geciken cariler |
+
+Cari izinleri: `cari.read` (görüntüleme), `cari.manage` (kart ve adresler), `cari.movements` (açılış, borç/alacak
+dekontu, iptal). Hazır rollerde Sahip hepsine, Yönetici üçüne, Kullanıcı yalnızca `cari.read`'e sahiptir; kimlik servisi
+açılışta yeni izinleri mevcut firmaların hazır rollerine ekler.
 
 Çalıştırma sırası: `infra/up.sh` → kimlik servisi → ERP servisi → `npm --prefix frontend run dev`.
 Testler: `npm --prefix frontend test` (Vitest + Testing Library + MSW).
