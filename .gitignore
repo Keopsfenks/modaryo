@@ -29,3 +29,7 @@ next-env.d.ts
 # İşletim sistemi
 Thumbs.db
 .DS_Store
+
+# Markdown: yalnızca README.md dosyaları depoya girer
+*.md
+!README.md
