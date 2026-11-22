@@ -53,6 +53,7 @@ public class MembershipConfiguration : IEntityTypeConfiguration<Membership>
         builder.HasIndex(m => new { m.TenantId, m.UserId }).IsUnique();
         builder.HasIndex(m => m.UserId);
         builder.Property(m => m.Kind).HasMaxLength(20).HasDefaultValue(MembershipKinds.Employee).IsRequired();
+        builder.Property(m => m.BranchesRestricted).HasDefaultValue(false);
         builder.HasMany(m => m.Branches).WithOne().HasForeignKey(b => b.MembershipId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne(m => m.Tenant).WithMany().HasForeignKey(m => m.TenantId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne(m => m.Role).WithMany().HasForeignKey(m => m.RoleId).OnDelete(DeleteBehavior.Restrict);

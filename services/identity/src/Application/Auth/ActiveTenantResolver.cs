@@ -23,7 +23,7 @@ public sealed class ActiveTenantResolver(IApplicationDbContext db, IUserAccounts
             ?? memberships.FirstOrDefault(m => m.TenantId == lastActive)
             ?? memberships[0];
 
-        return GrantOf(chosen);
+        return GrantOf(chosen, await InactiveBranchIdsAsync(chosen.TenantId, ct));
     }
 
     /// <summary>Üye değilse null.</summary>
@@ -35,7 +35,7 @@ public sealed class ActiveTenantResolver(IApplicationDbContext db, IUserAccounts
             .Include(m => m.Role).ThenInclude(r => r.Branches)
             .Include(m => m.Branches)
             .FirstOrDefaultAsync(m => m.UserId == userId && m.TenantId == tenantId, ct);
-        return membership is null ? null : GrantOf(membership);
+        return membership is null ? null : GrantOf(membership, await InactiveBranchIdsAsync(tenantId, ct));
     }
 
     public async Task<SessionInfo> BuildSessionInfoAsync(Guid userId, Guid? activeTenantId, CancellationToken ct)
@@ -48,7 +48,7 @@ public sealed class ActiveTenantResolver(IApplicationDbContext db, IUserAccounts
             .OrderBy(c => c.Name, StringComparer.Create(new System.Globalization.CultureInfo("tr-TR"), true))
             .ToArray();
         var active = memberships.FirstOrDefault(m => m.TenantId == activeTenantId);
-        var grant = active is null ? SessionGrant.None : GrantOf(active);
+        var grant = active is null ? SessionGrant.None : GrantOf(active, await InactiveBranchIdsAsync(active.TenantId, ct));
 
         return new SessionInfo(
             new UserDto(user.Id, user.Email, user.FullName),
@@ -71,28 +71,36 @@ public sealed class ActiveTenantResolver(IApplicationDbContext db, IUserAccounts
             .OrderByDescending(m => m.JoinedAt)
             .ToListAsync(ct);
 
-    private static SessionGrant GrantOf(Membership membership) => new(
+    private async Task<HashSet<Guid>> InactiveBranchIdsAsync(Guid tenantId, CancellationToken ct) =>
+        (await db.Branches.AsNoTracking().Where(b => b.TenantId == tenantId && !b.IsActive).Select(b => b.Id).ToListAsync(ct)).ToHashSet();
+
+    private static SessionGrant GrantOf(Membership membership, HashSet<Guid> inactiveBranchIds) => new(
         membership.TenantId,
         PermissionsOf(membership),
         membership.Tenant.EnabledModules.Order(StringComparer.Ordinal).ToArray(),
-        BranchScopeOf(membership),
+        BranchScopeOf(membership, inactiveBranchIds),
         membership.Role.MaxDiscountPercent,
         membership.Kind,
         membership.CariId);
 
-    /// <summary>Rol kapsamı (AllBranches ise null) ile üyelik daraltmasının kesişimi; boş kesişim boş dizidir.</summary>
-    private static Guid[]? BranchScopeOf(Membership membership)
+    /// <summary>
+    /// Rol kapsamı (AllBranches ise null) ile üyelik daraltmasının kesişimi. Daraltma yalnızca BranchesRestricted iken uygulanır
+    /// ve satır yoksa erişim yoktur. Pasif şubeler hiçbir durumda erişim sağlamaz. Boş kesişim boş dizidir.
+    /// </summary>
+    private static Guid[]? BranchScopeOf(Membership membership, HashSet<Guid> inactiveBranchIds)
     {
         var role = membership.Role.AllBranches ? null : membership.Role.Branches.Select(b => b.BranchId).ToHashSet();
-        var narrowing = membership.Branches.Count == 0 ? null : membership.Branches.Select(b => b.BranchId).ToHashSet();
+        var narrowing = membership.BranchesRestricted ? membership.Branches.Select(b => b.BranchId).ToHashSet() : null;
 
-        return (role, narrowing) switch
+        var scope = (role, narrowing) switch
         {
             (null, null) => null,
             (not null, null) => role.ToArray(),
             (null, not null) => narrowing.ToArray(),
             _ => role!.Intersect(narrowing!).ToArray(),
         };
+
+        return scope?.Where(id => !inactiveBranchIds.Contains(id)).ToArray();
     }
 
     private static string[] PermissionsOf(Membership membership) =>

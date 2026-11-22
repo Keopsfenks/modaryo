@@ -21,6 +21,9 @@ public class Membership : BaseEntity
     /// <summary>Bayi / self servis üyeliğinde ilişkili cari hesap.</summary>
     public Guid? CariId { get; set; }
 
-    /// <summary>Rol şube kapsamını daraltan şubeler (boşsa daraltma yok).</summary>
+    /// <summary>true ise şube kapsamı rol kapsamı ∩ <see cref="Branches"/> olur; hiç satır yoksa erişim yoktur. false ise rol kapsamı geçerlidir.</summary>
+    public bool BranchesRestricted { get; set; }
+
+    /// <summary>Rol şube kapsamını daraltan şubeler (yalnızca <see cref="BranchesRestricted"/> iken anlamlı).</summary>
     public List<MembershipBranch> Branches { get; } = [];
 }

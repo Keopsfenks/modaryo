@@ -1,4 +1,5 @@
 using IdentityService.Application.Common.Interfaces;
+using IdentityService.Application.Companies;
 using IdentityService.Application.Common.Security;
 using IdentityService.Domain.Constants;
 
@@ -25,10 +26,11 @@ public class UpdateBranchCommandValidator : AbstractValidator<UpdateBranchComman
     }
 }
 
-public class UpdateBranchCommandHandler(IApplicationDbContext db, BranchRules rules) : IRequestHandler<UpdateBranchCommand, BranchDto>
+public class UpdateBranchCommandHandler(BranchRules rules, CompanyAccess access, MembershipChanges changes) : IRequestHandler<UpdateBranchCommand, BranchDto>
 {
     public async Task<BranchDto> Handle(UpdateBranchCommand request, CancellationToken ct)
     {
+        rules.EnsureCallerHasAllBranches();
         var branch = await rules.LoadAsync(request.Id, ct);
         if (branch.IsDefault && !request.IsActive)
         {
@@ -38,10 +40,18 @@ public class UpdateBranchCommandHandler(IApplicationDbContext db, BranchRules ru
         var code = BranchRules.NormalizeCode(request.Code);
         await rules.EnsureCodeFreeAsync(code, branch.Id, ct);
 
+        var activeChanged = branch.IsActive != request.IsActive;
         branch.Code = code;
         branch.Name = request.Name.Trim();
         branch.IsActive = request.IsActive;
-        await db.SaveChangesAsync(ct);
+        await rules.SaveCodeChangeAsync(code, branch.Id, ct);
+
+        if (activeChanged)
+        {
+            // Pasif şube hiçbir oturumda erişim sağlamaz; açık oturumlar hemen yenilenir.
+            await changes.RefreshTenantAsync(access.TenantId, ct);
+        }
+
         return BranchRules.ToDto(branch);
     }
 }

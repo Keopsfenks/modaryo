@@ -124,6 +124,24 @@ public sealed class RoleRules(IApplicationDbContext db, CompanyAccess access, IC
         }
     }
 
+    /// <summary>
+    /// Üyenin daraltmasını kaldırmak onu rolün tam kapsamına döndürür: şube kısıtlı çağıran, rol kapsamı kendi kapsamının dışına taşıyorsa bunu yapamaz.
+    /// </summary>
+    public void EnsureRoleScopeWithinCallerScope(TenantRole role)
+    {
+        if (current.HasPermission(Permissions.All) || current.BranchIds is null)
+        {
+            return;
+        }
+
+        if (role.AllBranches)
+        {
+            throw NotGrantable("Tüm şubelere erişimi yalnızca tüm şubelere erişimi olan biri verebilir.");
+        }
+
+        EnsureBranchesWithinCallerScope(role.Branches.Select(b => b.BranchId));
+    }
+
     /// <summary>Üyeye/davete rol atarken: rolün izinleri, iskonto sınırı ve şube kapsamı çağıranın sahip olduklarından fazla olamaz.</summary>
     public void EnsureRoleAssignable(TenantRole role)
     {
@@ -147,7 +165,7 @@ public sealed class RoleRules(IApplicationDbContext db, CompanyAccess access, IC
     }
 
     /// <summary>allBranches=false ise şubeler boş olmamalı ve firmanın aktif şubeleri olmalı.</summary>
-    public async Task<Guid[]> ResolveBranchesAsync(bool allBranches, IEnumerable<Guid> branchIds, CancellationToken ct)
+    public async Task<Guid[]> ResolveBranchesAsync(bool allBranches, IEnumerable<Guid> branchIds, CancellationToken ct, IEnumerable<Guid>? existingIds = null)
     {
         if (allBranches)
         {
@@ -161,8 +179,10 @@ public sealed class RoleRules(IApplicationDbContext db, CompanyAccess access, IC
         }
 
         var tenantId = access.TenantId;
+        // Rolde zaten olan şubeler pasifleşmiş olsa da korunabilir; yalnızca yeni eklenenler aktif olmalıdır.
+        var existing = existingIds?.ToHashSet() ?? [];
         var valid = await db.Branches.AsNoTracking()
-            .Where(b => b.TenantId == tenantId && b.IsActive && ids.Contains(b.Id))
+            .Where(b => b.TenantId == tenantId && ids.Contains(b.Id) && (b.IsActive || existing.Contains(b.Id)))
             .CountAsync(ct);
         if (valid != ids.Length)
         {

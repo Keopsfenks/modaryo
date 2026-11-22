@@ -28,6 +28,7 @@ public class CreateBranchCommandHandler(IApplicationDbContext db, CompanyAccess 
 {
     public async Task<BranchDto> Handle(CreateBranchCommand request, CancellationToken ct)
     {
+        rules.EnsureCallerHasAllBranches();
         var code = BranchRules.NormalizeCode(request.Code);
         await rules.EnsureCodeFreeAsync(code, null, ct);
 
@@ -39,7 +40,7 @@ public class CreateBranchCommandHandler(IApplicationDbContext db, CompanyAccess 
             CreatedAt = time.GetUtcNow(),
         };
         db.Branches.Add(branch);
-        await db.SaveChangesAsync(ct);
+        await rules.SaveCodeChangeAsync(code, null, ct);
         return BranchRules.ToDto(branch);
     }
 }

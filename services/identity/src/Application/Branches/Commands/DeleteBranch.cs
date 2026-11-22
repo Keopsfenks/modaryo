@@ -17,6 +17,7 @@ public class DeleteBranchCommandHandler(IApplicationDbContext db, CompanyAccess 
 {
     public async Task Handle(DeleteBranchCommand request, CancellationToken ct)
     {
+        rules.EnsureCallerHasAllBranches();
         var branch = await rules.LoadAsync(request.Id, ct);
         if (branch.IsDefault)
         {

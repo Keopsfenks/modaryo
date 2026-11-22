@@ -7,7 +7,7 @@ using IdentityService.Domain.Entities;
 namespace IdentityService.Application.Companies.Commands;
 
 /// <summary>
-/// Üyenin şube erişimini rol kapsamının içinde daraltır. null ya da boş liste daraltmayı kaldırır (rol kapsamı geçerli olur).
+/// Üyenin şube erişimini rol kapsamının içinde daraltır. null daraltmayı kaldırır (rol kapsamı geçerli olur); boş liste geçersizdir.
 /// Oturumdaki kapsam = rol kapsamı ∩ daraltma.
 /// </summary>
 [Authorize(Permission = Permissions.MembersManage)]
@@ -31,8 +31,19 @@ public class SetMemberBranchesCommandHandler(IApplicationDbContext db, CompanyAc
             await access.EnsureCallerIsOwnerAsync(ct);
         }
 
+        if (request.BranchIds is { Length: 0 })
+        {
+            throw RoleRules.FieldError("branchIds", "En az bir şube seçin.");
+        }
+
         var ids = (request.BranchIds ?? []).Distinct().ToArray();
-        if (ids.Length > 0)
+        if (request.BranchIds is null)
+        {
+            // Daraltmayı kaldırmak üyeyi rolün tam kapsamına döndürür; çağıran bunu kendi kapsamıyla aşamaz (kendisi dahil).
+            var role = await rules.LoadAsync(target.RoleId, ct);
+            rules.EnsureRoleScopeWithinCallerScope(role);
+        }
+        else
         {
             var tenantId = access.TenantId;
             var valid = await db.Branches.AsNoTracking()
@@ -45,6 +56,7 @@ public class SetMemberBranchesCommandHandler(IApplicationDbContext db, CompanyAc
             rules.EnsureBranchesWithinCallerScope(ids);
         }
 
+        target.BranchesRestricted = request.BranchIds is not null;
         target.Branches.RemoveAll(b => !ids.Contains(b.BranchId));
         var existing = target.Branches.Select(b => b.BranchId).ToHashSet();
         target.Branches.AddRange(ids.Where(b => !existing.Contains(b))

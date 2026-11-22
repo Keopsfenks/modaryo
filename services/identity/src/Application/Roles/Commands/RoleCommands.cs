@@ -95,11 +95,12 @@ public class UpdateRoleCommandHandler(IApplicationDbContext db, RoleRules rules,
         var oldPermissions = role.Permissions.Select(p => p.Permission).ToArray();
         var permissions = RoleRules.NormalizePermissions(request.Permissions ?? oldPermissions);
         var allBranches = request.AllBranches ?? role.AllBranches;
-        var branchSource = request.BranchIds ?? role.Branches.Select(b => b.BranchId).ToArray();
+        var existingBranchIds = role.Branches.Select(b => b.BranchId).ToArray();
+        var branchSource = request.BranchIds ?? existingBranchIds;
 
         rules.EnsureGrantable(permissions, oldPermissions);
         await rules.EnsureNameFreeAsync(name, role.Id, ct);
-        var branchIds = await rules.ResolveBranchesAsync(allBranches, branchSource, ct);
+        var branchIds = await rules.ResolveBranchesAsync(allBranches, branchSource, ct, existingBranchIds);
         var discount = request.MaxDiscountPercent ?? role.MaxDiscountPercent;
         rules.EnsureScopeGrantable(discount, allBranches, branchIds,
             (role.MaxDiscountPercent, role.AllBranches, role.Branches.Select(b => b.BranchId).ToArray()));

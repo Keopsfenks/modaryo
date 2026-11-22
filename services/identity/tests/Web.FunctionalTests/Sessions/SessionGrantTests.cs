@@ -32,7 +32,7 @@ public class SessionGrantTests : TestBase
         var role = new TenantRole { TenantId = tenantId, Name = "Şube rolü " + Guid.NewGuid(), AllBranches = allBranches, MaxDiscountPercent = discount };
         role.Branches.AddRange(roleBranches.Select(b => new RoleBranch { BranchId = b }));
         db.TenantRoles.Add(role);
-        var membership = new Membership { TenantId = tenantId, UserId = userId, RoleId = role.Id, JoinedAt = DateTimeOffset.UtcNow };
+        var membership = new Membership { TenantId = tenantId, UserId = userId, RoleId = role.Id, JoinedAt = DateTimeOffset.UtcNow, BranchesRestricted = narrowing.Length > 0 };
         membership.Branches.AddRange(narrowing.Select(b => new MembershipBranch { BranchId = b }));
         db.Memberships.Add(membership);
         await db.SaveChangesAsync(CancellationToken.None);

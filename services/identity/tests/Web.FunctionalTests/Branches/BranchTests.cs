@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IdentityService.Web.FunctionalTests.Branches;
 
-public class BranchTests : TestBase
+public partial class BranchTests : TestBase
 {
     private const string Url = "/api/identity/companies/current/branches";
     private const string RolesUrl = "/api/identity/companies/current/roles";

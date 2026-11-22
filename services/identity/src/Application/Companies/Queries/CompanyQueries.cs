@@ -39,7 +39,7 @@ public class GetMembersQueryHandler(IApplicationDbContext db, CompanyAccess acce
             .Where(m => people.ContainsKey(m.UserId))
             .Select(m => new MemberDto(m.UserId, people[m.UserId].Email, people[m.UserId].FullName,
                 m.RoleId, m.Role.Name, m.Role.SystemKey, m.JoinedAt,
-                m.Branches.Count == 0 ? null : m.Branches.Select(b => b.BranchId).Order().ToArray()))
+                !m.BranchesRestricted ? null : m.Branches.Select(b => b.BranchId).Order().ToArray()))
             .ToList();
     }
 }
