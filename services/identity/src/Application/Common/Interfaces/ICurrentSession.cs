@@ -16,6 +16,12 @@ public interface ICurrentSession
 
     bool HasPermission(string permission);
 
+    /// <summary>Oturumun erişebildiği şubeler; null tüm şubeler demektir.</summary>
+    IReadOnlyList<Guid>? BranchIds { get; }
+
+    /// <summary>Oturumun iskonto sınırı (yüzde).</summary>
+    decimal MaxDiscountPercent { get; }
+
     string? Ip { get; }
 
     string? UserAgent { get; }

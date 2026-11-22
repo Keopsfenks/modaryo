@@ -62,6 +62,7 @@ public class CreateRoleCommandHandler(IApplicationDbContext db, CompanyAccess ac
         rules.EnsureGrantable(permissions, []);
         await rules.EnsureNameFreeAsync(name, null, ct);
         var branchIds = await rules.ResolveBranchesAsync(allBranches, branchSource, ct);
+        rules.EnsureScopeGrantable(discount, allBranches, branchIds, null);
 
         var role = new TenantRole { TenantId = access.TenantId, Name = name, MaxDiscountPercent = discount, AllBranches = allBranches };
         RoleRules.ApplyPermissions(role, permissions);
@@ -99,9 +100,12 @@ public class UpdateRoleCommandHandler(IApplicationDbContext db, RoleRules rules,
         rules.EnsureGrantable(permissions, oldPermissions);
         await rules.EnsureNameFreeAsync(name, role.Id, ct);
         var branchIds = await rules.ResolveBranchesAsync(allBranches, branchSource, ct);
+        var discount = request.MaxDiscountPercent ?? role.MaxDiscountPercent;
+        rules.EnsureScopeGrantable(discount, allBranches, branchIds,
+            (role.MaxDiscountPercent, role.AllBranches, role.Branches.Select(b => b.BranchId).ToArray()));
 
         role.Name = name;
-        role.MaxDiscountPercent = request.MaxDiscountPercent ?? role.MaxDiscountPercent;
+        role.MaxDiscountPercent = discount;
         role.AllBranches = allBranches;
         RoleRules.ApplyPermissions(role, permissions);
         RoleRules.ApplyBranches(role, branchIds);

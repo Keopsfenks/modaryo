@@ -67,6 +67,55 @@ public sealed class RoleRules(IApplicationDbContext db, CompanyAccess access, IC
         }
     }
 
+    private static AuthException NotGrantable(string message) =>
+        new(StatusCodes.Status403Forbidden, AuthErrorCodes.PermissionNotGrantable, message);
+
+    /// <summary>
+    /// İskonto sınırı ve şube kapsamı da yetki boyutudur: "*" taşımayan çağıran kendi oturumundan fazlasını veremez.
+    /// <paramref name="old"/> null ise (oluşturma/atama) taban boştur; verilirse yalnızca artış/yeni şube denetlenir.
+    /// </summary>
+    public void EnsureScopeGrantable(decimal newDiscount, bool newAllBranches, IEnumerable<Guid> newBranchIds, (decimal Discount, bool AllBranches, Guid[] BranchIds)? old)
+    {
+        if (current.HasPermission(Permissions.All))
+        {
+            return;
+        }
+
+        if ((old is null || newDiscount > old.Value.Discount) && newDiscount > current.MaxDiscountPercent)
+        {
+            throw NotGrantable("Kendi iskonto sınırınızdan yüksek bir sınır veremezsiniz.");
+        }
+
+        var mine = current.BranchIds;
+        if (newAllBranches)
+        {
+            if ((old is null || !old.Value.AllBranches) && mine is not null)
+            {
+                throw NotGrantable("Tüm şubelere erişimi yalnızca tüm şubelere erişimi olan biri verebilir.");
+            }
+
+            return;
+        }
+
+        var baseline = old is { AllBranches: false } o ? o.BranchIds.ToHashSet() : [];
+        if (old is { AllBranches: true })
+        {
+            return;
+        }
+
+        if (mine is not null && newBranchIds.Any(b => !baseline.Contains(b) && !mine.Contains(b)))
+        {
+            throw NotGrantable("Erişiminiz olmayan bir şubeyi rolde veremezsiniz.");
+        }
+    }
+
+    /// <summary>Üyeye/davete rol atarken: rolün izinleri, iskonto sınırı ve şube kapsamı çağıranın sahip olduklarından fazla olamaz.</summary>
+    public void EnsureRoleAssignable(TenantRole role)
+    {
+        EnsureGrantable(role.Permissions.Select(p => p.Permission), []);
+        EnsureScopeGrantable(role.MaxDiscountPercent, role.AllBranches, role.Branches.Select(b => b.BranchId), null);
+    }
+
     public async Task EnsureNameFreeAsync(string name, Guid? exceptRoleId, CancellationToken ct)
     {
         var tenantId = access.TenantId;

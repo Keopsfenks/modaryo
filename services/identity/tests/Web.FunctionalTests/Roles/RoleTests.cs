@@ -359,4 +359,134 @@ public class RoleTests : TestBase
 
         (await member.GetAsync(Url)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
+
+    /// <summary>Rol yönetebilen, iskonto/şube sınırlı bir üye hazırlar; oturumu rolle birlikte güncellenir.</summary>
+    private static async Task<(HttpClient Client, Guid RoleId, Guid UserId)> LimitedCallerAsync(
+        HttpClient owner, Guid tenantId, string email, decimal discount, bool allBranches, Guid[] branchIds, params string[] permissions)
+    {
+        using var created = await owner.PostAsJsonAsync(Url, new { name = "Sınırlı " + email, permissions, maxDiscountPercent = discount, allBranches, branchIds });
+        created.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var roleId = (await created.JsonAsync()).GetProperty("id").GetGuid();
+        var (client, userId) = await Factory.SignedInMemberAsync(tenantId, email, "member");
+        (await owner.PatchAsJsonAsync($"/api/identity/companies/current/members/{userId}", new { roleId })).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        return (client, roleId, userId);
+    }
+
+    [Test]
+    public async Task UpdateOwnRole_RaiseDiscountAboveOwn_Returns403()
+    {
+        var (owner, tenantId) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        var (caller, roleId, _) = await LimitedCallerAsync(owner, tenantId, "sinirli@ornek.com", 10m, true, [], "roller.manage", "roller.read");
+        using var _c = caller;
+
+        using var raise = await caller.PutAsJsonAsync($"{Url}/{roleId}", new { name = "Sınırlı sinirli@ornek.com", maxDiscountPercent = 100m });
+        using var same = await caller.PutAsJsonAsync($"{Url}/{roleId}", new { name = "Sınırlı sinirli@ornek.com", maxDiscountPercent = 10m });
+
+        raise.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await raise.ErrorCodeAsync()).ShouldBe("permission_not_grantable");
+        same.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Test]
+    public async Task UpdateRole_AllBranchesWhenCallerBranchLimited_Returns403()
+    {
+        var (owner, tenantId) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        var b1 = await AddBranchAsync(tenantId, "S1");
+        var (caller, roleId, _) = await LimitedCallerAsync(owner, tenantId, "sinirli@ornek.com", 0m, false, [b1], "roller.manage", "roller.read");
+        using var _c = caller;
+
+        using var self = await caller.PutAsJsonAsync($"{Url}/{roleId}", new { name = "Sınırlı sinirli@ornek.com", allBranches = true });
+
+        self.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await self.ErrorCodeAsync()).ShouldBe("permission_not_grantable");
+    }
+
+    [Test]
+    public async Task CreateRole_BranchOutsideCallerScope_Returns403()
+    {
+        var (owner, tenantId) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        var b1 = await AddBranchAsync(tenantId, "S1");
+        var b2 = await AddBranchAsync(tenantId, "S2");
+        var (caller, _, _) = await LimitedCallerAsync(owner, tenantId, "sinirli@ornek.com", 0m, false, [b1], "roller.manage", "roller.read");
+        using var _c = caller;
+
+        using var outside = await caller.PostAsJsonAsync(Url, new { name = "Dış şube", permissions = Array.Empty<string>(), allBranches = false, branchIds = new[] { b2 } });
+        using var inside = await caller.PostAsJsonAsync(Url, new { name = "İç şube", permissions = Array.Empty<string>(), allBranches = false, branchIds = new[] { b1 } });
+
+        outside.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await outside.ErrorCodeAsync()).ShouldBe("permission_not_grantable");
+        inside.StatusCode.ShouldBe(HttpStatusCode.Created);
+    }
+
+    [Test]
+    public async Task ChangeMemberRole_ToRicherRole_Returns403()
+    {
+        var (owner, tenantId) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        var (caller, _, _) = await LimitedCallerAsync(owner, tenantId, "sinirli@ornek.com", 10m, true, [], "members.manage", "members.read");
+        using var _c = caller;
+        using var rich = await owner.PostAsJsonAsync(Url, new { name = "Zengin", permissions = new[] { "cari.read" }, maxDiscountPercent = 50m });
+        var richId = (await rich.JsonAsync()).GetProperty("id").GetGuid();
+        using var poor = await owner.PostAsJsonAsync(Url, new { name = "Fakir", permissions = new[] { "members.read" }, maxDiscountPercent = 5m });
+        var poorId = (await poor.JsonAsync()).GetProperty("id").GetGuid();
+        var (target, targetId) = await Factory.SignedInMemberAsync(tenantId, "hedef@ornek.com", "member");
+        using var _t = target;
+
+        using var denied = await caller.PatchAsJsonAsync($"/api/identity/companies/current/members/{targetId}", new { roleId = richId });
+        using var allowed = await caller.PatchAsJsonAsync($"/api/identity/companies/current/members/{targetId}", new { roleId = poorId });
+
+        denied.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await denied.ErrorCodeAsync()).ShouldBe("permission_not_grantable");
+        allowed.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+    }
+
+    [Test]
+    public async Task CreateInvitation_WithRicherRole_Returns403()
+    {
+        var (owner, tenantId) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        var b1 = await AddBranchAsync(tenantId, "S1");
+        var (caller, _, _) = await LimitedCallerAsync(owner, tenantId, "sinirli@ornek.com", 0m, false, [b1], "members.invite", "members.read");
+        using var _c = caller;
+        using var wide = await owner.PostAsJsonAsync(Url, new { name = "Geniş", permissions = new[] { "members.read" }, allBranches = true });
+        var wideId = (await wide.JsonAsync()).GetProperty("id").GetGuid();
+
+        using var denied = await caller.PostAsJsonAsync("/api/identity/companies/current/invitations", new { email = "yeni@ornek.com", roleId = wideId });
+
+        denied.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await denied.ErrorCodeAsync()).ShouldBe("permission_not_grantable");
+    }
+
+    [Test]
+    public async Task CopyFromRoleWithPermissionCallerLacks_Returns403()
+    {
+        var (owner, tenantId) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        var adminId = await Factory.RoleIdAsync(tenantId, "admin");
+        var (caller, _, _) = await LimitedCallerAsync(owner, tenantId, "sinirli@ornek.com", 0m, true, [], "roller.manage", "roller.read");
+        using var _c = caller;
+
+        using var response = await caller.PostAsJsonAsync(Url, new { name = "Kopya", copyFromRoleId = adminId });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await response.ErrorCodeAsync()).ShouldBe("permission_not_grantable");
+    }
+
+    [Test]
+    public async Task UpdateRole_OtherTenantId_Returns404()
+    {
+        var (owner, _) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        using var other = await Factory.SignedInClientAsync("baska@ornek.com");
+        await other.CreateCompanyAsync("Diğer A.Ş.");
+        using var foreign = await other.PostAsJsonAsync(Url, new { name = "Yabancı", permissions = Array.Empty<string>() });
+        var foreignId = (await foreign.JsonAsync()).GetProperty("id").GetGuid();
+
+        using var response = await owner.PutAsJsonAsync($"{Url}/{foreignId}", new { name = "Ele geçti" });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
 }

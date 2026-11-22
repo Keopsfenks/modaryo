@@ -98,13 +98,13 @@ public record ChangeMemberRoleCommand : IRequest
     public Guid RoleId { get; init; }
 }
 
-public class ChangeMemberRoleCommandHandler(IApplicationDbContext db, CompanyAccess access, MembershipChanges changes)
+public class ChangeMemberRoleCommandHandler(IApplicationDbContext db, CompanyAccess access, MembershipChanges changes, Roles.RoleRules roleRules)
     : IRequestHandler<ChangeMemberRoleCommand>
 {
     public async Task Handle(ChangeMemberRoleCommand request, CancellationToken ct)
     {
         var target = await access.MembershipAsync(request.UserId, ct);
-        var newRole = await access.RoleAsync(request.RoleId, ct);
+        var newRole = await roleRules.LoadAsync(request.RoleId, ct);
 
         if (target.RoleId == newRole.Id)
         {
@@ -116,6 +116,7 @@ public class ChangeMemberRoleCommandHandler(IApplicationDbContext db, CompanyAcc
             await access.EnsureCallerIsOwnerAsync(ct);
         }
 
+        roleRules.EnsureRoleAssignable(newRole);
         await access.EnsureNotLastOwnerAsync(target, ct);
 
         target.RoleId = newRole.Id;

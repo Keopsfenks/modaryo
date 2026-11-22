@@ -31,17 +31,19 @@ public class CreateInvitationCommandValidator : AbstractValidator<CreateInvitati
 }
 
 public class CreateInvitationCommandHandler(
-    IApplicationDbContext db, CompanyAccess access, IUserAccounts users, InvitationService invitations)
+    IApplicationDbContext db, CompanyAccess access, IUserAccounts users, InvitationService invitations, Roles.RoleRules roleRules)
     : IRequestHandler<CreateInvitationCommand, InvitationDto>
 {
     public async Task<InvitationDto> Handle(CreateInvitationCommand request, CancellationToken ct)
     {
         var tenantId = access.TenantId;
-        var role = await access.RoleAsync(request.RoleId, ct);
+        var role = await roleRules.LoadAsync(request.RoleId, ct);
         if (role.SystemKey == SystemRoles.Owner)
         {
             await access.EnsureCallerIsOwnerAsync(ct);
         }
+
+        roleRules.EnsureRoleAssignable(role);
 
         var email = IUserAccounts.Normalize(request.Email);
         var existingUser = await users.FindByEmailAsync(email, ct);

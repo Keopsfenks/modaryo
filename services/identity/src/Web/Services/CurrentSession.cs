@@ -20,6 +20,10 @@ public sealed class CurrentSession(IHttpContextAccessor accessor) : ICurrentSess
 
     public bool HasPermission(string permission) => Context?.User.HasPermission(permission) ?? false;
 
+    public IReadOnlyList<Guid>? BranchIds => Context is null ? [] : Context.User.GetBranchIds();
+
+    public decimal MaxDiscountPercent => Context?.User.GetMaxDiscountPercent() ?? 0m;
+
     /// <summary>Proxy arkasında UseForwardedHeaders sonrası gerçek istemci adresi.</summary>
     public string? Ip => Context?.Connection.RemoteIpAddress?.ToString();
 

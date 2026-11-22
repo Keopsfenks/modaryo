@@ -25,6 +25,8 @@ public class AuthorizationBehaviourTests
         public string? SessionId => userId is null ? null : "id";
         public IReadOnlyList<string> Permissions => permissions;
         public bool HasPermission(string permission) => permissions.Contains("*") || permissions.Contains(permission);
+        public IReadOnlyList<Guid>? BranchIds => null;
+        public decimal MaxDiscountPercent => 0m;
         public string? Ip => null;
         public string? UserAgent => null;
     }
