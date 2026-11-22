@@ -14,6 +14,7 @@ public class TestEnvironment
     public const string ServerConnection = "Host=localhost;Port=5432;Username=modaryo;Password=modaryo_dev";
 
     private static string _databaseName = null!;
+    private static DatabaseResetter _resetter = null!;
 
     public static ErpApiFactory Factory { get; private set; } = null!;
 
@@ -28,11 +29,13 @@ public class TestEnvironment
         ConnectionString = $"{ServerConnection};Database={_databaseName}";
         Factory = new ErpApiFactory(ConnectionString);
         _ = Factory.Server; // uygulamayı başlatır; geliştirme ortamında migration'lar uygulanır
+        _resetter = await DatabaseResetter.CreateAsync(ConnectionString);
     }
 
     [OneTimeTearDown]
     public async Task DropEnvironment()
     {
+        await _resetter.DisposeAsync();
         await Factory.DisposeAsync();
         NpgsqlConnection.ClearAllPools();
         await ExecuteOnServerAsync($"DROP DATABASE IF EXISTS \"{_databaseName}\" WITH (FORCE)");
@@ -40,6 +43,7 @@ public class TestEnvironment
 
     public static async Task ResetAsync()
     {
+        await _resetter.ResetAsync();
         await using var admin = await ConnectionMultiplexer.ConnectAsync($"{ErpApiFactory.ValkeyConnectionString},allowAdmin=true");
         await admin.GetServers().First().FlushDatabaseAsync(3);
     }

@@ -1,7 +1,8 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using System.Reflection;
 using ERP.Application.Common.Interfaces;
 using ERP.Domain.Common;
+using ERP.Domain.CurrentAccounts;
 using Microsoft.EntityFrameworkCore;
 
 namespace ERP.Infrastructure.Data;
@@ -19,6 +20,12 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     {
         _currentTenant = currentTenant;
     }
+
+    public DbSet<CurrentAccount> CurrentAccounts => Set<CurrentAccount>();
+
+    public DbSet<CurrentAccountAddress> CurrentAccountAddresses => Set<CurrentAccountAddress>();
+
+    public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
 
     /// <summary>Sorgu filtresi bu değeri her sorguda (bağlam örneği başına) okur. Firma yoksa hiçbir satır görünmez.</summary>
     public Guid? CurrentTenantId => _currentTenant.TenantId;

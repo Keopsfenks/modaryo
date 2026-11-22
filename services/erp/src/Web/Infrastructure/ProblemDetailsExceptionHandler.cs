@@ -16,6 +16,12 @@ public class ProblemDetailsExceptionHandler : IExceptionHandler
     {
         var (statusCode, problemDetails) = exception switch
         {
+            AppException ae => (ae.Status, new ProblemDetails
+            {
+                Status = ae.Status,
+                Title = ae.Message,
+                Extensions = { ["code"] = ae.Code },
+            }),
             // Bozuk JSON / geçersiz UTF-8 gövde: istemci hatası, 500 değil.
             BadHttpRequestException bad => (bad.StatusCode, new ProblemDetails
             {
