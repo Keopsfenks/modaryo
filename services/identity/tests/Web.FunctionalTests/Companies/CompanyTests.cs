@@ -148,7 +148,7 @@ public class CompanyTests : TestBase
         using var response = await owner.PatchAsJsonAsync($"/api/identity/companies/current/members/{memberId}", new { roleId = adminRole });
 
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        Permissions(await member.SessionAsync()).ShouldBe(["company.update", "members.invite", "members.manage", "members.read"]);
+        Permissions(await member.SessionAsync()).ShouldBe(["cari.manage", "cari.movements", "cari.read", "company.update", "members.invite", "members.manage", "members.read"]);
         (await member.PatchAsJsonAsync("/api/identity/companies/current", new { name = "Artık yapabilir" })).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         member.Dispose();
     }

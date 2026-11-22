@@ -27,20 +27,21 @@ public class SystemRolesTests
     }
 
     [Test]
-    public void CreateDefaults_AdminHasFourPermissions()
+    public void CreateDefaults_AdminHasCariPermissions()
     {
         var admin = SystemRoles.CreateDefaults(TenantId).Single(r => r.SystemKey == SystemRoles.Admin);
 
         admin.Permissions.Select(p => p.Permission).ShouldBe(
-            ["company.update", "members.read", "members.invite", "members.manage"], ignoreOrder: true);
+            ["company.update", "members.read", "members.invite", "members.manage", "cari.read", "cari.manage", "cari.movements"],
+            ignoreOrder: true);
     }
 
     [Test]
-    public void CreateDefaults_MemberHasMembersRead()
+    public void CreateDefaults_MemberHasCariRead()
     {
         var member = SystemRoles.CreateDefaults(TenantId).Single(r => r.SystemKey == SystemRoles.Member);
 
-        member.Permissions.Select(p => p.Permission).ShouldBe(["members.read"]);
+        member.Permissions.Select(p => p.Permission).ShouldBe(["members.read", "cari.read"], ignoreOrder: true);
     }
 
     [Test]

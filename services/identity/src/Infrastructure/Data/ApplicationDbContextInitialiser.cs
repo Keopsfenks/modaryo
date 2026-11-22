@@ -21,6 +21,22 @@ public static class InitialiserExtensions
         await initialiser.InitialiseAsync();
         await initialiser.SeedAsync();
     }
+
+    /// <summary>
+    /// Her ortamda açılışta çalışır: hazır rollere sonradan eklenen izinleri mevcut firmalara dağıtır.
+    /// Geliştirmede InitialiseAsync migration'ı uyguladıktan sonra, diğer ortamlarda migration'lar dışarıdan uygulanmış olmalıdır.
+    /// </summary>
+    public static async Task SyncSystemRolePermissionsAsync(this WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+
+        var added = await scope.ServiceProvider.GetRequiredService<SystemRolePermissionSync>().RunAsync(CancellationToken.None);
+        if (added > 0)
+        {
+            scope.ServiceProvider.GetRequiredService<ILogger<SystemRolePermissionSync>>()
+                .LogInformation("Sistem rollerine {Count} izin eklendi.", added);
+        }
+    }
 }
 
 public class ApplicationDbContextInitialiser(

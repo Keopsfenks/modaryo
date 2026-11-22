@@ -12,4 +12,8 @@ public static class Permissions
     public const string MembersRead = "members.read";
     public const string MembersInvite = "members.invite";
     public const string MembersManage = "members.manage";
+
+    public const string CariRead = "cari.read";
+    public const string CariManage = "cari.manage";
+    public const string CariMovements = "cari.movements";
 }

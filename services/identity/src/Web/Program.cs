@@ -32,6 +32,9 @@ else
     app.UseHttpsRedirection();
 }
 
+// Hazır rollere sonradan eklenen izinleri her ortamda mevcut firmalara dağıtır (yalnızca ekler).
+await app.SyncSystemRolePermissionsAsync();
+
 app.UseFileServer();
 
 // GET dışındaki her istekte "X-Modaryo-Csrf: 1" zorunlu (spec 6.8). CORS bilerek kapalı.

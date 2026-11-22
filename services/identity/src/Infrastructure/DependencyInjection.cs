@@ -34,6 +34,7 @@ public static class DependencyInjection
         builder.Services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
 
         builder.Services.AddScoped<ApplicationDbContextInitialiser>();
+        builder.Services.AddScoped<SystemRolePermissionSync>();
 
         builder.Services.AddAuthorizationBuilder();
 
