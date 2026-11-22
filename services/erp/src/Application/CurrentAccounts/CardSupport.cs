@@ -103,11 +103,22 @@ public static class CariErrors
 
 public static class CurrentAccountClock
 {
-    private static readonly TimeZoneInfo Istanbul = TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul");
-
     /// <summary>İstanbul saatiyle bugün.</summary>
     public static DateOnly Today(TimeProvider time) =>
-        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), Istanbul).DateTime);
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), ResolveIstanbul()).DateTime);
+
+    /// <summary>tzdata olmayan ana makinede çökmemesi için UTC+3'e düşer (Türkiye 2016'dan beri yaz saati uygulamıyor).</summary>
+    private static TimeZoneInfo ResolveIstanbul()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Istanbul");
+        }
+        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
+        {
+            return TimeZoneInfo.CreateCustomTimeZone("Europe/Istanbul", TimeSpan.FromHours(3), "Istanbul", "Istanbul");
+        }
+    }
 }
 
 public static class NextCodeCalculator

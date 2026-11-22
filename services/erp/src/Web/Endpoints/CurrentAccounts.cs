@@ -1,6 +1,7 @@
 using ERP.Application.CurrentAccounts;
 using ERP.Application.CurrentAccounts.Commands;
 using ERP.Application.CurrentAccounts.Queries;
+using ERP.Domain.CurrentAccounts;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace ERP.Web.Endpoints;
@@ -25,6 +26,8 @@ public class CurrentAccounts : IEndpointGroup
         groupBuilder.MapPost(AddEntry, "{id:guid}/entries");
         groupBuilder.MapPost(CancelEntry, "{id:guid}/entries/{entryId:guid}/cancel");
         groupBuilder.MapGet(GetStatement, "{id:guid}/statement");
+        groupBuilder.MapGet(GetDueItems, "{id:guid}/due-items");
+        groupBuilder.MapGet(GetDueSummary, "due-summary");
     }
 
     public sealed record CancelEntryRequest(string Reason);
@@ -49,6 +52,16 @@ public class CurrentAccounts : IEndpointGroup
     [EndpointDescription("from varsayılan yılın 1 Ocak günü, to varsayılan bugün (İstanbul). from > to ise 400.")]
     public static async Task<Ok<StatementResultDto>> GetStatement(ISender sender, Guid id, DateOnly? from, DateOnly? to) =>
         TypedResults.Ok(await sender.Send(new GetStatementQuery(id, from, to)));
+
+    [EndpointSummary("Cari açık kalemleri")]
+    [EndpointDescription("FIFO eşleştirmeden sonra kalan açık kalemler. direction: receivable (tahsil edilecek) | payable (ödenecek). daysOverdue vadesi geçmemişse 0.")]
+    public static async Task<Ok<IReadOnlyList<OpenItem>>> GetDueItems(ISender sender, Guid id) =>
+        TypedResults.Ok(await sender.Send(new GetDueItemsQuery(id)));
+
+    [EndpointSummary("Firma geneli vade özeti")]
+    [EndpointDescription("Para birimi bazında tahsil edilecek ve ödenecek tutarlar: overdue (vade < bugün), within30 (bugün ile bugün+30 dahil), later. Pasif kartlar dahildir. topOverdue en çok geciken 20 cari (vadesi geçmiş alacak tutarına göre azalan, eşitlikte koda göre).")]
+    public static async Task<Ok<DueSummary>> GetDueSummary(ISender sender) =>
+        TypedResults.Ok(await sender.Send(new GetDueSummaryQuery()));
 
     [EndpointSummary("Cari adresi ekle")]
     [EndpointDescription("Fatura ve sevk için ayrı ayrı: o türün ilk adresi otomatik varsayılan olur; yeni varsayılan seçilirse eskisinin işareti kalkar. En az biri (fatura/sevk) işaretli olmalıdır.")]
