@@ -47,7 +47,7 @@ export const navigation: NavSection[] = [
     {
         title: "Satış",
         items: [
-            { title: "Müşteriler", href: "/satis/musteriler", icon: IconUsers, permission: "cari.read" },
+            { title: "Müşteriler", href: "/satis/musteriler", icon: IconUsers, permission: "cari.read", implemented: true },
             { title: "Teklifler", href: "/satis/teklifler", icon: IconFileText },
             { title: "Siparişler", href: "/satis/siparisler", icon: IconShoppingCart, badge: "12" },
             { title: "Faturalar", href: "/satis/faturalar", icon: IconFileInvoice },
@@ -56,7 +56,7 @@ export const navigation: NavSection[] = [
     {
         title: "Satın Alma",
         items: [
-            { title: "Tedarikçiler", href: "/satin-alma/tedarikciler", icon: IconBuildingStore, permission: "cari.read" },
+            { title: "Tedarikçiler", href: "/satin-alma/tedarikciler", icon: IconBuildingStore, permission: "cari.read", implemented: true },
             { title: "Satın Alma Siparişleri", href: "/satin-alma/siparisler", icon: IconTruckDelivery },
         ],
     },
@@ -71,7 +71,7 @@ export const navigation: NavSection[] = [
     {
         title: "Finans",
         items: [
-            { title: "Cari Hesaplar", href: "/finans/cari-hesaplar", icon: IconWallet, permission: "cari.read" },
+            { title: "Cari Hesaplar", href: "/finans/cari-hesaplar", icon: IconWallet, permission: "cari.read", implemented: true },
             { title: "Kasa & Banka", href: "/finans/kasa-banka", icon: IconBuildingBank },
             { title: "Raporlar", href: "/finans/raporlar", icon: IconChartBar },
         ],
