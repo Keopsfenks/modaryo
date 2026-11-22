@@ -13,4 +13,8 @@ public static class AuthErrorCodes
     public const string AccountExists = "account_exists";
     public const string RateLimited = "rate_limited";
     public const string UnknownModule = "unknown_module";
+    public const string RoleLocked = "role_locked";
+    public const string RoleInUse = "role_in_use";
+    public const string RoleNameTaken = "role_name_taken";
+    public const string PermissionNotGrantable = "permission_not_grantable";
 }

@@ -6,6 +6,9 @@ using IdentityService.Application.Invitations.Commands;
 using IdentityService.Application.Invitations.Queries;
 using IdentityService.Application.Modules.Commands;
 using IdentityService.Application.Modules.Queries;
+using IdentityService.Application.Roles;
+using IdentityService.Application.Roles.Commands;
+using IdentityService.Application.Roles.Queries;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace IdentityService.Web.Endpoints;
@@ -21,6 +24,11 @@ public class Companies : IEndpointGroup
         groupBuilder.MapPatch(UpdateCompany, "current");
         groupBuilder.MapPost(LeaveCompany, "current/leave");
         groupBuilder.MapGet(GetRoles, "current/roles");
+        groupBuilder.MapPost(CreateRole, "current/roles");
+        groupBuilder.MapGet(GetRole, "current/roles/{id:guid}");
+        groupBuilder.MapPut(UpdateRole, "current/roles/{id:guid}");
+        groupBuilder.MapDelete(DeleteRole, "current/roles/{id:guid}");
+        groupBuilder.MapPost(ResetRole, "current/roles/{id:guid}/reset");
         groupBuilder.MapGet(GetMembers, "current/members");
         groupBuilder.MapPatch(ChangeMemberRole, "current/members/{userId:guid}");
         groupBuilder.MapDelete(RemoveMember, "current/members/{userId:guid}");
@@ -99,8 +107,49 @@ public class Companies : IEndpointGroup
     }
 
     [EndpointSummary("Firmanın rolleri")]
+    [EndpointDescription("roller.read veya members.read gerekir. Sahip rolü Locked=true ve izinleri [\"*\"] olarak döner.")]
     public static async Task<Ok<IReadOnlyList<RoleDto>>> GetRoles(ISender sender) =>
-        TypedResults.Ok(await sender.Send(new GetRolesQuery()));
+        TypedResults.Ok(await sender.Send(new ListRolesQuery()));
+
+    [EndpointSummary("Rol detayı")]
+    public static async Task<Ok<RoleDto>> GetRole(ISender sender, Guid id) =>
+        TypedResults.Ok(await sender.Send(new GetRoleQuery(id)));
+
+    [EndpointSummary("Rol oluştur")]
+    [EndpointDescription("copyFromRoleId verilirse izinler ve ayarlar kopyalanır, gövdedeki alanlar üzerine uygulanır. Çağıranın sahip olmadığı izin verilemez (403 permission_not_grantable); ad çakışması 409 role_name_taken.")]
+    public static async Task<Created<RoleDto>> CreateRole(ISender sender, CreateRoleCommand command)
+    {
+        var role = await sender.Send(command);
+        return TypedResults.Created($"/api/identity/companies/current/roles/{role.Id}", role);
+    }
+
+    public sealed record UpdateRoleRequest(string Name, string[]? Permissions, decimal? MaxDiscountPercent, bool? AllBranches, Guid[]? BranchIds);
+
+    [EndpointSummary("Rolü güncelle")]
+    [EndpointDescription("Sahip rolü değiştirilemez (409 role_locked). Çağıran yalnızca kendisinde olan izinleri ekleyebilir. Roldeki üyelerin açık oturumları hemen güncellenir.")]
+    public static async Task<Ok<RoleDto>> UpdateRole(ISender sender, Guid id, UpdateRoleRequest request) =>
+        TypedResults.Ok(await sender.Send(new UpdateRoleCommand
+        {
+            Id = id,
+            Name = request.Name,
+            Permissions = request.Permissions,
+            MaxDiscountPercent = request.MaxDiscountPercent,
+            AllBranches = request.AllBranches,
+            BranchIds = request.BranchIds,
+        }));
+
+    [EndpointSummary("Rolü sil")]
+    [EndpointDescription("Hazır roller silinemez (409 role_locked); üyesi veya bekleyen daveti olan rol silinemez (409 role_in_use).")]
+    public static async Task<NoContent> DeleteRole(ISender sender, Guid id)
+    {
+        await sender.Send(new DeleteRoleCommand(id));
+        return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("Hazır rolü varsayılana döndür")]
+    [EndpointDescription("Yalnızca Yönetici ve Kullanıcı rolleri; diğerleri 409 role_locked.")]
+    public static async Task<Ok<RoleDto>> ResetRole(ISender sender, Guid id) =>
+        TypedResults.Ok(await sender.Send(new ResetRoleCommand(id)));
 
     [EndpointSummary("Firmanın üyeleri")]
     public static async Task<Ok<IReadOnlyList<MemberDto>>> GetMembers(ISender sender) =>

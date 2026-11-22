@@ -18,26 +18,6 @@ public class GetCurrentCompanyQueryHandler(IApplicationDbContext db, CompanyAcce
     }
 }
 
-/// <summary>Davet formundaki rol listesi: hazır roller sabit sırada (Sahip, Yönetici, Kullanıcı), sonra diğerleri.</summary>
-[Authorize(Permission = Permissions.MembersRead)]
-public record GetRolesQuery : IRequest<IReadOnlyList<RoleDto>>;
-
-public class GetRolesQueryHandler(IApplicationDbContext db, CompanyAccess access) : IRequestHandler<GetRolesQuery, IReadOnlyList<RoleDto>>
-{
-    private static readonly string[] SystemOrder = [SystemRoles.Owner, SystemRoles.Admin, SystemRoles.Member];
-
-    public async Task<IReadOnlyList<RoleDto>> Handle(GetRolesQuery request, CancellationToken ct)
-    {
-        var tenantId = access.TenantId;
-        var roles = await db.TenantRoles.AsNoTracking().Where(r => r.TenantId == tenantId).ToListAsync(ct);
-        return roles
-            .OrderBy(r => r.SystemKey is null ? int.MaxValue : Array.IndexOf(SystemOrder, r.SystemKey))
-            .ThenBy(r => r.Name)
-            .Select(r => new RoleDto(r.Id, r.Name, r.SystemKey))
-            .ToList();
-    }
-}
-
 [Authorize(Permission = Permissions.MembersRead)]
 public record GetMembersQuery : IRequest<IReadOnlyList<MemberDto>>;
 

@@ -48,6 +48,20 @@ public sealed class MembershipChanges(
         }
     }
 
+    /// <summary>Rol tanımı değişti: o rolü taşıyan her üyenin açık oturumlarının yetki paketi yenilenir.</summary>
+    public async Task OnRoleDefinitionChangedAsync(Guid roleId, CancellationToken ct)
+    {
+        var members = await db.Memberships.AsNoTracking()
+            .Where(m => m.RoleId == roleId)
+            .Select(m => new { m.UserId, m.TenantId })
+            .ToListAsync(ct);
+
+        foreach (var member in members)
+        {
+            await OnRoleChangedAsync(member.UserId, member.TenantId, ct);
+        }
+    }
+
     /// <summary>O firmadaki oturumlar firmasız kalır; başka üyelik yoksa temizlik sayacı başlar.</summary>
     public async Task OnLeftAsync(Guid userId, Guid tenantId, CancellationToken ct)
     {
