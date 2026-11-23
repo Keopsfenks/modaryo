@@ -98,7 +98,7 @@ func Middleware(opts Options) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			p := r.URL.Path
 			clean := path.Clean(p)
-			if !isInternalPath(clean) {
+			if !isInternalPath(clean) && !isInternalPath(p) {
 				next.ServeHTTP(w, r)
 				return
 			}

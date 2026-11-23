@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -493,20 +494,27 @@ func TestMiddleware_CompleteFailureKeepsPendingAndStillResponds(t *testing.T) {
 	assert.Equal(t, "idempotency_in_progress", code(t, w))
 }
 
-func TestMiddleware_HugeTimestampsRejected(t *testing.T) {
+func TestMiddleware_HugeSignedTimestampsRejectedBySkew(t *testing.T) {
 	h := newHarness(nil, nil)
-	for _, ts := range []string{"9000000000000000", "1000000000000000000", "9223372036854775807", "0",
-		"-9223372036854775807", "-9000000000000000", "-1", "99999999999999999999"} {
+	for _, ts := range []int64{9000000000000000, 1000000000000000000, math.MaxInt64} {
+		// validly signed for the huge value: only the skew check can reject it
+		w := h.do(sreq{method: "GET", target: "/internal/einvoice/x", tenant: testTenant.String(), ts: ts}.build())
+		assert.Equal(t, 401, w.Code, ts)
+	}
+}
+
+func TestMiddleware_UnparsableTimestampsRejected(t *testing.T) {
+	h := newHarness(nil, nil)
+	for _, ts := range []string{"0x10", "-9223372036854775807", "-9000000000000000", "-1", "99999999999999999999", " 1"} {
 		r := sreq{method: "GET", target: "/internal/einvoice/x", tenant: testTenant.String()}.build()
 		r.Header.Set(HeaderTimestamp, ts)
-		w := h.do(r)
-		assert.Equal(t, 401, w.Code, ts)
+		assert.Equal(t, 401, h.do(r).Code, ts)
 	}
 }
 
 func TestMiddleware_NonCanonicalInternalPaths(t *testing.T) {
 	h := newHarness(nil, nil)
-	for _, target := range []string{"//internal/ping", "/./internal/ping", "/internal/einvoice/../ping", "/internal/einvoice/../identity/x", "/internal//ping"} {
+	for _, target := range []string{"//internal/ping", "/./internal/ping", "/internal/einvoice/../ping", "/internal/einvoice/../identity/x", "/internal//ping", "/internal/../foo"} {
 		w := h.do(sreq{method: "GET", target: target, tenant: testTenant.String()}.build())
 		assert.Equal(t, 400, w.Code, target)
 		assert.Equal(t, "internal_bad_path", code(t, w), target)
