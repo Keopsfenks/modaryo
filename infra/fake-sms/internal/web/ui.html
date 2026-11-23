@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sahte SMS Kutusu</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --text: #1d2330;
+  --muted: #667085;
+  --border: #e4e7ec;
+  --accent: #2563eb;
+  --accent-text: #ffffff;
+  --delivered: #15803d;
+  --failed: #b42318;
+  --pending: #b54708;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1218;
+    --surface: #171c26;
+    --text: #e6e9ef;
+    --muted: #98a2b3;
+    --border: #2a3140;
+    --accent: #3b82f6;
+    --accent-text: #ffffff;
+    --delivered: #4ade80;
+    --failed: #f97066;
+    --pending: #fdb022;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1218;
+  --surface: #171c26;
+  --text: #e6e9ef;
+  --muted: #98a2b3;
+  --border: #2a3140;
+  --accent: #3b82f6;
+  --accent-text: #ffffff;
+  --delivered: #4ade80;
+  --failed: #f97066;
+  --pending: #fdb022;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  padding: 16px;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+h1 { font-size: 18px; margin: 0; }
+.meta { color: var(--muted); font-size: 12px; }
+button {
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font: inherit;
+  cursor: pointer;
+}
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+table { width: 100%; border-collapse: collapse; min-width: 640px; }
+th, td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+td.text { white-space: pre-wrap; word-break: break-word; max-width: 420px; }
+td.time, td.sender, td.to { white-space: nowrap; }
+.status-delivered { color: var(--delivered); }
+.status-failed { color: var(--failed); }
+.status-pending { color: var(--pending); }
+.empty { padding: 24px; color: var(--muted); text-align: center; margin: 0; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Sahte SMS Kutusu</h1>
+    <div class="meta">Her 2 saniyede bir güncellenir</div>
+  </div>
+  <button type="button" id="clear">Temizle</button>
+</header>
+
+<div class="panel">
+  <table>
+    <thead>
+      <tr>
+        <th>Zaman</th>
+        <th>Gönderen</th>
+        <th>Alıcılar</th>
+        <th>Mesaj</th>
+        <th>Durum</th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      {{range .Rows}}
+      <tr>
+        <td class="time">{{.Time}}</td>
+        <td class="sender">{{.Sender}}</td>
+        <td class="to">{{.To}}</td>
+        <td class="text">{{.Text}}</td>
+        <td class="status">{{.Status}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  <p id="empty" class="empty"{{if .Rows}} hidden{{end}}>Henüz mesaj yok.</p>
+</div>
+
+<script>
+(function () {
+  var LABELS = { delivered: "İletildi", failed: "Başarısız", pending: "Beklemede" };
+  var CLASSES = { delivered: "status-delivered", failed: "status-failed", pending: "status-pending" };
+  var tbody = document.getElementById("rows");
+  var empty = document.getElementById("empty");
+
+  function cell(cls, text) {
+    var td = document.createElement("td");
+    td.className = cls;
+    td.textContent = text;
+    return td;
+  }
+
+  function fmtTime(iso) {
+    var d = new Date(iso);
+    return d.toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" });
+  }
+
+  function statusCell(statuses) {
+    var td = document.createElement("td");
+    td.className = "status";
+    Object.keys(statuses || {}).forEach(function (num, i) {
+      if (i > 0) td.appendChild(document.createElement("br"));
+      var st = statuses[num];
+      var span = document.createElement("span");
+      span.className = CLASSES[st] || "";
+      span.textContent = num + ": " + (LABELS[st] || st);
+      td.appendChild(span);
+    });
+    return td;
+  }
+
+  function render(msgs) {
+    tbody.textContent = "";
+    empty.hidden = msgs.length > 0;
+    msgs.forEach(function (m) {
+      var tr = document.createElement("tr");
+      tr.appendChild(cell("time", fmtTime(m.at)));
+      tr.appendChild(cell("sender", m.sender));
+      tr.appendChild(cell("to", (m.to || []).join(", ")));
+      tr.appendChild(cell("text", m.text));
+      tr.appendChild(statusCell(m.status));
+      tbody.appendChild(tr);
+    });
+  }
+
+  function refresh() {
+    fetch("/api/messages", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(render)
+      .catch(function () {});
+  }
+
+  document.getElementById("clear").addEventListener("click", function () {
+    fetch("/api/messages", { method: "DELETE" }).then(refresh).catch(function () {});
+  });
+
+  setInterval(refresh, 2000);
+})();
+</script>
+</body>
+</html>
