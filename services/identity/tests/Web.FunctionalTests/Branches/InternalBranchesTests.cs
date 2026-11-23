@@ -79,4 +79,27 @@ public class InternalBranchesTests : TestBase {
         wrongSecret.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
         unknown.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
+
+    [Test]
+    public async Task InternalWrite_IdentityHasNoIdempotencyStore_Returns405() {
+        var       tenantId = Guid.CreateVersion7();
+        var       path     = $"/internal/tenants/{tenantId}/branches";
+        var       ts       = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var       body     = Encoding.UTF8.GetBytes("{}");
+        using var client   = Factory.CreateClient();
+        using var request  = new HttpRequestMessage(HttpMethod.Post, path) {
+            Content = new StringContent("{}", Encoding.UTF8, "application/json")
+        };
+        request.Headers.Add(InternalHeaders.Service,        "erp");
+        request.Headers.Add(InternalHeaders.Timestamp,      ts.ToString());
+        request.Headers.Add(InternalHeaders.Tenant,         tenantId.ToString("D"));
+        request.Headers.Add(InternalHeaders.IdempotencyKey, "k-1");
+        request.Headers.Add(InternalHeaders.Signature,
+                            InternalSignature.Compute(Secret, "POST", path, ts, tenantId.ToString("D"), "k-1", body));
+
+        using var response = await client.SendAsync(request);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.MethodNotAllowed);
+        (await response.ErrorCodeAsync()).ShouldBe("internal_method_not_allowed");
+    }
 }

@@ -138,11 +138,27 @@ public sealed class UploadFileCommandHandler(
         var slash   = Math.Max(cleaned.LastIndexOf('/'), cleaned.LastIndexOf('\\'));
         if (slash >= 0) cleaned = cleaned[(slash + 1)..];
 
-        cleaned = string.Concat(cleaned.Where(c => !char.IsControl(c))).Trim();
+        cleaned = DropUnpairedSurrogates(string.Concat(cleaned.Where(c => !char.IsControl(c)))).Trim();
         if (cleaned.Length > MaxFileNameLength) cleaned = cleaned[..MaxFileNameLength];
         // Kısaltma bir vekil çiftini ortadan bölmüş olabilir.
         if (cleaned.Length > 0 && char.IsHighSurrogate(cleaned[^1])) cleaned = cleaned[..^1];
 
         return cleaned is "" or "." or ".." ? "dosya" + extension : cleaned;
+    }
+
+    /// <summary>Eşleşmeyen (yalnız yüksek ya da yalnız alçak) vekil karakterleri atar; geçerli çiftler kalır.</summary>
+    private static string DropUnpairedSurrogates(string value) {
+        var builder = new System.Text.StringBuilder(value.Length);
+        for (var i = 0; i < value.Length; i++) {
+            var c = value[i];
+            if (char.IsHighSurrogate(c) && i + 1 < value.Length && char.IsLowSurrogate(value[i + 1])) {
+                builder.Append(c).Append(value[++i]);
+            }
+            else if (!char.IsSurrogate(c)) {
+                builder.Append(c);
+            }
+        }
+
+        return builder.ToString();
     }
 }

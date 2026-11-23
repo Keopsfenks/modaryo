@@ -2,6 +2,7 @@
 using ERP.Domain.Platform;
 using ERP.Infrastructure.Data;
 using ERP.Infrastructure.Internal;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Modaryo.Internal;
 
@@ -176,13 +177,17 @@ public class InternalApiTests : TestBase {
                                                       using var request = Signed(HttpMethod.Post, "/internal/test/counter", body: "{\"a\":1}",
                                                                                  tenant: Tenant, idempotencyKey: "race-1");
                                                       using var response = await client.SendAsync(request);
-                                                      return response.StatusCode;
+                                                      var code = response.StatusCode == HttpStatusCode.Conflict
+                                                                     ? await response.ErrorCodeAsync()
+                                                                     : null;
+                                                      return (response.StatusCode, code);
                                                   });
         var results = await Task.WhenAll(tasks);
 
         InternalProbes.Counter.ShouldBe(1);
-        results.ShouldAllBe(s => s == HttpStatusCode.OK || s == HttpStatusCode.Conflict);
-        results.ShouldContain(HttpStatusCode.OK);
+        results.ShouldAllBe(r => r.StatusCode == HttpStatusCode.OK
+                                 || (r.StatusCode == HttpStatusCode.Conflict && r.code == "idempotency_in_progress"));
+        results.ShouldContain(r => r.StatusCode == HttpStatusCode.OK);
     }
 
     [Test]
@@ -350,11 +355,52 @@ public class InternalApiTests : TestBase {
         using var second = Signed(HttpMethod.Post, "/internal/test/slow", body: "{}", tenant: Tenant, idempotencyKey: "k5");
         using var conflict = await client.SendAsync(second);
         conflict.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await conflict.ErrorCodeAsync()).ShouldBe("idempotency_conflict");
+        (await conflict.ErrorCodeAsync()).ShouldBe("idempotency_in_progress");
+        conflict.Headers.RetryAfter!.Delta.ShouldBe(TimeSpan.FromSeconds(1));
+
+        // Aynı anahtar, farklı gövde: işlenirken bile ayrı kod.
+        using var different = Signed(HttpMethod.Post, "/internal/test/slow", body: "{\"x\":1}", tenant: Tenant, idempotencyKey: "k5");
+        using var differentResponse = await client.SendAsync(different);
+        differentResponse.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await differentResponse.ErrorCodeAsync()).ShouldBe("idempotency_conflict");
 
         InternalProbes.SlowRelease.SetResult();
         using var done = await firstTask;
         done.StatusCode.ShouldBe(HttpStatusCode.OK);
+    }
+
+    [Test]
+    public async Task IdempotencyStore_TakenOverReservation_IgnoresLateCompleteAndReleaseOfOldOwner() {
+        var timeout = TimeSpan.FromMinutes(5);
+        var caller  = "test";
+
+        await using var scopeA = Factory.Services.CreateAsyncScope();
+        await using var scopeB = Factory.Services.CreateAsyncScope();
+        var storeA = scopeA.ServiceProvider.GetRequiredService<IdempotencyStore>();
+        var storeB = scopeB.ServiceProvider.GetRequiredService<IdempotencyStore>();
+        var db     = scopeB.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var a = await storeA.ReserveAsync(caller, "own-1", Tenant, "h", timeout, CancellationToken.None);
+        a.Outcome.ShouldBe(IdempotencyOutcome.Reserved);
+        await db.Database.ExecuteSqlRawAsync(
+            "UPDATE idempotency_records SET \"CreatedAt\" = now() - interval '10 minutes' WHERE \"Key\" = 'own-1'");
+
+        var b = await storeB.ReserveAsync(caller, "own-1", Tenant, "h", timeout, CancellationToken.None);
+        b.Outcome.ShouldBe(IdempotencyOutcome.Reserved);
+        b.OwnerToken.ShouldNotBe(a.OwnerToken);
+
+        // Eski sahibin geç gelen tamamlama / serbest bırakması yeni sahibin kaydına dokunmaz.
+        await storeA.CompleteAsync(caller, "own-1", a.OwnerToken, 200, "{\"old\":true}", CancellationToken.None);
+        await storeA.ReleaseAsync(caller, "own-1", a.OwnerToken, CancellationToken.None);
+        var record = await db.IdempotencyRecords.AsNoTracking().SingleAsync(r => r.Key == "own-1");
+        record.Status.ShouldBe(0);
+        record.ResponseJson.ShouldBe("");
+        record.OwnerToken.ShouldBe(b.OwnerToken);
+
+        await storeB.CompleteAsync(caller, "own-1", b.OwnerToken, 201, "{\"new\":true}", CancellationToken.None);
+        record = await db.IdempotencyRecords.AsNoTracking().SingleAsync(r => r.Key == "own-1");
+        record.Status.ShouldBe(201);
+        record.ResponseJson.ShouldBe("{\"new\":true}");
     }
 
     [Test]

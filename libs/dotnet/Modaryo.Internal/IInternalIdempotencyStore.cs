@@ -17,7 +17,8 @@ public enum IdempotencyOutcome {
 public sealed record IdempotencyReservation(
     IdempotencyOutcome Outcome,
     int                Status       = 0,
-    string?            ResponseJson = null
+    string?            ResponseJson = null,
+    Guid               OwnerToken   = default
 );
 
 /// <summary>Idempotency kayıtlarının deposu; servis uygular (ERP: PostgreSQL). Anahtar: (Caller, Key).</summary>
@@ -33,8 +34,20 @@ public interface IInternalIdempotencyStore {
                                               TimeSpan          pendingTimeout,
                                               CancellationToken ct);
 
-    Task CompleteAsync(string caller, string key, int status, string responseJson, CancellationToken ct);
+    /// <summary>
+    ///     Kaydı tamamlar. <paramref name="ownerToken" />, ayırma sonucundaki sahiplik belirtecidir; kayıt başkasına
+    ///     devredilmişse (zaman aşımı sonrası devralma) hiçbir şey yapılmaz.
+    /// </summary>
+    Task CompleteAsync(string            caller,
+                       string            key,
+                       Guid              ownerToken,
+                       int               status,
+                       string            responseJson,
+                       CancellationToken ct);
 
-    /// <summary>Ayrılan kaydı siler (5xx veya istisna sonrası aynı anahtarla yeniden deneme yapılabilsin).</summary>
-    Task ReleaseAsync(string caller, string key, CancellationToken ct);
+    /// <summary>
+    ///     Ayrılan kaydı siler (5xx veya istisna sonrası aynı anahtarla yeniden deneme yapılabilsin); yalnızca
+    ///     <paramref name="ownerToken" /> hâlâ kaydın sahibiyse siler.
+    /// </summary>
+    Task ReleaseAsync(string caller, string key, Guid ownerToken, CancellationToken ct);
 }

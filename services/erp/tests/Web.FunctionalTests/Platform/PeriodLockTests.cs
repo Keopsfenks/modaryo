@@ -46,6 +46,16 @@ public class PeriodLockTests : TestBase {
     }
 
     [Test]
+    public async Task AddEntry_UnknownAccountInLockedPeriod_Returns404() {
+        using var client = await Client(Guid.CreateVersion7());
+        await SetLockAsync(client, Lock);
+
+        using var response = await PostDebitAsync(client, Guid.CreateVersion7(), Lock);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Test]
     public async Task AddEntry_DayAfterLock_Returns201() {
         using var client = await Client(Guid.CreateVersion7());
         await SetLockAsync(client, Lock);

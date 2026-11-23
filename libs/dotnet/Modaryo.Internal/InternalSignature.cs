@@ -18,7 +18,8 @@ public static class InternalClaimTypes {
 }
 
 /// <summary>
-///     İmza = hex(HMAC-SHA256(secret, "{METHOD}\n{pathAndQuery}\n{timestamp}\n{tenant}\n{sha256hex(body)}")).
+///     İmza = hex(HMAC-SHA256(secret, "{method}\n{pathAndQuery}\n{timestamp}\n{tenant}\n{idempotencyKey}\n{sha256hex(body)}")).
+///     Sır, ham UTF-8 baytları olarak HMAC anahtarıdır (onaltılık/base64 çözülmez).
 ///     {tenant} X-Modaryo-Tenant değeridir (yoksa boş); böylece tenant başlığı da imzalanır.
 ///     {idempotencyKey} Idempotency-Key başlığıdır (yoksa boş); anahtar da imzalanır.
 /// </summary>

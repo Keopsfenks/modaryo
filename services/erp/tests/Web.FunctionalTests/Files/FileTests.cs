@@ -58,6 +58,7 @@ public class FileTests : TestBase {
         download.StatusCode.ShouldBe(HttpStatusCode.OK);
         download.Content.Headers.ContentType!.MediaType.ShouldBe("image/png");
         download.Headers.GetValues("X-Content-Type-Options").ShouldContain("nosniff");
+        download.Headers.GetValues("Content-Security-Policy").ShouldContain("sandbox; default-src 'none'");
         download.Content.Headers.ContentDisposition!.DispositionType.ShouldBe("inline");
         download.Content.Headers.ContentDisposition.FileNameStar.ShouldBe("Şirket logosu.png");
         (await download.Content.ReadAsByteArrayAsync()).ShouldBe(bytes);

@@ -64,6 +64,7 @@ canonical = "{METHOD}\n{pathAndQuery}\n{timestamp}\n{tenant}\n{idempotencyKey}\n
 - `idempotencyKey`: `Idempotency-Key` başlığı değeri, başlık yoksa (örn. GET) boş metin. Böylece anahtar da değiştirilemez.
 - `sha256hex(body)`: istek gövdesinin (ham bayt, gövde yoksa boş) küçük harfli onaltılık SHA-256'sı.
 - Gövde en çok 1 MiB olabilir (`Internal:MaxBodyBytes`); aşılırsa `413 internal_body_too_large`. Başlıkları eksik, bilinmeyen çağıranlı veya zaman damgası eski istekte gövde okunmadan 401 döner.
+- `secret`, HMAC anahtarı olarak ham UTF-8 baytlarıyla kullanılır (onaltılık/base64 çözülmez).
 - Sunucu imzayı sabit zamanlı karşılaştırır. Zaman sapması: en çok ±300 sn (`Internal:MaxSkewSeconds`).
 
 ### Yapılandırma (ERP)
@@ -74,11 +75,15 @@ Geliştirme sırları yalnızca `appsettings.Development.json` içindedir; kodda
 ### Idempotency
 
 - Yazma isteği (GET/HEAD dışı) `Idempotency-Key` taşımalıdır. Kayıt anahtarı `(çağıran, Idempotency-Key)`'dir.
-- İstek özeti = SHA-256(`method \n pathAndQuery \n tenant \n body`). İstek çalışmadan önce bekleyen kayıt eklenir.
-- Aynı anahtar + aynı özet, tamamlanmışsa: kayıtlı durum ve gövde aynen döner (istek yeniden çalıştırılmaz).
-- Aynı anahtar + farklı özet: `409 idempotency_conflict`. Aynı anahtar + aynı özet ama istek hâlâ işleniyor: `409 idempotency_conflict` (ileti, işlendiğini söyler).
-- Bekleyen kayıt 5 dakikadan (`Internal:PendingTimeoutSeconds`) eskiyse (işleyen süreç çökmüş olabilir) aynı çağıran, anahtar ve özetle gelen yeni istek kaydı devralır; daha tazeyse 409.
-- Yanıt durumu < 500 ise saklanır (4xx dahil); 5xx veya istisnada kayıt silinir, aynı anahtarla yeniden denenebilir. Kayıtlar 7 gün sonra silinir.
+- İstek özeti = SHA-256(`method \n pathAndQuery \n tenant \n body`). İstek çalışmadan önce bekleyen kayıt, bir sahiplik belirteciyle birlikte eklenir; tamamlama ve serbest bırakma yalnızca bu belirteç hâlâ kaydın sahibiyse etki eder.
+- Aynı anahtar + aynı özet, tamamlanmışsa: kayıtlı durum ve gövde `Content-Type: application/json` ile aynen döner (istek yeniden çalıştırılmaz). Diğer yanıt başlıkları (örn. `Location`) yeniden oynatılmaz.
+- Aynı anahtar + farklı özet: `409 idempotency_conflict`. Aynı anahtar + aynı özet ama istek hâlâ işleniyor: `409 idempotency_in_progress` ve `Retry-After: 1` başlığı; istemci kısa süre sonra aynı isteği tekrarlar.
+- Bekleyen kayıt 5 dakikadan (`Internal:PendingTimeoutSeconds`) eskiyse (işleyen süreç çökmüş olabilir) aynı çağıran, anahtar ve özetle gelen yeni istek kaydı devralır (yeni sahiplik belirteci); eski sahibin geç gelen tamamlama/silmesi yeni kaydı etkilemez. Daha tazeyse `409 idempotency_in_progress`.
+- Yalnızca uç noktanın kendi yazdığı, durumu < 500 olan yanıtlar saklanır. İstisnayla üretilen hata yanıtları (doğrulama 400, 404, iş kuralı 409, yetkilendirmeden 401/403) middleware'in dışındaki istisna işleyicisinden döner; bu durumda kayıt silinir ve aynı anahtarla yeniden deneme isteği yeniden çalıştırır. Uç nokta 5xx döndürürse veya istisna fırlatırsa kayıt silinir.
+- Uç nokta < 500 ile döndükten sonra kayıt asla silinmez; tamamlama başarısız olursa kayıt bekleyen kalır (uyarı günlüğe yazılır) ve zaman aşımından sonra devralınabilir.
+- Yeniden deneme kuralları: 5xx, ağ hatası veya zaman aşımında aynı anahtar ve aynı gövdeyle yeniden denenir. En-az-bir-kez penceresi: işleyici işlemi kaydettikten sonra ama kayıt tamamlanmadan süreç çökerse, anahtar zaman aşımı sonunda devralınır ve istek yeniden çalışabilir. Bu yüzden yazma işleyicileri, tamamlama sonraki bir planda atomik yapılana dek kendi başlarına idempotent olmalıdır.
+- Kimlik servisi iç yazma isteği kabul etmez (idempotency deposu yoktur): imzalı GET/HEAD dışı istek `405 internal_method_not_allowed` alır.
+- Kayıtlar 7 gün sonra silinir.
 
 ### Hatalar (ProblemDetails, `code` alanı)
 
@@ -89,7 +94,9 @@ Geliştirme sırları yalnızca `appsettings.Development.json` içindedir; kodda
 | 400 | `internal_tenant_invalid` | `X-Modaryo-Tenant` eksik (ping hariç) veya geçerli UUID değil |
 | 400 | `idempotency_key_required` | Yazma isteğinde `Idempotency-Key` yok |
 | 413 | `internal_body_too_large` | Gövde `MaxBodyBytes` sınırını aşıyor (Content-Length veya okunan bayt) |
-| 409 | `idempotency_conflict` | Anahtar başka bir istekle kullanılmış veya istek hâlâ işleniyor |
+| 409 | `idempotency_conflict` | Anahtar farklı bir gövde/istek özetiyle kullanılmış |
+| 409 | `idempotency_in_progress` | Aynı anahtar ve aynı istek hâlâ işleniyor; `Retry-After: 1` başlığı döner |
+| 405 | `internal_method_not_allowed` | Servis iç yazma isteği kabul etmiyor (kimlik servisi) |
 
 ### Kimlik servisi ↔ ERP uçları (şubeler)
 
@@ -134,7 +141,7 @@ Go/Python servisleri (bildirim, e-fatura) bu akışı okur. Örnek zarf: `event-
 | `type` | `kebab.case` olay türü, örn. `current-account.entry-added` |
 | `tenant_id` | Olayın ait olduğu firma (UUID) |
 | `occurred_at` | Olayın oluştuğu an, ISO-8601 UTC (`2026-11-22T21:30:15.123Z`) |
-| `actor` | Olayı tetikleyen: kullanıcının adı iç API çağrısında `sistem:{servis}`; ad hiç yoksa yedek değer `sistem` |
+| `actor` | Olayı tetikleyen: kullanıcının tam adı; iç API çağrılarında `sistem:{servis}`; yalnızca ad hiç yoksa yedek olarak çıplak `sistem` |
 | `data` | Olaya özgü gövde; anahtarlar `snake_case` |
 
 ### İletim güvencesi: en az bir kez (at-least-once)

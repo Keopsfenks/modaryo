@@ -36,7 +36,14 @@ public class TestEnvironment {
 
     [OneTimeTearDown]
     public async Task DropEnvironment() {
-        await DeleteTestFilesAsync();
+        try {
+            await DeleteTestFilesAsync();
+        }
+        catch (Exception e) {
+            // S3 temizliği başarısız olsa da veritabanı silinmeli.
+            TestContext.Progress.WriteLine($"S3 test öneki temizlenemedi: {e.Message}");
+        }
+
         await _resetter.DisposeAsync();
         await Factory.DisposeAsync();
         NpgsqlConnection.ClearAllPools();

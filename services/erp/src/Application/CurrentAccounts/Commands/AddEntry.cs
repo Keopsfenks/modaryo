@@ -57,13 +57,14 @@ public sealed class AddEntryCommandHandler(
     AutoAllocator         allocator
 ) : IRequestHandler<AddEntryCommand, AddEntryResult> {
     public async Task<AddEntryResult> Handle(AddEntryCommand request, CancellationToken ct) {
-        await periodLock.EnsureOpenAsync(request.Date, ct);
-
         // Aynı carideki yazımlar kart satırı kilidiyle sıraya girer; hareket, vade satırı, eşleştirmeler ve olay
         // tek işlemde kaydedilir.
         await using var transaction = await db.BeginTransactionAsync(ct);
         if (!await db.LockCurrentAccountAsync(request.AccountId, ct))
             throw new NotFoundException(request.AccountId.ToString(), "CurrentAccount");
+
+        // Kilit kontrolü satır kilidinden sonra: olmayan cari 404 alır, kilitli dönem hiçbir yazımdan önce reddedilir.
+        await periodLock.EnsureOpenAsync(request.Date, ct);
 
         var account = await db.CurrentAccounts.FirstOrDefaultAsync(a => a.Id == request.AccountId, ct)
                       ?? throw new NotFoundException(request.AccountId.ToString(), "CurrentAccount");

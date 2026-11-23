@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Modaryo.Sessions;
 
@@ -28,6 +29,8 @@ public sealed class InternalAuthMiddleware(
     public const string BodyTooLargeCode   = "internal_body_too_large";
     public const string KeyRequiredCode    = "idempotency_key_required";
     public const string ConflictCode       = "idempotency_conflict";
+    public const string InProgressCode     = "idempotency_in_progress";
+    public const string MethodNotAllowedCode = "internal_method_not_allowed";
     public const string PingPath           = "/internal/ping";
 
     private const int MaxIdempotencyKeyLength = 200;
@@ -158,13 +161,21 @@ public sealed class InternalAuthMiddleware(
                                           byte[]      body,
                                           TimeSpan    pendingTimeout
     ) {
+        // Idempotency deposu olmayan servis (kimlik) iç yazma isteği kabul etmez.
+        var store = context.RequestServices.GetService<IInternalIdempotencyStore>();
+        if (store is null) {
+            context.Response.Headers.Allow = "GET, HEAD";
+            await Problem(context, StatusCodes.Status405MethodNotAllowed, MethodNotAllowedCode, "Yöntem desteklenmiyor.",
+                          "Bu servis iç API yazma isteklerini kabul etmez.");
+            return;
+        }
+
         if (key.Length == 0 || key.Length > MaxIdempotencyKeyLength) {
             await Problem(context, StatusCodes.Status400BadRequest, KeyRequiredCode, "Geçersiz istek.",
                           $"Yazma istekleri için '{InternalHeaders.IdempotencyKey}' başlığı zorunludur.");
             return;
         }
 
-        var store = context.RequestServices.GetRequiredService<IInternalIdempotencyStore>();
         var hash  = RequestHash(context.Request.Method, pathAndQuery, tenantHeader, body);
         var ct    = context.RequestAborted;
 
@@ -175,7 +186,8 @@ public sealed class InternalAuthMiddleware(
                               "Bu idempotency anahtarı farklı bir istek için kullanılmış.");
                 return;
             case IdempotencyOutcome.InProgress:
-                await Problem(context, StatusCodes.Status409Conflict, ConflictCode, "Çakışma.",
+                context.Response.Headers.RetryAfter = "1";
+                await Problem(context, StatusCodes.Status409Conflict, InProgressCode, "Çakışma.",
                               "Aynı idempotency anahtarlı istek hâlâ işleniyor.");
                 return;
             case IdempotencyOutcome.Replay:
@@ -188,19 +200,28 @@ public sealed class InternalAuthMiddleware(
                 return;
         }
 
+        var owner    = reservation.OwnerToken;
         var original = context.Response.Body;
         await using var buffer = new MemoryStream();
         context.Response.Body = buffer;
-        var completed = false;
+        // Uç nokta < 500 ile döndüyse işlem uygulanmış olabilir: kayıt artık serbest bırakılmaz.
+        var handled = false;
         try {
             await next(context);
 
             context.Response.Body = original;
             var status = context.Response.StatusCode;
             if (status < 500) {
+                handled = true;
                 var response = Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
-                await store.CompleteAsync(caller, key, status, response, CancellationToken.None);
-                completed = true;
+                try {
+                    await store.CompleteAsync(caller, key, owner, status, response, CancellationToken.None);
+                }
+                catch (Exception e) {
+                    // Kayıt bekleyen kalır; zaman aşımından sonra devralınabilir. Yanıt yine de istemciye gider.
+                    context.RequestServices.GetService<ILoggerFactory>()?.CreateLogger<InternalAuthMiddleware>()
+                        .LogWarning(e, "İç API idempotency kaydı tamamlanamadı: {Caller}/{Key}", caller, key);
+                }
             }
 
             buffer.Position = 0;
@@ -209,7 +230,7 @@ public sealed class InternalAuthMiddleware(
         finally {
             context.Response.Body = original;
             // 5xx veya istisna: ayrılan kayıt silinir ki aynı anahtarla yeniden deneme çalışabilsin.
-            if (!completed) await store.ReleaseAsync(caller, key, CancellationToken.None);
+            if (!handled) await store.ReleaseAsync(caller, key, owner, CancellationToken.None);
         }
     }
 

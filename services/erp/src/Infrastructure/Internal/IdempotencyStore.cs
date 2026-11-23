@@ -33,12 +33,12 @@ public sealed class IdempotencyStore(
     ) {
         var record = new IdempotencyRecord {
             Caller = caller, Key = key, TenantId = tenantId, RequestHash = requestHash, Status = 0,
-            ResponseJson = string.Empty, CreatedAt = time.GetUtcNow()
+            ResponseJson = string.Empty, CreatedAt = time.GetUtcNow(), OwnerToken = Guid.NewGuid()
         };
         db.IdempotencyRecords.Add(record);
         try {
             await db.SaveChangesAsync(ct);
-            return new IdempotencyReservation(IdempotencyOutcome.Reserved);
+            return new IdempotencyReservation(IdempotencyOutcome.Reserved, OwnerToken: record.OwnerToken);
         }
         catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation }) {
             db.Entry(record).State = EntityState.Detached;
@@ -59,9 +59,9 @@ public sealed class IdempotencyStore(
 
         // Bekleyen kayıt zaman aşımına uğradıysa (işleyen süreç çökmüş olabilir) devral: sil ve bir kez yeniden ayır.
         if (!retried && existing.CreatedAt < time.GetUtcNow() - pendingTimeout) {
-            var createdAt = existing.CreatedAt;
+            var oldOwner = existing.OwnerToken;
             await db.IdempotencyRecords
-                .Where(r => r.Caller == caller && r.Key == key && r.Status == 0 && r.CreatedAt == createdAt)
+                .Where(r => r.Caller == caller && r.Key == key && r.Status == 0 && r.OwnerToken == oldOwner)
                 .ExecuteDeleteAsync(ct);
             return await ReserveAsync(caller, key, tenantId, requestHash, pendingTimeout, true, ct);
         }
@@ -69,14 +69,21 @@ public sealed class IdempotencyStore(
         return new IdempotencyReservation(IdempotencyOutcome.InProgress);
     }
 
-    public async Task CompleteAsync(string caller, string key, int status, string responseJson, CancellationToken ct) {
-        await db.IdempotencyRecords.Where(r => r.Caller == caller && r.Key == key)
+    public async Task CompleteAsync(string            caller,
+                                    string            key,
+                                    Guid              ownerToken,
+                                    int               status,
+                                    string            responseJson,
+                                    CancellationToken ct
+    ) {
+        await db.IdempotencyRecords.Where(r => r.Caller == caller && r.Key == key && r.OwnerToken == ownerToken)
             .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status,       status)
                                     .SetProperty(r => r.ResponseJson, responseJson), ct);
     }
 
-    public async Task ReleaseAsync(string caller, string key, CancellationToken ct) {
-        await db.IdempotencyRecords.Where(r => r.Caller == caller && r.Key == key).ExecuteDeleteAsync(ct);
+    public async Task ReleaseAsync(string caller, string key, Guid ownerToken, CancellationToken ct) {
+        await db.IdempotencyRecords.Where(r => r.Caller == caller && r.Key == key && r.OwnerToken == ownerToken)
+            .ExecuteDeleteAsync(ct);
     }
 
     /// <summary>7 günden eski kayıtları siler; silinen kayıt sayısını döndürür.</summary>

@@ -54,12 +54,13 @@ public class Files : IEndpointGroup {
     }
 
     [EndpointSummary("Dosyayı indir")]
-    [EndpointDescription("Firmanın oturum sahibi herhangi bir üyesi indirebilir; başka firmanın dosyası ve olmayan dosya 404. Görsel ve PDF'ler inline sunulur; X-Content-Type-Options: nosniff eklenir.")]
+    [EndpointDescription("Firmanın oturum sahibi herhangi bir üyesi indirebilir; başka firmanın dosyası ve olmayan dosya 404. Görsel ve PDF'ler inline sunulur; X-Content-Type-Options: nosniff ve Content-Security-Policy: sandbox eklenir.")]
     public static async Task<IResult> DownloadFile(HttpContext context, ISender sender, Guid id) {
         var file = await sender.Send(new GetFileQuery(id));
 
         context.Response.Headers.XContentTypeOptions  = "nosniff";
         context.Response.Headers.CacheControl          = "private, no-cache";
+        context.Response.Headers.ContentSecurityPolicy = "sandbox; default-src 'none'";
         context.Response.Headers.ContentDisposition    = ContentDisposition(file.FileName);
         context.Response.RegisterForDispose(file.Content);
 

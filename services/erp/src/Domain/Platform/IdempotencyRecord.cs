@@ -20,4 +20,7 @@ public class IdempotencyRecord {
     public string ResponseJson { get; set; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; set; }
+
+    /// <summary>Ayıran isteğin sahiplik belirteci; tamamlama ve serbest bırakma yalnızca sahibi için geçerlidir.</summary>
+    public Guid OwnerToken { get; set; }
 }

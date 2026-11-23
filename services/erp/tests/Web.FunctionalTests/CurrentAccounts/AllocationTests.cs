@@ -309,6 +309,7 @@ public class AllocationTests : TestBase {
     }
 
     [Test]
+    [NonParallelizable]
     public async Task Backfill_CreatesDueLineForEveryExistingEntry() {
         var       tenant = Guid.CreateVersion7();
         using var client = await Client(tenant);
