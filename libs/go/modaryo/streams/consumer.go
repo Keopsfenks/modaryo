@@ -22,7 +22,11 @@ type Handler func(ctx context.Context, e Envelope) error
 type Options struct {
 	// MaxDeliveries is the number of handler attempts before an entry is dead-lettered (default 5).
 	MaxDeliveries int
-	// ClaimIdle is how long an entry must sit pending before it is reclaimed (default 60s).
+	// ClaimIdle is how long an entry must sit pending before it is reclaimed (default 60s). It should
+	// comfortably exceed the worst-case handler time. While a batch is worked through and while a
+	// handler runs, the consumer refreshes the idle time of the entries it owns (XCLAIM JUSTID,
+	// every ClaimIdle/2), so entries are not stolen by other consumers; this narrows but cannot
+	// close the window, so delivery stays at-least-once and handlers must dedupe by envelope id.
 	ClaimIdle time.Duration
 	// Block is the XREADGROUP block time (default 5s).
 	Block time.Duration
@@ -55,6 +59,7 @@ type Consumer struct {
 	opts      Options
 	log       *slog.Logger
 	lastClaim time.Time
+	stolen    map[string]bool // ids of the current batch found to be owned by another consumer
 }
 
 // NewConsumer creates a consumer. The group is created (XGROUP CREATE ... MKSTREAM) by Run.
@@ -135,8 +140,8 @@ func (c *Consumer) Run(ctx context.Context) error {
 			grouped = true
 		}
 
-		if c.lastClaim.IsZero() || c.opts.Now().Sub(c.lastClaim) >= c.opts.ClaimIdle {
-			c.lastClaim = c.opts.Now()
+		if c.lastClaim.IsZero() || time.Since(c.lastClaim) >= c.opts.ClaimIdle {
+			c.lastClaim = time.Now()
 			if err := c.claimPending(ctx); err != nil {
 				if isNoGroup(err) {
 					grouped = false
@@ -162,11 +167,13 @@ func (c *Consumer) Run(ctx context.Context) error {
 			continue
 		}
 		failures = 0
+		var items []item
 		for _, s := range res {
 			for _, m := range s.Messages {
-				c.process(ctx, m, 1)
+				items = append(items, item{m, 1})
 			}
 		}
+		c.processBatch(ctx, items)
 	}
 	return ctx.Err()
 }
@@ -192,10 +199,8 @@ func (c *Consumer) claimPending(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+		var items []item
 		for _, m := range msgs {
-			if ctx.Err() != nil {
-				return nil
-			}
 			n, err := c.deliveries(ctx, m.ID)
 			if err != nil {
 				return err
@@ -203,14 +208,129 @@ func (c *Consumer) claimPending(ctx context.Context) error {
 			if n == 0 { // acked or deleted meanwhile
 				continue
 			}
-			c.process(ctx, m, n)
+			items = append(items, item{m, n})
 		}
+		c.processBatch(ctx, items)
 		if next == "0-0" || next == "" {
 			return nil
 		}
 		start = next
 	}
 	return nil
+}
+
+// item is a stream entry with its delivery count (including the current delivery).
+type item struct {
+	m          redis.XMessage
+	deliveries int64
+}
+
+// processBatch handles the items in order. Idle time runs from delivery, so while working through
+// a batch the consumer periodically checks which remaining entries it still owns, skips the ones
+// another consumer took, and resets idle on the others (XCLAIM JUSTID does not bump the delivery
+// count).
+func (c *Consumer) processBatch(ctx context.Context, items []item) {
+	last := time.Now()
+	for i, it := range items {
+		if ctx.Err() != nil {
+			return
+		}
+		if time.Since(last) > c.opts.ClaimIdle/2 {
+			owned, err := c.refresh(ctx, items[i:])
+			last = time.Now()
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				c.log.Warn("streams: ownership refresh failed", "error", err.Error())
+			} else {
+				for _, r := range items[i:] {
+					if !owned[r.m.ID] {
+						c.markStolen(r.m.ID)
+					}
+				}
+			}
+		}
+		if c.isStolen(it.m.ID) {
+			c.skipStolen(it.m)
+			continue
+		}
+		c.process(ctx, it.m, it.deliveries)
+	}
+	c.stolen = nil
+}
+
+func (c *Consumer) markStolen(id string) {
+	if c.stolen == nil {
+		c.stolen = map[string]bool{}
+	}
+	c.stolen[id] = true
+}
+
+func (c *Consumer) isStolen(id string) bool { return c.stolen[id] }
+
+func (c *Consumer) skipStolen(m redis.XMessage) {
+	typ, _ := m.Values["type"].(string)
+	c.log.Warn("streams: entry was claimed by another consumer; skipped", "entry_id", m.ID, "event_type", typ)
+}
+
+// refresh returns which of items this consumer still owns and resets idle on those (XCLAIM JUSTID).
+func (c *Consumer) refresh(ctx context.Context, items []item) (map[string]bool, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+	ext, err := c.rdb.XPendingExt(ctx, &redis.XPendingExtArgs{
+		Stream: c.stream, Group: c.group, Consumer: c.name,
+		Start: items[0].m.ID, End: items[len(items)-1].m.ID, Count: 10000,
+	}).Result()
+	if err != nil {
+		return nil, err
+	}
+	mine := make(map[string]bool, len(ext))
+	for _, e := range ext {
+		mine[e.ID] = true
+	}
+	owned := make(map[string]bool, len(items))
+	var ids []string
+	for _, it := range items {
+		if mine[it.m.ID] {
+			owned[it.m.ID] = true
+			ids = append(ids, it.m.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return owned, nil
+	}
+	err = c.rdb.XClaimJustID(ctx, &redis.XClaimArgs{
+		Stream: c.stream, Group: c.group, Consumer: c.name, MinIdle: 0, Messages: ids,
+	}).Err()
+	return owned, err
+}
+
+// heartbeat keeps the idle time of one entry fresh while its handler runs; call the result to stop it.
+func (c *Consumer) heartbeat(ctx context.Context, m redis.XMessage) (stop func()) {
+	interval := c.opts.ClaimIdle / 2
+	if interval <= 0 {
+		interval = time.Millisecond
+	}
+	hctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-hctx.Done():
+				return
+			case <-t.C:
+				if _, err := c.refresh(hctx, []item{{m: m}}); err != nil && hctx.Err() == nil {
+					c.log.Warn("streams: heartbeat failed", "entry_id", m.ID, "error", err.Error())
+				}
+			}
+		}
+	}()
+	return func() { cancel(); <-done }
 }
 
 // deliveries returns the delivery count of id from the PEL (0 when it is no longer pending).
@@ -267,7 +387,15 @@ func (c *Consumer) process(ctx context.Context, m redis.XMessage, deliveries int
 		return
 	}
 
-	if err := c.call(ctx, h, e); err != nil {
+	stopHeartbeat := c.heartbeat(ctx, m)
+	err := c.call(ctx, h, e)
+	stopHeartbeat()
+	if err != nil {
+		if ctx.Err() != nil {
+			// Shutting down: the failure may be the cancellation itself. Leave it pending.
+			log.Warn("streams: handler failed during shutdown; left pending", "error", err.Error())
+			return
+		}
 		if deliveries >= int64(c.opts.MaxDeliveries) {
 			log.Error("streams: handler failed on last attempt; dead-lettering", "error", err.Error())
 			c.deadLetter(ctx, m, deliveries, err.Error())
@@ -310,7 +438,7 @@ func (c *Consumer) deadLetter(ctx context.Context, m redis.XMessage, deliveries 
 	values["error"] = reason
 	values["deliveries"] = deliveries
 	values["original_id"] = m.ID
-	values["failed_at"] = c.opts.Now().UTC().Format(time.RFC3339)
+	values["failed_at"] = time.Now().UTC().Format(TimeFormat)
 	values["group"] = c.group
 
 	actx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ackTimeout)

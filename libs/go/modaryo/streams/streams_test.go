@@ -278,7 +278,7 @@ func TestPoisonMessage_GoesToDlq_OthersProceed(t *testing.T) {
 	assert.Equal(t, "test.poison", d.Values["type"])
 	assert.NotEmpty(t, d.Values["original_id"])
 	assert.NotEmpty(t, d.Values["event"])
-	_, err := time.Parse(time.RFC3339, d.Values["failed_at"].(string))
+	_, err := time.Parse(streams.TimeFormat, d.Values["failed_at"].(string))
 	assert.NoError(t, err)
 
 	assert.NotContains(t, logs.String(), "do-not-log", "logs must not carry message bodies")
@@ -577,4 +577,148 @@ func (b *syncBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+func TestClaimJustID_DoesNotBumpDeliveryCount(t *testing.T) {
+	rdb := testRedis(t)
+	stream := newStream(t, rdb)
+	ctx := context.Background()
+	require.NoError(t, rdb.XGroupCreateMkStream(ctx, stream, "g", "0").Err())
+	require.NoError(t, streams.Produce(ctx, rdb, stream, envelope(testType, `{}`)))
+	res, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{Group: "g", Consumer: "c1", Streams: []string{stream, ">"}, Count: 1}).Result()
+	require.NoError(t, err)
+	id := res[0].Messages[0].ID
+	for i := 0; i < 3; i++ {
+		require.NoError(t, rdb.XClaimJustID(ctx, &redis.XClaimArgs{Stream: stream, Group: "g", Consumer: "c1", MinIdle: 0, Messages: []string{id}}).Err())
+	}
+	ext, err := rdb.XPendingExt(ctx, &redis.XPendingExtArgs{Stream: stream, Group: "g", Start: id, End: id, Count: 1}).Result()
+	require.NoError(t, err)
+	require.Len(t, ext, 1)
+	assert.EqualValues(t, 1, ext[0].RetryCount)
+}
+
+func TestLongHandlers_TwoConsumers_NoStealNoDlq(t *testing.T) {
+	rdb := testRedis(t)
+	stream := newStream(t, rdb)
+	const total = 4
+	for i := 0; i < total; i++ {
+		require.NoError(t, streams.Produce(context.Background(), rdb, stream, envelope(testType, `{}`)))
+	}
+	var mu sync.Mutex
+	seen := map[uuid.UUID]int{}
+	h := func(_ context.Context, e streams.Envelope) error {
+		time.Sleep(800 * time.Millisecond) // longer than ClaimIdle
+		mu.Lock()
+		seen[e.ID]++
+		mu.Unlock()
+		return nil
+	}
+	opts := fastOpts()
+	opts.ClaimIdle = 300 * time.Millisecond
+	opts.Count = 4
+	c1 := streams.NewConsumer(rdb, stream, "g", "c1", opts)
+	c2 := streams.NewConsumer(rdb, stream, "g", "c2", opts)
+	c1.Handle(testType, h)
+	c2.Handle(testType, h)
+	start(t, c1)
+	start(t, c2)
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(seen) == total && pendingCount(t, rdb, stream, "g") == 0
+	}, 15*time.Second, 50*time.Millisecond)
+	mu.Lock()
+	for id, n := range seen {
+		assert.Equal(t, 1, n, "event %s handled %d times", id, n)
+	}
+	mu.Unlock()
+	assert.Empty(t, dlq(t, rdb, stream))
+}
+
+func TestOverMaxDeliveries_GoesToDlqWithoutHandler(t *testing.T) {
+	rdb := testRedis(t)
+	stream := newStream(t, rdb)
+	ctx := context.Background()
+	require.NoError(t, rdb.XGroupCreateMkStream(ctx, stream, "g", "0").Err())
+	require.NoError(t, streams.Produce(ctx, rdb, stream, envelope(testType, `{}`)))
+	res, err := rdb.XReadGroup(ctx, &redis.XReadGroupArgs{Group: "g", Consumer: "ghost", Streams: []string{stream, ">"}, Count: 1}).Result()
+	require.NoError(t, err)
+	id := res[0].Messages[0].ID
+	for i := 0; i < 5; i++ { // a crashed consumer burned the deliveries
+		require.NoError(t, rdb.XClaim(ctx, &redis.XClaimArgs{Stream: stream, Group: "g", Consumer: "ghost", MinIdle: 0, Messages: []string{id}}).Err())
+	}
+
+	var mu sync.Mutex
+	called := false
+	c := streams.NewConsumer(rdb, stream, "g", "c1", fastOpts())
+	c.Handle(testType, func(context.Context, streams.Envelope) error {
+		mu.Lock()
+		called = true
+		mu.Unlock()
+		return nil
+	})
+	start(t, c)
+
+	require.Eventually(t, func() bool {
+		return len(dlq(t, rdb, stream)) == 1 && pendingCount(t, rdb, stream, "g") == 0
+	}, 5*time.Second, 20*time.Millisecond)
+	mu.Lock()
+	assert.False(t, called)
+	mu.Unlock()
+	assert.Equal(t, "max deliveries exceeded", dlq(t, rdb, stream)[0].Values["error"])
+}
+
+func TestRun_RecreatesGroupAfterStreamDeleted(t *testing.T) {
+	rdb := testRedis(t)
+	stream := newStream(t, rdb)
+	ctx := context.Background()
+	var mu sync.Mutex
+	n := 0
+	c := streams.NewConsumer(rdb, stream, "g", "c1", fastOpts())
+	c.Handle(testType, func(context.Context, streams.Envelope) error {
+		mu.Lock()
+		n++
+		mu.Unlock()
+		return nil
+	})
+	start(t, c)
+	require.Eventually(t, func() bool {
+		g, err := rdb.XInfoGroups(ctx, stream).Result()
+		return err == nil && len(g) == 1
+	}, 5*time.Second, 20*time.Millisecond)
+
+	require.NoError(t, rdb.Del(ctx, stream).Err())
+	time.Sleep(200 * time.Millisecond)
+	require.NoError(t, streams.Produce(ctx, rdb, stream, envelope(testType, `{}`)))
+	// Produce re-created the stream without the group; the consumer must create the group again.
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return n == 1
+	}, 8*time.Second, 50*time.Millisecond)
+}
+
+func TestShutdown_FailedHandlerIsNotDeadLettered(t *testing.T) {
+	rdb := testRedis(t)
+	stream := newStream(t, rdb)
+	require.NoError(t, streams.Produce(context.Background(), rdb, stream, envelope(testType, `{}`)))
+	entered := make(chan struct{})
+	opts := fastOpts()
+	opts.MaxDeliveries = 1 // the first failure would normally be the last attempt
+	c := streams.NewConsumer(rdb, stream, "g", "c1", opts)
+	c.Handle(testType, func(ctx context.Context, _ streams.Envelope) error {
+		close(entered)
+		<-ctx.Done()
+		return ctx.Err()
+	})
+	stop := start(t, c)
+	select {
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("handler not called")
+	}
+	assert.ErrorIs(t, stop(), context.Canceled)
+	assert.Empty(t, dlq(t, rdb, stream))
+	assert.EqualValues(t, 1, pendingCount(t, rdb, stream, "g"))
 }

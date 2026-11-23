@@ -1,5 +1,8 @@
 // Package streams consumes and produces the ERP event stream (contract "event v1") on Valkey
 // Streams: consumer groups, retry through XAUTOCLAIM and a dead-letter stream.
+//
+// Delivery is at-least-once: consumers must dedupe by envelope id. A crash between the DLQ write
+// and the acknowledgement of the original entry can leave a duplicate entry in the DLQ.
 package streams
 
 import (
