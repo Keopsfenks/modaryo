@@ -69,7 +69,7 @@ public class OutboxTests : TestBase {
     }
 
     [Test]
-    public async Task AddEntry_EnqueuesOutboxMessageInSameTransaction() {
+    public async Task AddEntry_EnqueuesEntryAddedEventWithPayload() {
         using var client = await Client();
         var       id     = await CreateCardAsync(client);
 
@@ -83,6 +83,7 @@ public class OutboxTests : TestBase {
         using var data = JsonDocument.Parse(message.PayloadJson);
         var       root = data.RootElement;
         root.GetProperty("current_account_id").GetGuid().ShouldBe(id);
+        root.GetProperty("entry_type").GetString().ShouldBe("debit-note");
         root.GetProperty("kind").GetString().ShouldBe("debit");
         root.GetProperty("amount").GetString().ShouldBe("250.50");
         root.GetProperty("currency").GetString().ShouldBe("TRY");
@@ -92,7 +93,7 @@ public class OutboxTests : TestBase {
     }
 
     [Test]
-    public async Task FailedSaveAfterEnqueue_LeavesNoOutboxMessage() {
+    public async Task AddEntry_EnqueuesOutboxMessageInSameTransaction() {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(TestEnvironment.ConnectionString)
             .Options;
         var tenant = new FixedTenant(Tenant);
@@ -109,6 +110,48 @@ public class OutboxTests : TestBase {
     }
 
     [Test]
+    public async Task AddCredit_EmitsCreditNoteEntryType() {
+        using var client = await Client();
+        var       id     = await CreateCardAsync(client);
+        (await client.PostAsJsonAsync($"{Url}/{id}/entries", new { type = "credit", date = "2026-11-01", amount = 5m }))
+            .StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        using var data = JsonDocument.Parse((await MessagesAsync()).Single().PayloadJson);
+        data.RootElement.GetProperty("entry_type").GetString().ShouldBe("credit-note");
+        data.RootElement.GetProperty("kind").GetString().ShouldBe("credit");
+    }
+
+    private sealed class FailingPublisher : IEventStreamPublisher {
+        public int Calls { get; private set; }
+
+        public Task PublishAsync(string streamKey, NameValueEntry[] fields, CancellationToken ct) {
+            Calls++;
+            throw new InvalidOperationException("akış kapalı");
+        }
+    }
+
+    [Test]
+    public async Task PublishFailure_StopsBatchAndKeepsLaterMessagesUntouched() {
+        using var client = await Client();
+        var       id     = await CreateCardAsync(client);
+        await AddDebitAsync(client, id, 1m);
+        await AddDebitAsync(client, id, 2m);
+        var publisher = new FailingPublisher();
+        var relay = new OutboxRelay(new RelayDatabase(TestEnvironment.ConnectionString), publisher,
+                                    Options.Create(new OutboxOptions()), TimeProvider.System,
+                                    NullLogger<OutboxRelay>.Instance);
+
+        (await relay.PublishPendingAsync(CancellationToken.None)).ShouldBe(0);
+
+        publisher.Calls.ShouldBe(1);
+        var messages = await MessagesAsync();
+        messages.ShouldAllBe(m => m.PublishedAt == null);
+        messages[0].Attempts.ShouldBe(1);
+        messages[0].LastError.ShouldBe("akış kapalı");
+        messages[1].Attempts.ShouldBe(0);
+    }
+
+    [Test]
     public async Task CardWithOpening_EnqueuesOneEventForOpeningEntry() {
         using var client = await Client();
 
@@ -117,6 +160,7 @@ public class OutboxTests : TestBase {
         var message = (await MessagesAsync()).ShouldHaveSingleItem();
         using var data = JsonDocument.Parse(message.PayloadJson);
         data.RootElement.GetProperty("current_account_id").GetGuid().ShouldBe(id);
+        data.RootElement.GetProperty("entry_type").GetString().ShouldBe("opening");
         data.RootElement.GetProperty("kind").GetString().ShouldBe("credit");
         data.RootElement.GetProperty("due_date").ValueKind.ShouldBe(JsonValueKind.Null);
         data.RootElement.GetProperty("description").GetString().ShouldBe("Açılış bakiyesi");

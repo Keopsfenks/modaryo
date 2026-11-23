@@ -8,6 +8,7 @@
     "data": {
         "current_account_id": "019a9d0b-8c11-7e02-9a53-2b7c4d5e6f01",
         "entry_id": "019a9d0c-3f5a-7b94-a0c3-1e2d3c4b5a69",
+        "entry_type": "debit-note",
         "kind": "debit",
         "amount": "250.50",
         "currency": "TRY",

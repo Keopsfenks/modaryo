@@ -8,6 +8,7 @@ namespace ERP.Application.CurrentAccounts;
 public sealed record EntryAddedData(
     Guid    CurrentAccountId,
     Guid    EntryId,
+    string  EntryType,
     string  Kind,
     string  Amount,
     string  Currency,
@@ -19,12 +20,21 @@ public sealed record EntryAddedData(
 public static class EntryEvents {
     public const string EntryAdded = "current-account.entry-added";
 
-    /// <summary>Her yeni hareket (açılış dahil) için bir olay kuyruğa alınır. kind: hareketin yönü (debit | credit).</summary>
+    private static string EntryType(LedgerEntryType type) {
+        return type switch {
+                   LedgerEntryType.Opening   => "opening",
+                   LedgerEntryType.DebitNote => "debit-note",
+                   _                         => "credit-note"
+               };
+    }
+
+    /// <summary>Her yeni hareket (açılış dahil) için bir olay kuyruğa alınır. entry_type: opening | debit-note | credit-note; kind: hareketin yönü (debit | credit).</summary>
     public static void EnqueueEntryAdded(this IOutbox outbox, LedgerEntry entry) {
         var debit = entry.Debit > 0;
         outbox.Enqueue(EntryAdded, new EntryAddedData(
                                                       entry.CurrentAccountId,
                                                       entry.Id,
+                                                      EntryType(entry.Type),
                                                       debit ? "debit" : "credit",
                                                       (debit ? entry.Debit : entry.Credit).ToString("0.00",
                                                           CultureInfo.InvariantCulture),

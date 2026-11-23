@@ -13,6 +13,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <InternalsVisibleTo Include="ERP.Web.FunctionalTests"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\Application\Application.csproj"/>
         <ProjectReference Include="..\Shared\Shared.csproj"/>
         <ProjectReference Include="..\..\..\..\libs\dotnet\Modaryo.Internal\Modaryo.Internal.csproj"/>

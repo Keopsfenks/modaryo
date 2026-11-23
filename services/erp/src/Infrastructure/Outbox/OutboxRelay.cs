@@ -14,7 +14,7 @@ namespace ERP.Infrastructure.Outbox;
 /// <summary>
 ///     Röle firma bağlamı olmadan çalışır: kendi DbContext'ini firma denetleyicisi (interceptor) olmadan kurar.
 /// </summary>
-public sealed class RelayDatabase(
+internal sealed class RelayDatabase(
     DbContextOptions<ApplicationDbContext> options
 ) {
     public RelayDatabase(string connectionString)
@@ -52,7 +52,7 @@ public sealed class RelayDatabase(
 ///     At-least-once: XADD ile PublishedAt yazımı arasında süreç ölürse kayıt yeniden iletilebilir;
 ///     tüketiciler zarf "id" alanıyla tekilleştirir. Çoklu röle örneği FOR UPDATE SKIP LOCKED ile çakışmaz.
 /// </summary>
-public sealed class OutboxRelay(
+internal sealed class OutboxRelay(
     RelayDatabase           database,
     IEventStreamPublisher   publisher,
     IOptions<OutboxOptions> options,
