@@ -103,7 +103,8 @@ public sealed class ProductWriter(
     ICurrentSession       session,
     ITenantSettings       settingsService,
     BarcodeRegistry       barcodes,
-    ItemUsage             usage
+    ItemUsage             usage,
+    ERP.Application.Pricing.PriceHistoryWriter priceHistory
 ) {
     private const decimal MaxMoney = 99_999_999_999_999.9999m;
     private const decimal MaxDim   = 999_999_999m;
@@ -326,6 +327,16 @@ public sealed class ProductWriter(
         product.HeightCm             = input.HeightCm;
         product.OriginCountry        = origin;
         product.Gtip                 = gtip;
+        if (!isNew) {
+            // Kart varsayılan fiyat değişiklikleri fiyat geçmişine düşer.
+            if (product.DefaultSalePrice != input.DefaultSalePrice)
+                priceHistory.Record(ERP.Application.Pricing.PriceHistoryWriter.ScopeCard, product.Id, product.Id, null, baseUnit,
+                                    product.DefaultSalePrice, input.DefaultSalePrice, ERP.Domain.Pricing.PriceListKind.Sale);
+            if (product.DefaultPurchasePrice != input.DefaultPurchasePrice)
+                priceHistory.Record(ERP.Application.Pricing.PriceHistoryWriter.ScopeCard, product.Id, product.Id, null, baseUnit,
+                                    product.DefaultPurchasePrice, input.DefaultPurchasePrice, ERP.Domain.Pricing.PriceListKind.Purchase);
+        }
+
         product.DefaultPurchasePrice = input.DefaultPurchasePrice;
         product.DefaultSalePrice     = input.DefaultSalePrice;
         product.Tags                 = tags;
