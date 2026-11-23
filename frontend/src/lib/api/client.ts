@@ -57,7 +57,8 @@ export async function apiFetch<T>(path: string, init: FetchInit = {}): Promise<T
         headers[CSRF_HEADER] = "1";
     }
 
-    if (init.body !== undefined) {
+    const isForm = typeof FormData !== "undefined" && init.body instanceof FormData;
+    if (init.body !== undefined && !isForm) {
         headers["Content-Type"] = "application/json";
     }
 
@@ -68,7 +69,7 @@ export async function apiFetch<T>(path: string, init: FetchInit = {}): Promise<T
         response = await fetch(url, {
             method,
             headers,
-            body: init.body === undefined ? undefined : JSON.stringify(init.body),
+            body: init.body === undefined ? undefined : isForm ? (init.body as FormData) : JSON.stringify(init.body),
             credentials: "same-origin",
             signal: init.signal,
         });

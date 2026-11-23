@@ -98,6 +98,27 @@ public class SettingsTests : TestBase {
     }
 
     [Test]
+    public async Task GetGeneral_Default_HasDefaultDateFormat() {
+        using var client = await Admin();
+
+        var body = await (await client.GetAsync(Genel)).JsonAsync();
+
+        body.GetProperty("value").GetProperty("dateFormat").GetString().ShouldBe("dd.MM.yyyy");
+    }
+
+    [Test]
+    public async Task PutGeneral_DateFormat_ValidatesAllowedList() {
+        using var client = await Admin();
+
+        (await Put(client, 0, new { dateFormat = "MM/dd/yyyy" }, Genel)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await Put(client, 0, new { dateFormat = "yyyy-MM-dd" }, Genel)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await Put(client, 1, new { dateFormat = "dd/MM/yyyy" }, Genel)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var body = await (await client.GetAsync(Genel)).JsonAsync();
+        body.GetProperty("value").GetProperty("dateFormat").GetString().ShouldBe("dd/MM/yyyy");
+    }
+
+    [Test]
     public async Task Put_StaleVersion_Returns409VersionConflict() {
         using var client = await Admin();
         (await Put(client, 0, Profile())).StatusCode.ShouldBe(HttpStatusCode.OK);

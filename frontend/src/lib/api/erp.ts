@@ -167,6 +167,57 @@ export type ListAccountsQuery = {
     pageSize?: number;
 };
 
+export type IbanEntry = { bankName: string; iban: string; currency: Currency };
+
+export type CompanyProfileSettings = {
+    legalName: string | null;
+    taxNumber: string | null;
+    taxOffice: string | null;
+    mersisNo: string | null;
+    tradeRegistryNo: string | null;
+    address: string | null;
+    city: string | null;
+    district: string | null;
+    phone: string | null;
+    email: string | null;
+    website: string | null;
+    logoFileId: string | null;
+    ibans: IbanEntry[];
+};
+
+export type WeekDay = "sunday" | "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday";
+export type DateFormat = "dd.MM.yyyy" | "yyyy-MM-dd" | "dd/MM/yyyy";
+
+export type GeneralSettings = {
+    defaultCurrency: Currency;
+    quantityDecimals: number;
+    unitPriceDecimals: number;
+    weekStart: WeekDay;
+    workDays: WeekDay[];
+    holidays: string[];
+    dateFormat: DateFormat;
+};
+
+export type FinanceSettings = { periodLockDate: string | null };
+
+export type SettingsDto<T> = { version: number; value: T };
+export type UploadedFile = { id: string; fileName: string; contentType: string; size: number };
+export type FileKind = "logo" | "attachment" | "image";
+
+export type AuditEntry = {
+    id: string;
+    at: string;
+    actorUserId: string | null;
+    actorLabel: string;
+    action: string;
+    entityType: string;
+    entityId: string;
+    before: string | null;
+    after: string | null;
+};
+
+export type AuditQuery = { entityType?: string; page?: number; pageSize?: number };
+
 const base = "/api/erp/current-accounts";
 
 /** Tanımsız değerleri atlayarak "?a=1&b=2" üretir; hiç param yoksa boş string. */
@@ -212,4 +263,26 @@ export const erp = {
 
     dueItems: (id: string) => get<OpenItem[]>(`/${id}/due-items`),
     dueSummary: () => get<DueSummary>("/due-summary"),
+
+    settings: {
+        get: <T>(category: string) => apiFetch<SettingsDto<T>>(`/api/erp/settings/${category}`),
+        put: <T>(category: string, version: number, value: T) =>
+            apiFetch<SettingsDto<T>>(`/api/erp/settings/${category}`, { method: "PUT", body: { version, value } }),
+    },
+
+    files: {
+        upload: (file: File, kind: FileKind) => {
+            const form = new FormData();
+            form.append("file", file);
+            return apiFetch<UploadedFile>(`/api/erp/files${queryString({ kind })}`, { method: "POST", body: form });
+        },
+        url: (id: string) => `/api/erp/files/${id}`,
+    },
+
+    audit: {
+        list: (q: AuditQuery = {}) =>
+            apiFetch<PagedResult<AuditEntry>>(
+                `/api/erp/audit${queryString({ entityType: q.entityType, page: q.page, pageSize: q.pageSize })}`,
+            ),
+    },
 };
