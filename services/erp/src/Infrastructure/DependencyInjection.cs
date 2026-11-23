@@ -34,6 +34,7 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ApplicationDbContextInitialiser>();
 
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<IXlsxService, ERP.Infrastructure.Excel.XlsxService>();
 
         builder.Services.AddScoped<IdempotencyStore>();
         builder.Services.AddScoped<IInternalIdempotencyStore>(sp => sp.GetRequiredService<IdempotencyStore>());

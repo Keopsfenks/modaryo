@@ -110,8 +110,12 @@ public sealed class ProductWriter(
 
     public static readonly string[] MeasureUnits = ["m2", "m"];
 
-    /// <summary>existing null ise yeni kart oluşturulur. Dönen değer kartın Id'sidir.</summary>
-    public async Task<Guid> SaveAsync(Product? existing, ProductInput input, CancellationToken ct) {
+    /// <summary>
+    ///     existing null ise yeni kart oluşturulur. Dönen değer kartın Id'sidir. joinOpenTransaction: çağıranın açtığı işleme
+    ///     katılır (kendi işlemini açmaz/onaylamaz, benzersiz indeks hatalarını da olduğu gibi yukarı bırakır).
+    /// </summary>
+    public async Task<Guid> SaveAsync(Product? existing, ProductInput input, CancellationToken ct,
+                                      bool     joinOpenTransaction = false) {
         var isNew = existing is null;
         if (input.TracksSerialLot && !session.HasModule("seri-lot"))
             throw new AppException(403, "module_disabled", "Seri/lot takibi için Seri-Lot modülü firmanızda kapalı.");
@@ -262,7 +266,7 @@ public sealed class ProductWriter(
         if (variantsInput.Count > 500 || combinations.Count > 500) throw CatalogErrors.TooManyVariants();
 
         // Kod ve barkod tekilliği, sayaçlar ve kayıt tek işlemde
-        await using var transaction = await db.BeginTransactionAsync(ct);
+        await using var transaction = joinOpenTransaction ? null : await db.BeginTransactionAsync(ct);
 
         if (code is null) {
             var free = await ProductCodes.NextFreeSequenceAsync(db, settings, ct);
@@ -357,11 +361,11 @@ public sealed class ProductWriter(
 
         try {
             await db.SaveChangesAsync(ct);
-        } catch (DbUpdateException ex) when (CatalogErrors.FromUniqueViolation(ex) is { } conflict) {
+        } catch (DbUpdateException ex) when (!joinOpenTransaction && CatalogErrors.FromUniqueViolation(ex) is { } conflict) {
             throw conflict;
         }
 
-        await transaction.CommitAsync(ct);
+        if (transaction is not null) await transaction.CommitAsync(ct);
         return product.Id;
     }
 

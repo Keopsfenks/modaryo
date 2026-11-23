@@ -159,3 +159,14 @@ public class CustomFieldDefinitionConfiguration : IEntityTypeConfiguration<Custo
         builder.HasIndex(e => new { e.TenantId, e.Key }).IsUnique();
     }
 }
+
+public class ImportBatchConfiguration : IEntityTypeConfiguration<ImportBatch> {
+    public void Configure(EntityTypeBuilder<ImportBatch> builder) {
+        builder.ToTable("import_batches");
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.Kind).HasMaxLength(20).IsRequired();
+        builder.Property(e => e.RowsJson).HasColumnType("jsonb").IsRequired();
+
+        builder.HasIndex(e => new { e.TenantId, e.ExpiresAt });
+    }
+}

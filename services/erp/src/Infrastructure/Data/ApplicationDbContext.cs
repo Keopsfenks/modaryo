@@ -62,12 +62,18 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
 
     public DbSet<CustomFieldDefinition> CustomFieldDefinitions => Set<CustomFieldDefinition>();
 
+    public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken) {
         return Database.BeginTransactionAsync(cancellationToken);
+    }
+
+    public void ClearTracking() {
+        ChangeTracker.Clear();
     }
 
     public async Task<bool> LockCurrentAccountAsync(Guid id, CancellationToken cancellationToken) {

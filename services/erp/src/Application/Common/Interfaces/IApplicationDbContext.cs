@@ -41,6 +41,11 @@ public interface IApplicationDbContext {
 
     DbSet<CustomFieldDefinition> CustomFieldDefinitions { get; }
 
+    DbSet<ImportBatch> ImportBatches { get; }
+
+    /// <summary>İzlenen tüm varlıkları bırakır (geri alınan bir işlemden sonra bağlamı temizlemek için).</summary>
+    void ClearTracking();
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 
     Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken);

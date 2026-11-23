@@ -1,6 +1,9 @@
 using ERP.Application.Catalog.Brands;
 using ERP.Application.Catalog.Categories;
 using ERP.Application.Catalog.CustomFields;
+using ERP.Application.Catalog.Excel;
+using ERP.Application.Catalog.Excel.Commands;
+using ERP.Application.Catalog.Excel.Queries;
 using ERP.Application.Catalog.Products;
 using ERP.Application.Catalog.Products.Commands;
 using ERP.Application.Catalog.Products.Queries;
@@ -9,6 +12,8 @@ using ERP.Application.Catalog.Items.Queries;
 using ERP.Application.Catalog.Variants.Commands;
 using ERP.Application.CurrentAccounts;
 using ERP.Domain.Catalog;
+using ERP.Application.Common.Exceptions;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace ERP.Web.Endpoints;
@@ -38,6 +43,10 @@ public class Catalog : IEndpointGroup {
         groupBuilder.MapPut(UpdateVariant, "products/{id:guid}/variants/{variantId:guid}");
         groupBuilder.MapPost(ActivateVariant, "products/{id:guid}/variants/{variantId:guid}/activate");
         groupBuilder.MapPost(DeactivateVariant, "products/{id:guid}/variants/{variantId:guid}/deactivate");
+        groupBuilder.MapGet(ExportProducts, "products/export.xlsx");
+        groupBuilder.MapGet(ImportTemplate, "products/import-template.xlsx");
+        groupBuilder.MapPost(PreviewImport, "products/import/preview").DisableAntiforgery(); // CSRF koruması X-Modaryo-Csrf başlığıyla yapılır
+        groupBuilder.MapPost(CommitImport, "products/import/{batchId:guid}/commit");
         groupBuilder.MapGet(SearchItems, "items");
         groupBuilder.MapGet(LookupBarcode, "items/barcode/{value}");
         groupBuilder.MapGet(ListCustomFields, "custom-fields");
@@ -61,6 +70,71 @@ public class Catalog : IEndpointGroup {
     ) {
         return TypedResults.Ok(await sender.Send(new ListProductsQuery(search, kind, categoryId, brandId, tag,
                                                                         includeInactive, page, pageSize)));
+    }
+
+    private const string XlsxType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    /// <summary>Dosya sınırı (5 MB) + multipart zarfı payı: kendi 413 yanıtımız Kestrel'inkinden önce çalışsın.</summary>
+    private const long MaxImportRequestBytes = ProductSheet.MaxBytes + 1024 * 1024;
+
+    [EndpointSummary("Ürünleri Excel'e aktar")]
+    [EndpointDescription("Tüm kartlar (pasifler dahil, includeInactive=false ile hariç) içe aktarma şablonuyla aynı sütunlarda. kind: product | service.")]
+    public static async Task<FileContentHttpResult> ExportProducts(ISender sender, string? kind, bool includeInactive = true) {
+        var bytes = await sender.Send(new ExportProductsQuery(kind, includeInactive));
+        return TypedResults.File(bytes, XlsxType, "urunler.xlsx");
+    }
+
+    [EndpointSummary("İçe aktarma şablonu")]
+    [EndpointDescription("Yalnızca Türkçe başlık satırı olan boş .xlsx. Kod boşsa ve içe aktarmada autoCode açıksa sıradaki kod verilir.")]
+    public static async Task<FileContentHttpResult> ImportTemplate(ISender sender) {
+        return TypedResults.File(await sender.Send(new ImportTemplateQuery()), XlsxType, "urun-sablonu.xlsx");
+    }
+
+    [EndpointSummary("Excel içe aktarma önizlemesi")]
+    [EndpointDescription("multipart/form-data: \"file\" (.xlsx, en fazla 5 MB, en fazla 5.000 satır) ve isteğe bağlı \"autoCode\" (true: Kod boş satırlara sıradaki kod verilir). Satırlar Kod'a göre eşleşir: olan kod güncellenir, olmayan oluşturulur. Hiçbir şey yazılmaz; sonuç 30 dakika boyunca commit edilebilir. 400 invalid_file | invalid_template | too_many_rows | empty_file, 413 file_too_large.")]
+    public static async Task<Ok<ImportPreview>> PreviewImport(HttpContext context, ISender sender) {
+        var request = context.Request;
+        if (context.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit)
+            limit.MaxRequestBodySize = MaxImportRequestBytes;
+
+        var tooLarge = new AppException(413, "file_too_large", "Dosya çok büyük; en fazla 5 MB yüklenebilir.");
+        if (request.ContentLength > MaxImportRequestBytes) throw tooLarge;
+        if (!request.HasFormContentType)
+            throw new AppException(400, "file_required", "Dosya multipart/form-data olarak, \"file\" alanında gönderilmelidir.");
+
+        IFormCollection form;
+        try {
+            form = await request.ReadFormAsync(context.RequestAborted);
+        } catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge) {
+            throw tooLarge;
+        } catch (InvalidDataException) {
+            throw new AppException(400, "file_required", "Dosya okunamadı.");
+        }
+
+        var file = form.Files.GetFile("file")
+                   ?? throw new AppException(400, "file_required", "\"file\" alanında bir dosya gönderilmelidir.");
+        if (file.Length > ProductSheet.MaxBytes) throw tooLarge;
+
+        await using var stream = file.OpenReadStream();
+        using var       buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, context.RequestAborted);
+
+        var autoCode = ProductSheet.TryFlag(form["autoCode"].ToString(), out var flag) && flag;
+        return TypedResults.Ok(await sender.Send(new PreviewImportCommand(buffer.ToArray(), autoCode)));
+    }
+
+    [EndpointSummary("Önizlemeyi uygula")]
+    [EndpointDescription("Tek işlemde her satırı güncel veriye karşı yeniden doğrular ve yazar. Hatalı satır varsa 400 import_has_errors. Önizlemeden sonra bir satırın sonucu değiştiyse (örn. kod arada alındı) 409 import_conflict: hiçbir şey yazılmaz, yanıttaki \"preview\" taze önizlemedir. 30 dakikadan eski önizleme 410 import_expired; ikinci uygulama 409 import_already_committed.")]
+    public static async Task<IResult> CommitImport(ISender sender, Guid batchId) {
+        var outcome = await sender.Send(new CommitImportCommand(batchId));
+        if (outcome.Done is { } done) return TypedResults.Ok(done);
+
+        return TypedResults.Json(new {
+                                     status  = 409,
+                                     code    = "import_conflict",
+                                     title   = "Önizlemeden sonra veriler değişti; hiçbir şey yazılmadı. Yeni önizlemeyi kontrol edin.",
+                                     preview = outcome.Conflict
+                                 }, statusCode: StatusCodes.Status409Conflict, contentType: "application/problem+json");
     }
 
     [EndpointSummary("Sonraki ürün kodu")]
