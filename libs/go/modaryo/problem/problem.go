@@ -4,6 +4,7 @@ package problem
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 )
 
 // Details uses the same field names as the ProblemDetails body of the .NET services.
@@ -61,4 +62,21 @@ func Write(w http.ResponseWriter, d Details) {
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	_ = enc.Encode(d)
+}
+
+// Error is a Details body received from another service, usable as an error value.
+type Error struct {
+	Details
+}
+
+// Error implements the error interface: "{status} {code}: {title}".
+func (e *Error) Error() string {
+	msg := strconv.Itoa(e.Status)
+	if e.Code != "" {
+		msg += " " + e.Code
+	}
+	if e.Title != "" {
+		msg += ": " + e.Title
+	}
+	return msg
 }

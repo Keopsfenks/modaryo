@@ -3,6 +3,7 @@ package problem_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -64,4 +65,12 @@ func TestProblem_JsonShapeMatchesDotnetFixture(t *testing.T) {
 			assert.Equal(t, fixture(t, name), body(t, d))
 		})
 	}
+}
+
+func TestError_ImplementsError(t *testing.T) {
+	var err error = &problem.Error{Details: problem.App(409, "idempotency_conflict", "Çakışma.")}
+	var pe *problem.Error
+	require.True(t, errors.As(err, &pe))
+	assert.Equal(t, "idempotency_conflict", pe.Code)
+	assert.Equal(t, "409 idempotency_conflict: Çakışma.", err.Error())
 }
