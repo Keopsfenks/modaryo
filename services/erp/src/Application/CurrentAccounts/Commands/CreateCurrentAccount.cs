@@ -1,4 +1,4 @@
-using ERP.Application.Common.Interfaces;
+﻿using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.CurrentAccounts.Allocation;
 using ERP.Domain.CurrentAccounts;
@@ -66,10 +66,13 @@ public sealed class CreateCurrentAccountCommandHandler(
     IApplicationDbContext db,
     IOutbox               outbox,
     TimeProvider          time,
+    IPeriodLock           periodLock,
     AutoAllocator         allocator
 )
     : IRequestHandler<CreateCurrentAccountCommand, CurrentAccountDto> {
     public async Task<CurrentAccountDto> Handle(CreateCurrentAccountCommand request, CancellationToken ct) {
+        if (request.OpeningBalance is { } locked) await periodLock.EnsureOpenAsync(locked.Date, ct);
+
         var code      = request.Code.Trim();
         var taxNumber = CardRules.Clean(request.TaxNumber);
 

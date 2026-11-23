@@ -1,4 +1,4 @@
-using ERP.Application.Common.Interfaces;
+﻿using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.CurrentAccounts.Allocation;
 using ERP.Domain.CurrentAccounts;
@@ -53,9 +53,12 @@ public sealed class AddEntryCommandValidator : AbstractValidator<AddEntryCommand
 public sealed class AddEntryCommandHandler(
     IApplicationDbContext db,
     IOutbox               outbox,
+    IPeriodLock           periodLock,
     AutoAllocator         allocator
 ) : IRequestHandler<AddEntryCommand, AddEntryResult> {
     public async Task<AddEntryResult> Handle(AddEntryCommand request, CancellationToken ct) {
+        await periodLock.EnsureOpenAsync(request.Date, ct);
+
         // Aynı carideki yazımlar kart satırı kilidiyle sıraya girer; hareket, vade satırı, eşleştirmeler ve olay
         // tek işlemde kaydedilir.
         await using var transaction = await db.BeginTransactionAsync(ct);

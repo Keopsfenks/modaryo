@@ -40,6 +40,7 @@ public static class DependencyInjection {
         builder.Services.AddHostedService<IdempotencyPurgeService>();
 
         builder.Services.AddScoped<IOutbox, Outbox>();
+        builder.Services.AddScoped<IPeriodLock, ERP.Infrastructure.Settings.PeriodLock>();
         builder.Services.AddOptions<OutboxOptions>().Bind(builder.Configuration.GetSection(OutboxOptions.Section));
         builder.Services.AddSingleton(new RelayDatabase(connectionString));
         builder.Services.AddSingleton<IEventStreamPublisher>(sp => new ValkeyEventStreamPublisher(

@@ -1,4 +1,4 @@
-using ERP.Application.Common.Interfaces;
+﻿using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.CurrentAccounts.Allocation;
 using ERP.Domain.CurrentAccounts;
@@ -23,6 +23,7 @@ public sealed class CancelEntryCommandHandler(
     IApplicationDbContext db,
     ICurrentSession       session,
     TimeProvider          time,
+    IPeriodLock           periodLock,
     AutoAllocator         allocator
 )
     : IRequestHandler<CancelEntryCommand> {
@@ -38,6 +39,8 @@ public sealed class CancelEntryCommandHandler(
         if (entry.IsCancelled) throw CariErrors.AlreadyCancelled();
 
         if (entry.Source != LedgerEntrySource.Manual) throw CariErrors.NotManual();
+
+        await periodLock.EnsureOpenAsync(entry.Date, ct);
 
         entry.CancelledAt  = time.GetUtcNow();
         entry.CancelledBy  = session.UserId?.ToString();
