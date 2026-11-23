@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,11 +27,33 @@ type running struct {
 
 func start(t *testing.T, h http.Handler, opts ...server.Option) *running {
 	t.Helper()
+	return startWith(t, h, slog.New(slog.DiscardHandler), opts...)
+}
+
+type syncBuf struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuf) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuf) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+func startWith(t *testing.T, h http.Handler, l *slog.Logger, opts ...server.Option) *running {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	addrCh := make(chan net.Addr, 1)
 	done := make(chan error, 1)
 	opts = append(opts, server.WithOnListen(func(a net.Addr) { addrCh <- a }))
-	go func() { done <- server.Run(ctx, "127.0.0.1:0", h, slog.New(slog.DiscardHandler), opts...) }()
+	go func() { done <- server.Run(ctx, "127.0.0.1:0", h, l, opts...) }()
 	select {
 	case a := <-addrCh:
 		return &running{base: "http://" + a.String(), cancel: cancel, done: done}
@@ -112,4 +136,61 @@ func TestServer_GracefulShutdownReturnsNil(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("shutdown timed out")
 	}
+}
+
+func TestServer_HealthReady_LogsErrorTypeNotMessage(t *testing.T) {
+	buf := &syncBuf{}
+	r := startWith(t, http.NotFoundHandler(), slog.New(slog.NewJSONHandler(buf, nil)),
+		server.WithReadyCheck("db", func(context.Context) error { return errors.New("password=hunter2 refused") }),
+	)
+	code, _, _ := get(t, r.base+"/health/ready")
+	assert.Equal(t, 503, code)
+	out := buf.String()
+	assert.NotContains(t, out, "hunter2")
+	assert.Contains(t, out, `"check":"db"`)
+	assert.Contains(t, out, "errors.errorString")
+	r.cancel()
+	require.NoError(t, <-r.done)
+}
+
+func TestServer_HealthReady_PanickingCheckCountsAsFailure(t *testing.T) {
+	r := start(t, http.NotFoundHandler(),
+		server.WithReadyCheck("boom", func(context.Context) error { panic("secret-dsn") }),
+		server.WithReadyCheck("ok", func(context.Context) error { return nil }),
+	)
+	code, m, raw := get(t, r.base+"/health/ready")
+	assert.Equal(t, 503, code)
+	assert.Equal(t, []any{"boom"}, m["failed"])
+	assert.NotContains(t, raw, "secret-dsn")
+	r.cancel()
+	require.NoError(t, <-r.done)
+}
+
+func TestServer_HealthReady_CheckIgnoringContextIsBounded(t *testing.T) {
+	release := make(chan struct{})
+	defer close(release)
+	r := start(t, http.NotFoundHandler(),
+		server.WithReadyCheck("stuck", func(context.Context) error { <-release; return nil }),
+	)
+	began := time.Now()
+	code, m, _ := get(t, r.base+"/health/ready")
+	assert.Equal(t, 503, code)
+	assert.Equal(t, []any{"stuck"}, m["failed"])
+	assert.Less(t, time.Since(began), 4*time.Second)
+	r.cancel()
+	require.NoError(t, <-r.done)
+}
+
+func TestServer_WithReadyCheck_NilPanics(t *testing.T) {
+	assert.Panics(t, func() { server.WithReadyCheck("x", nil) })
+}
+
+func TestServer_HeadHealthLive_200(t *testing.T) {
+	r := start(t, http.NotFoundHandler())
+	resp, err := http.Head(r.base + "/health/live")
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	assert.Equal(t, 200, resp.StatusCode)
+	r.cancel()
+	require.NoError(t, <-r.done)
 }

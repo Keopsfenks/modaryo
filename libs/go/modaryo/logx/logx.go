@@ -7,10 +7,13 @@
 package logx
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -33,11 +36,16 @@ type requestInfo struct {
 // New returns a logger that writes text in development and JSON otherwise; every record carries
 // the service name.
 func New(service string, dev bool) *slog.Logger {
+	return NewWithWriter(service, dev, os.Stderr)
+}
+
+// NewWithWriter is New writing to w instead of stderr.
+func NewWithWriter(service string, dev bool, w io.Writer) *slog.Logger {
 	var h slog.Handler
 	if dev {
-		h = slog.NewTextHandler(os.Stderr, nil)
+		h = slog.NewTextHandler(w, nil)
 	} else {
-		h = slog.NewJSONHandler(os.Stderr, nil)
+		h = slog.NewJSONHandler(w, nil)
 	}
 	return slog.New(h).With("service", service)
 }
@@ -93,15 +101,26 @@ func RequestMiddleware(l *slog.Logger) func(http.Handler) http.Handler {
 			ri := &requestInfo{id: id, logger: l}
 			ctx := context.WithValue(r.Context(), ctxKey{}, ri)
 			sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+			// Logged in a defer so that a panicking handler still produces an access line
+			// (status 500 when no header was written); the panic is then re-raised.
+			defer func() {
+				rec := recover()
+				status := sw.status
+				if rec != nil && !sw.wroteHeader {
+					status = http.StatusInternalServerError
+				}
+				FromContext(ctx).LogAttrs(ctx, slog.LevelInfo, "request",
+					slog.String("method", r.Method),
+					slog.String("path", r.URL.Path),
+					slog.Int("status", status),
+					slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+					slog.Int64("bytes", sw.bytes),
+				)
+				if rec != nil {
+					panic(rec)
+				}
+			}()
 			next.ServeHTTP(sw, r.WithContext(ctx))
-
-			FromContext(ctx).LogAttrs(ctx, slog.LevelInfo, "request",
-				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
-				slog.Int("status", sw.status),
-				slog.Int64("duration_ms", time.Since(start).Milliseconds()),
-				slog.Int64("bytes", sw.bytes),
-			)
 		})
 	}
 }
@@ -137,6 +156,11 @@ type statusWriter struct {
 }
 
 func (w *statusWriter) WriteHeader(code int) {
+	// 1xx informational responses (except 101) are not final; do not record them.
+	if code >= 100 && code < 200 && code != http.StatusSwitchingProtocols {
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
 	if !w.wroteHeader {
 		w.status = code
 		w.wroteHeader = true
@@ -153,3 +177,19 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 
 // Unwrap lets http.ResponseController reach Flush and friends.
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// Flush implements http.Flusher when the underlying writer supports it.
+func (w *statusWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		w.wroteHeader = true
+		f.Flush()
+	}
+}
+
+// Hijack implements http.Hijacker when the underlying writer supports it.
+func (w *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if h, ok := w.ResponseWriter.(http.Hijacker); ok {
+		return h.Hijack()
+	}
+	return nil, nil, http.ErrNotSupported
+}

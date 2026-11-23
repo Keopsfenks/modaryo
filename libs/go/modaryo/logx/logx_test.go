@@ -114,3 +114,74 @@ func TestLogx_NoTenant_NoTenantField(t *testing.T) {
 func TestLogx_FromContext_WithoutMiddleware_ReturnsDefault(t *testing.T) {
 	assert.NotNil(t, logx.FromContext(httptest.NewRequest(http.MethodGet, "/", nil).Context()))
 }
+
+func TestLogx_PanickingHandler_StillLogsAndRepanics(t *testing.T) {
+	var buf bytes.Buffer
+	h := logx.RequestMiddleware(jsonLogger(&buf))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("boom")
+	}))
+	assert.PanicsWithValue(t, "boom", func() {
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
+	})
+	var rec map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &rec))
+	assert.EqualValues(t, 500, rec["status"])
+	assert.Equal(t, "/x", rec["path"])
+}
+
+func TestLogx_PanicAfterHeader_KeepsWrittenStatus(t *testing.T) {
+	var buf bytes.Buffer
+	h := logx.RequestMiddleware(jsonLogger(&buf))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+		panic(http.ErrAbortHandler)
+	}))
+	assert.PanicsWithValue(t, http.ErrAbortHandler, func() {
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
+	})
+	assert.Contains(t, buf.String(), `"status":202`)
+}
+
+func TestLogx_FlusherWorksThroughMiddleware(t *testing.T) {
+	flushed := false
+	h := logx.RequestMiddleware(jsonLogger(&bytes.Buffer{}))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f, ok := w.(http.Flusher)
+		require.True(t, ok)
+		f.Flush()
+		flushed = true
+	}))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/x", nil))
+	assert.True(t, flushed)
+	assert.True(t, rr.Flushed)
+}
+
+func TestLogx_HijackUnsupported_ReturnsError(t *testing.T) {
+	h := logx.RequestMiddleware(jsonLogger(&bytes.Buffer{}))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		require.True(t, ok)
+		_, _, err := hj.Hijack()
+		assert.ErrorIs(t, err, http.ErrNotSupported)
+	}))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
+}
+
+func TestLogx_InformationalStatusNotRecordedAsFinal(t *testing.T) {
+	var buf bytes.Buffer
+	h := logx.RequestMiddleware(jsonLogger(&buf))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusEarlyHints)
+		w.WriteHeader(http.StatusCreated)
+	}))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
+	assert.Contains(t, buf.String(), `"status":201`)
+}
+
+func TestLogx_NewWithWriter_DevTextProdJSON(t *testing.T) {
+	var dev, prod bytes.Buffer
+	logx.NewWithWriter("einvoice", true, &dev).Info("hello")
+	logx.NewWithWriter("einvoice", false, &prod).Info("hello")
+	assert.Contains(t, dev.String(), "service=einvoice")
+	assert.False(t, json.Valid(dev.Bytes()))
+	var rec map[string]any
+	require.NoError(t, json.Unmarshal(prod.Bytes(), &rec))
+	assert.Equal(t, "einvoice", rec["service"])
+}

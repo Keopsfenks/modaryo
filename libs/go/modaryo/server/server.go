@@ -1,4 +1,8 @@
 // Package server runs an http.Server with health endpoints and graceful shutdown.
+//
+// /health/live and /health/ready are mounted in front of the application handler, so they
+// bypass its middleware (including request logging). The handler is mounted on an
+// http.ServeMux, so ServeMux path cleaning (redirects for "//" and "..") applies to it.
 package server
 
 import (
@@ -11,7 +15,6 @@ import (
 	"net/http"
 	"os/signal"
 	"sort"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -35,7 +38,11 @@ type config struct {
 type Option func(*config)
 
 // WithReadyCheck adds a named check run by /health/ready (concurrently, 2 s timeout overall).
+// A nil fn panics at option time.
 func WithReadyCheck(name string, fn func(context.Context) error) Option {
+	if fn == nil {
+		panic("server: WithReadyCheck: nil check " + name)
+	}
 	return func(c *config) { c.checks = append(c.checks, readyCheck{name, fn}) }
 }
 
@@ -73,6 +80,9 @@ func Run(ctx context.Context, addr string, h http.Handler, l *slog.Logger, opts 
 		IdleTimeout:       120 * time.Second,
 	}
 
+	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("server: %s dinlenemiyor: %w", addr, err)
@@ -80,9 +90,6 @@ func Run(ctx context.Context, addr string, h http.Handler, l *slog.Logger, opts 
 	if cfg.onListen != nil {
 		cfg.onListen(ln.Addr())
 	}
-
-	sigCtx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve(ln) }()
@@ -114,24 +121,49 @@ func runChecks(ctx context.Context, l *slog.Logger, checks []readyCheck) []strin
 	ctx, cancel := context.WithTimeout(ctx, readyTimeout)
 	defer cancel()
 
-	var (
-		mu     sync.Mutex
-		wg     sync.WaitGroup
-		failed = []string{}
-	)
+	type result struct {
+		name string
+		err  error
+	}
+	results := make(chan result, len(checks)) // buffered: late checks never block
 	for _, c := range checks {
-		wg.Add(1)
 		go func() {
-			defer wg.Done()
-			if err := c.fn(ctx); err != nil {
-				l.Warn("readiness check failed", "check", c.name, "error", err.Error())
-				mu.Lock()
-				failed = append(failed, c.name)
-				mu.Unlock()
-			}
+			var err error
+			defer func() {
+				if r := recover(); r != nil {
+					err = fmt.Errorf("panic: %T", r)
+				}
+				results <- result{c.name, err}
+			}()
+			err = c.fn(ctx)
 		}()
 	}
-	wg.Wait()
+
+	failed := []string{}
+	pending := map[string]int{}
+	for _, c := range checks {
+		pending[c.name]++
+	}
+	for range checks {
+		select {
+		case r := <-results:
+			pending[r.name]--
+			if r.err != nil {
+				// Log the error type only: messages may carry DSNs or credentials.
+				l.Warn("readiness check failed", "check", r.name, "error_type", fmt.Sprintf("%T", r.err))
+				failed = append(failed, r.name)
+			}
+		case <-ctx.Done():
+			for name, n := range pending {
+				for ; n > 0; n-- {
+					l.Warn("readiness check timed out", "check", name)
+					failed = append(failed, name)
+				}
+			}
+			sort.Strings(failed)
+			return failed
+		}
+	}
 	sort.Strings(failed)
 	return failed
 }
