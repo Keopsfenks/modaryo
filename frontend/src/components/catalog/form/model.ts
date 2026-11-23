@@ -1,5 +1,5 @@
-import type { CatalogSettings, CustomFieldDto, Money4, ProductDto, ProductInput, ProductKind } from "@/lib/api/catalog";
-import { parseAmount, type Currency } from "@/lib/money";
+import type { CatalogOptions, CustomFieldDto, Money4, ProductDto, ProductInput, ProductKind } from "@/lib/api/catalog";
+import { parseUnitPrice, type Currency } from "@/lib/money";
 
 export type MoneyValue = { amount: string; currency: Currency; vatIncluded: boolean };
 export type UnitRow = { unit: string; factor: string; barcode: string };
@@ -45,7 +45,7 @@ const moneyValue = (m: Money4 | null): MoneyValue => ({
     vatIncluded: m?.vatIncluded ?? true,
 });
 
-export function initialValues(product: ProductDto | undefined, kind: ProductKind, settings: Pick<CatalogSettings, "units" | "defaultVatRate">): FormValues {
+export function initialValues(product: ProductDto | undefined, kind: ProductKind, settings: Pick<CatalogOptions, "units" | "defaultVatRate">): FormValues {
     if (product) {
         return {
             kind: product.kind,
@@ -142,7 +142,7 @@ const optionalDecimal = (text: string): number | null => {
 
 function moneyOf(m: MoneyValue): Money4 | null | "invalid" {
     if (!m.amount.trim()) return null;
-    const amount = parseAmount(m.amount);
+    const amount = parseUnitPrice(m.amount);
     return amount === null ? "invalid" : { amount, currency: m.currency, vatIncluded: m.vatIncluded };
 }
 
@@ -154,8 +154,8 @@ export function validate(v: FormValues, definitions: CustomFieldDto[]): Errors {
     const name = v.name.trim();
     if (name.length < 1 || name.length > 200) errors.name = "Ad 1 ile 200 karakter arasında olmalı.";
     if (v.barcode.trim().length > 40) errors.barcode = "Barkod en fazla 40 karakter olabilir.";
-    if (moneyOf(v.purchase) === "invalid") errors.purchaseAmount = "Geçerli bir tutar girin (en çok 2 ondalık). Örn. 149,90";
-    if (moneyOf(v.sale) === "invalid") errors.saleAmount = "Geçerli bir tutar girin (en çok 2 ondalık). Örn. 149,90";
+    if (moneyOf(v.purchase) === "invalid") errors.purchaseAmount = "Geçerli bir tutar girin (en çok 4 ondalık). Örn. 149,90";
+    if (moneyOf(v.sale) === "invalid") errors.saleAmount = "Geçerli bir tutar girin (en çok 4 ondalık). Örn. 149,90";
     for (const key of ["weightKg", "widthCm", "lengthCm", "heightCm"] as const) {
         if (Number.isNaN(optionalDecimal(v[key]))) errors[key] = "Geçerli bir sayı girin.";
     }

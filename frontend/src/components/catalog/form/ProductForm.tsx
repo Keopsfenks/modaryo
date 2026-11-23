@@ -10,11 +10,10 @@ import Tabs from "@mui/material/Tabs";
 import Alert from "@mui/material/Alert";
 import FormAlert from "@/components/auth/FormAlert";
 import {
-    DEFAULT_UNITS,
     VAT_RATES,
     catalog,
     type BrandDto,
-    type CatalogSettings,
+    type CatalogOptions,
     type CategoryNode,
     type CustomFieldDto,
     type ProductDto,
@@ -22,7 +21,6 @@ import {
 } from "@/lib/api/catalog";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessages";
-import { erp } from "@/lib/api/erp";
 import { useSession } from "@/session/SessionProvider";
 import CustomFieldsTab from "./CustomFieldsTab";
 import GeneralTab from "./GeneralTab";
@@ -44,7 +42,7 @@ const ALL_TABS = [
 type TabValue = (typeof ALL_TABS)[number]["value"];
 
 type Lookups = {
-    settings: Pick<CatalogSettings, "units" | "defaultVatRate">;
+    settings: Pick<CatalogOptions, "units" | "defaultVatRate">;
     categories: CategoryNode[];
     brands: BrandDto[];
     definitions: CustomFieldDto[];
@@ -76,19 +74,26 @@ export default function ProductForm({ product, defaultKind = "product", onSaved,
     const [alert, setAlert] = useState<ApiError | string | null>(null);
     const [saved, setSaved] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [loadError, setLoadError] = useState<ApiError | string | null>(null);
+    const [attempt, setAttempt] = useState(0);
 
     useEffect(() => {
         let cancelled = false;
         (async () => {
-            // Ayarlar yalnızca ayarlar.katalog iznine açıktır; yoksa varsayılan birim ve KDV listesiyle devam edilir.
-            const [settings, categories, brands, definitions] = await Promise.all([
-                erp.settings.get<CatalogSettings>("katalog").then((s) => s.value, () => ({ units: DEFAULT_UNITS, defaultVatRate: 20 })),
-                catalog.categories().catch(() => []),
-                catalog.brands().catch(() => []),
-                catalog.customFields().catch(() => []),
-            ]);
+            // Birimler, varsayılan KDV ve özel alanlar katalog.read ile okunur (ayarlar.katalog gerekmez).
+            // Okunamazsa tahmin yürütülmez: form açılmaz, hata gösterilir.
+            let options: CatalogOptions;
+            try {
+                options = await catalog.options();
+            } catch (e) {
+                if (!cancelled) setLoadError(errorMessage(e));
+                return;
+            }
+            const [categories, brands] = await Promise.all([catalog.categories().catch(() => []), catalog.brands().catch(() => [])]);
             if (cancelled) return;
-            setLookups({ settings, categories, brands, definitions });
+            const settings = { units: options.units, defaultVatRate: options.defaultVatRate };
+            setLoadError(null);
+            setLookups({ settings, categories, brands, definitions: options.customFields });
             setV((current) => current ?? initialValues(product, defaultKind, settings));
             if (!product) {
                 catalog.nextProductCode().then(
@@ -102,9 +107,20 @@ export default function ProductForm({ product, defaultKind = "product", onSaved,
         return () => {
             cancelled = true;
         };
-        // Form değerleri yalnızca ilk yüklemede kurulur.
+        // Form değerleri yalnızca ilk yüklemede kurulur (yeniden deneme dışında).
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [attempt]);
+
+    if (loadError && !lookups) {
+        return (
+            <Box sx={{ py: 3 }}>
+                <FormAlert error={loadError} />
+                <Button variant="outlined" onClick={() => setAttempt((n) => n + 1)}>
+                    Yeniden dene
+                </Button>
+            </Box>
+        );
+    }
 
     if (!lookups || !v) {
         return (

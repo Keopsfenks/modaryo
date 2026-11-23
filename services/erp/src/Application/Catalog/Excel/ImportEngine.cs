@@ -22,10 +22,13 @@ public sealed class ImportEngine(
     ITenantSettings       settingsService
 ) {
     private sealed class Context {
-        public required List<Category>   Categories { get; init; }
-        public required List<Brand>      Brands     { get; init; }
-        public required HashSet<string>  SeenCodes  { get; init; }
-        public required bool             AutoCode   { get; init; }
+        public required List<Category>                              Categories { get; init; }
+        public required List<Brand>                                 Brands     { get; init; }
+        public required Dictionary<(Guid? Parent, string Name), Category> CategoryIndex { get; init; }
+        public required Dictionary<string, Brand>                   BrandIndex { get; init; }
+        public required HashSet<string>                             SeenCodes  { get; init; }
+        public required bool                                        AutoCode   { get; init; }
+        public required ImportContext                               Import     { get; init; }
     }
 
     /// <summary>Açık bir işlem içinde çağrılmalıdır. Hata veren satır diğerlerini durdurmaz; sonuçlar sırayla döner.</summary>
@@ -33,25 +36,36 @@ public sealed class ImportEngine(
                                                                  bool                     autoCode,
                                                                  CancellationToken        ct
     ) {
-        var settings = await settingsService.GetAsync<CatalogSettings>(ct);
+        var settings   = await settingsService.GetAsync<CatalogSettings>(ct);
+        var categories = await db.Categories.AsNoTracking().ToListAsync(ct);
+        var brands     = await db.Brands.AsNoTracking().ToListAsync(ct);
         var context = new Context {
-            Categories = await db.Categories.AsNoTracking().ToListAsync(ct),
-            Brands     = await db.Brands.AsNoTracking().ToListAsync(ct),
-            SeenCodes  = new HashSet<string>(StringComparer.Ordinal),
-            AutoCode   = autoCode
+            Categories    = categories,
+            Brands        = brands,
+            CategoryIndex = categories.GroupBy(c => (c.ParentId, TurkishText.Fold(c.Name))).ToDictionary(g => g.Key, g => g.First()),
+            BrandIndex    = brands.GroupBy(b => TurkishText.Fold(b.Name)).ToDictionary(g => g.Key, g => g.First()),
+            SeenCodes     = new HashSet<string>(StringComparer.Ordinal),
+            AutoCode      = autoCode,
+            Import        = await ImportContext.LoadAsync(db, settings, ct)
         };
 
         var results = new List<ImportRowResult>(rows.Count);
         foreach (var row in rows) {
-            var result = await ApplyRowAsync(row, context, settings, ct);
-            if (result.Action == "error") db.ClearTracking(); // yarım kalmış izlenen değişiklikler sonraki satıra taşınmasın
-            results.Add(result);
+            results.Add(await ApplyRowAsync(row, context, ct));
+            // Her satırdan sonra izleme temizlenir: sonraki kayıtlar önceki kartların bağlantılı grafiğini taramasın,
+            // hatalı satırın yarım kalmış değişiklikleri de taşınmasın.
+            db.ClearTracking();
         }
+
+        // Kod sayacı tek ifadeyle, en sonda ilerletilir: sayaç satırının kilidi işlemin yalnızca son kısmında tutulur.
+        if (context.Import.MaxSequence > 0)
+            await db.ReserveCatalogSequenceAsync("nextCodeSequence", context.Import.MaxSequence,
+                                                 ProductCodes.SeedJson("nextCodeSequence", context.Import.MaxSequence + 1), ct);
 
         return results;
     }
 
-    private async Task<ImportRowResult> ApplyRowAsync(ImportRow row, Context ctx, CatalogSettings settings, CancellationToken ct) {
+    private async Task<ImportRowResult> ApplyRowAsync(ImportRow row, Context ctx, CancellationToken ct) {
         var errors = new List<string>();
         var name   = row.Name?.Trim();
         var code   = string.IsNullOrWhiteSpace(row.Code) ? null : row.Code.Trim();
@@ -68,7 +82,8 @@ public sealed class ImportEngine(
 
         if (string.IsNullOrWhiteSpace(name)) errors.Add("Ad boş olamaz.");
 
-        var existing = code is null
+        // Kod bellekteki kümede yoksa kart yoktur; sorgu yalnızca olan kodlar için çalışır.
+        var existing = code is null || !ctx.Import.UsedCodes.Contains(code)
                            ? null
                            : await db.Products.Include(p => p.Variants).Include(p => p.Units).Include(p => p.Suppliers)
                                  .Include(p => p.Images).FirstOrDefaultAsync(p => p.Code == code, ct);
@@ -140,9 +155,7 @@ public sealed class ImportEngine(
 
             string? barcode = row.Barcode?.Trim();
             if (row.Barcode is null && existing is not null)
-                barcode = await db.Barcodes.AsNoTracking()
-                              .Where(b => b.ProductId == existing.Id && b.Owner == BarcodeOwner.Product)
-                              .Select(b => b.Value).FirstOrDefaultAsync(ct);
+                barcode = ctx.Import.ProductBarcodes.GetValueOrDefault(existing.Id);
             if (string.IsNullOrEmpty(barcode)) barcode = null;
 
             var input = existing is null ? new CreateProductCommand() : FromExisting(existing);
@@ -160,10 +173,10 @@ public sealed class ImportEngine(
                                    Tags                 = tags
                                };
 
-            var id = await writer.SaveAsync(existing, input, ct, true);
+            await writer.SaveAsync(existing, input, ct, true, ctx.Import);
 
             var isNew = existing is null;
-            var card  = existing ?? await db.Products.FirstAsync(p => p.Id == id, ct);
+            var card  = existing ?? ctx.Import.SavedCard!;
             if (card.IsActive != active) {
                 card.IsActive = active;
                 await db.SaveChangesAsync(ct);
@@ -240,13 +253,14 @@ public sealed class ImportEngine(
         Guid? parent = null;
         foreach (var segment in segments) {
             var folded = TurkishText.Fold(segment);
-            var found = ctx.Categories.FirstOrDefault(c => c.ParentId == parent && TurkishText.Fold(c.Name) == folded);
+            var found = ctx.CategoryIndex.GetValueOrDefault((parent, folded));
             if (found is null) {
                 var sort = ctx.Categories.Where(c => c.ParentId == parent).Select(c => c.Sort).DefaultIfEmpty(-1).Max() + 1;
                 found = new Category { Name = segment, ParentId = parent, Sort = sort };
                 db.Categories.Add(found);
                 await db.SaveChangesAsync(ct);
                 ctx.Categories.Add(found);
+                ctx.CategoryIndex[(parent, folded)] = found;
             }
 
             parent = found.Id;
@@ -257,12 +271,13 @@ public sealed class ImportEngine(
 
     private async Task<Guid> ResolveBrandAsync(string name, Context ctx, CancellationToken ct) {
         var folded = TurkishText.Fold(name);
-        var found  = ctx.Brands.FirstOrDefault(b => TurkishText.Fold(b.Name) == folded);
+        var found  = ctx.BrandIndex.GetValueOrDefault(folded);
         if (found is null) {
             found = new Brand { Name = name };
             db.Brands.Add(found);
             await db.SaveChangesAsync(ct);
             ctx.Brands.Add(found);
+            ctx.BrandIndex[folded] = found;
         }
 
         return found.Id;

@@ -16,15 +16,10 @@ const IDENTITY = "http://localhost:3000/api/identity";
 function setup(modules: string[] = []) {
     server.use(
         http.get(`${IDENTITY}/auth/session`, () => HttpResponse.json(sessionInfo({ modules }))),
-        http.get("*/api/erp/settings/katalog", () =>
-            HttpResponse.json({
-                version: 1,
-                value: { codeTemplate: "U{00000}", defaultVatRate: 10, units: ["adet", "m2", "m", "saat"], barcodePrefix: "2000000", nextBarcodeSequence: 1, nextCodeSequence: 7 },
-            }),
-        ),
+        // Seçenekler katalog.read ile okunur; ayarlar.katalog ucu (settings/katalog) forma gerekmez.
+        http.get("*/api/erp/catalog/options", () => HttpResponse.json({ units: ["adet", "m2", "m", "saat"], defaultVatRate: 10, customFields: [] })),
         http.get("*/api/erp/catalog/categories", () => HttpResponse.json([])),
         http.get("*/api/erp/catalog/brands", () => HttpResponse.json([])),
-        http.get("*/api/erp/catalog/custom-fields", () => HttpResponse.json([])),
         http.get("*/api/erp/catalog/products/next-code", () => HttpResponse.json({ code: "U00007" })),
     );
 }
@@ -90,6 +85,49 @@ describe("ProductForm", () => {
 
         expect(await screen.findByText("Bu barkod başka bir kalemde kullanılıyor.")).toBeInTheDocument();
         expect(onSaved).not.toHaveBeenCalled();
+    });
+
+    it("ProductForm_OptionsFailure_ShowsErrorAndDoesNotGuessDefaults", async () => {
+        setup();
+        server.use(http.get("*/api/erp/catalog/options", () => HttpResponse.json(problem(403, "Yetkiniz yok.", "forbidden"), { status: 403 })));
+        render(<ProductForm onSaved={vi.fn()} />);
+
+        expect(await screen.findByRole("button", { name: "Yeniden dene" })).toBeInTheDocument();
+        expect(screen.queryByLabelText("Kod")).not.toBeInTheDocument();
+        expect(screen.queryByLabelText("KDV oranı")).not.toBeInTheDocument();
+    });
+
+    it("ProductForm_FourDecimalPriceIsAccepted", async () => {
+        setup();
+        let body: Record<string, unknown> | undefined;
+        server.use(
+            http.post("*/api/erp/catalog/products", async ({ request }) => {
+                body = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json(productDto({ id: "p-9" }), { status: 201 });
+            }),
+        );
+        const onSaved = vi.fn();
+        const { user } = render(<ProductForm onSaved={onSaved} />);
+
+        await waitFor(() => expect(screen.getByLabelText("Kod")).toHaveValue("U00007"));
+        await user.type(screen.getByLabelText("Ad"), "Çorap");
+        await user.type(screen.getByLabelText("Satış fiyatı"), "12,3456");
+        await user.click(screen.getByRole("button", { name: "Kaydet" }));
+
+        await waitFor(() => expect(onSaved).toHaveBeenCalled());
+        expect(body).toMatchObject({ defaultSalePrice: { amount: 12.3456 } });
+    });
+
+    it("ProductForm_FiveDecimalPriceIsRejected", async () => {
+        setup();
+        const { user } = render(<ProductForm onSaved={vi.fn()} />);
+
+        await waitFor(() => expect(screen.getByLabelText("Kod")).toHaveValue("U00007"));
+        await user.type(screen.getByLabelText("Ad"), "Çorap");
+        await user.type(screen.getByLabelText("Satış fiyatı"), "12,34567");
+        await user.click(screen.getByRole("button", { name: "Kaydet" }));
+
+        expect(await screen.findByText(/en çok 4 ondalık/)).toBeInTheDocument();
     });
 
     it("ProductForm_SavesAndSendsBody", async () => {

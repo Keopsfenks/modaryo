@@ -35,25 +35,40 @@ export function formatBalance(balance: number, currency: Currency): string {
     return formatMoney(0, currency);
 }
 
-const GROUPED = /^\d{1,3}(\.\d{3})+(,\d{1,2})?$/;
-const PLAIN_COMMA = /^\d+(,\d{1,2})?$/;
-const PLAIN_DOT = /^\d+(\.\d{1,2})?$/;
+const patterns = (maxDecimals: number) => ({
+    grouped: new RegExp(`^\\d{1,3}(\\.\\d{3})+(,\\d{1,${maxDecimals}})?$`),
+    plainComma: new RegExp(`^\\d+(,\\d{1,${maxDecimals}})?$`),
+    plainDot: new RegExp(`^\\d+(\\.\\d{1,${maxDecimals}})?$`),
+});
+const PATTERNS_2 = patterns(2);
+const PATTERNS_4 = patterns(4);
+
+export type ParseAmountOptions = {
+    /** Girilebilecek en çok ondalık basamak: 2 (varsayılan, belge tutarları) ya da 4 (birim fiyatlar). */
+    maxDecimals?: 2 | 4;
+};
 
 /**
  * Türkçe tutar girdisini sayıya çevirir. Virgül ondalık ayracıdır; nokta yalnızca geçerli 3'lü
- * gruplarda binlik ayracıdır ("1.500" → 1500). Virgülsüz tek noktayı izleyen 1-2 hane ondalıktır
- * ("1500.5"). Boş, geçersiz ya da 2'den fazla ondalıklı girdi null döner.
+ * gruplarda binlik ayracıdır ("1.500" → 1500). Virgülsüz tek noktayı izleyen 1-2 hane (birim fiyatlarda
+ * 1-4 hane, maxDecimals: 4) ondalıktır ("1500.5"). Boş, geçersiz ya da fazla ondalıklı girdi null döner.
  */
-export function parseAmount(input: string): number | null {
+export function parseAmount(input: string, { maxDecimals = 2 }: ParseAmountOptions = {}): number | null {
     const text = input.trim();
-    if (GROUPED.test(text)) {
+    const { grouped, plainComma, plainDot } = maxDecimals === 4 ? PATTERNS_4 : PATTERNS_2;
+    if (grouped.test(text)) {
         return Number(text.replace(/\./g, "").replace(",", "."));
     }
-    if (PLAIN_COMMA.test(text)) {
+    if (plainComma.test(text)) {
         return Number(text.replace(",", "."));
     }
-    if (PLAIN_DOT.test(text)) {
+    if (plainDot.test(text)) {
         return Number(text);
     }
     return null;
+}
+
+/** Katalog birim fiyatı (alış/satış, varyant fiyat farkı): backend ve Excel 4 ondalık saklar. */
+export function parseUnitPrice(input: string): number | null {
+    return parseAmount(input, { maxDecimals: 4 });
 }

@@ -14,6 +14,10 @@ public sealed record CommitImportCommand(Guid BatchId) : IRequest<CommitImportOu
 /// <summary>
 ///     Tek işlemde her satırı güncel veritabanına karşı yeniden doğrular ve uygular. Önizlemeden sonra herhangi bir
 ///     satır farklı sonuç verirse (örn. kod arada alındı) işlem geri alınır: hiçbir şey yazılmaz.
+///     Aynı önizlemenin eşzamanlı ikinci uygulaması engellenir: işlemin ilk işi, önizlemeyi koşullu tek bir UPDATE ile
+///     "uygulandı" diye sahiplenmektir (CommittedAt IS NULL); etkilenen satır yoksa 409 import_already_committed.
+///     Bekleyen ikinci istek, birincinin onayından sonra 0 satır görür; birincinin işlemi geri alınırsa sahiplenme de
+///     geri gider ve ikincisi devam edebilir.
 /// </summary>
 public sealed class CommitImportCommandHandler(
     IApplicationDbContext db,
@@ -22,7 +26,7 @@ public sealed class CommitImportCommandHandler(
     TimeProvider          time
 ) : IRequestHandler<CommitImportCommand, CommitImportOutcome> {
     public async Task<CommitImportOutcome> Handle(CommitImportCommand request, CancellationToken ct) {
-        var batch = await db.ImportBatches.FirstOrDefaultAsync(b => b.Id == request.BatchId, ct)
+        var batch = await db.ImportBatches.AsNoTracking().FirstOrDefaultAsync(b => b.Id == request.BatchId, ct)
                     ?? throw new NotFoundException(request.BatchId.ToString(), "ImportBatch");
 
         if (batch.CommittedAt is not null)
@@ -39,11 +43,16 @@ public sealed class CommitImportCommandHandler(
         IReadOnlyList<ImportRowResult> results;
         await using (var transaction = await db.BeginTransactionAsync(ct)) {
             try {
+                var now = time.GetUtcNow();
+                var claimed = await db.ImportBatches
+                                  .Where(b => b.Id == request.BatchId && b.CommittedAt == null && b.ExpiresAt > now)
+                                  .ExecuteUpdateAsync(u => u.SetProperty(b => b.CommittedAt, now), ct);
+                if (claimed == 0)
+                    throw new AppException(409, "import_already_committed", "Bu içe aktarma zaten uygulandı.");
+
                 results = await engine.ApplyAsync(stored.Rows, stored.AutoCode, ct);
                 var changed = results.Where((r, i) => r.Action != stored.Actions[i]).Any();
                 if (!changed) {
-                    batch.CommittedAt = time.GetUtcNow();
-                    await db.SaveChangesAsync(ct);
                     await transaction.CommitAsync(ct);
                     return new CommitImportOutcome(
                         new ImportCommitResult(results.Count(r => r.Action == "create"),

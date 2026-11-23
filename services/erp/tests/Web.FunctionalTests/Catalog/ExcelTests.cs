@@ -242,6 +242,82 @@ public class ExcelTests : TestBase {
     }
 
     [Test]
+    public async Task ConcurrentCommits_OnlyOneApplies() {
+        using var client  = await Manager(Tenant);
+        var       preview = await PreviewOk(client, Sheet(Row("", "Bir"), Row("", "İki"), Row("", "Üç")), true);
+        preview.GetProperty("creates").GetInt32().ShouldBe(3);
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Commit(client, preview)));
+        try {
+            responses.Count(r => r.StatusCode == HttpStatusCode.OK).ShouldBe(1);
+            foreach (var other in responses.Where(r => r.StatusCode != HttpStatusCode.OK)) {
+                other.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+                (await other.JsonAsync()).GetProperty("code").GetString().ShouldBe("import_already_committed");
+            }
+        } finally {
+            foreach (var r in responses) r.Dispose();
+        }
+
+        var items = await ListAll(client);
+        items.EnumerateArray().Select(i => i.GetProperty("code").GetString()).Order().ShouldBe(["U00001", "U00002", "U00003"]);
+    }
+
+    [Test]
+    public async Task RequiredCustomField_DoesNotBlockImport() {
+        using var client = await Manager(Tenant);
+        await CreateOk(client, new { kind = "product", code = "R1", name = "Eski" });
+        (await client.PostAsJsonAsync("/api/erp/catalog/custom-fields", new {
+            key = "garanti", label = "Garanti", type = "number", required = true, appliesToProduct = true,
+            appliesToService = true
+        })).StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        var preview = await PreviewOk(client, Sheet(Row("R1", "Güncel"), Row("R2", "Yeni")));
+
+        preview.GetProperty("errors").GetInt32().ShouldBe(0, preview.GetRawText());
+        using var commit = await Commit(client, preview);
+        commit.StatusCode.ShouldBe(HttpStatusCode.OK, await commit.Content.ReadAsStringAsync());
+        (await ListAll(client)).GetArrayLength().ShouldBe(2);
+    }
+
+    [Test]
+    public async Task Import1000Rows_AutoCode_FinishesInReasonableTime() {
+        using var client = await Manager(Tenant);
+        await CreateOk(client, new { kind = "product", code = "U00005", name = "Önceden var" });
+        await CreateOk(client, new { kind = "product", code = "SABIT1", name = "Güncellenecek" });
+        var rows = Enumerable.Range(1, 1000).Select(i => i == 1
+                                                              ? Row("SABIT1", "Güncellendi")
+                                                              : Row("", "Kart " + i, ("Kategori", "Giyim > Alt " + i % 7),
+                                                                    ("Marka", "Marka " + i % 5),
+                                                                    ("Barkod", "869" + i.ToString("D10")),
+                                                                    ("Satış fiyatı", "12,3456"))).ToArray();
+        var file = Sheet(rows);
+
+        var watch     = System.Diagnostics.Stopwatch.StartNew();
+        var preview   = await PreviewOk(client, file, true);
+        var previewMs = watch.ElapsedMilliseconds;
+        preview.GetProperty("errors").GetInt32().ShouldBe(0, preview.GetRawText()[..Math.Min(2000, preview.GetRawText().Length)]);
+        using var commit  = await Commit(client, preview);
+        var       totalMs = watch.ElapsedMilliseconds;
+        commit.StatusCode.ShouldBe(HttpStatusCode.OK, await commit.Content.ReadAsStringAsync());
+        TestContext.Progress.WriteLine($"1000 satır içe aktarma: önizleme {previewMs} ms, uygulama {totalMs - previewMs} ms");
+
+        totalMs.ShouldBeLessThan(30_000);
+        var codes = new List<string>();
+        for (var page = 1; page <= 11; page++) {
+            using var response = await client.GetAsync($"{Products}?includeInactive=true&pageSize=100&page={page}");
+            codes.AddRange((await response.JsonAsync()).GetProperty("items").EnumerateArray()
+                               .Select(i => i.GetProperty("code").GetString()!));
+        }
+
+        codes.Count.ShouldBe(1001);
+        codes.Distinct().Count().ShouldBe(1001);
+        // U00005 elle verilmişti, sayaç 6'ya ilerlemişti; otomatik kodlar U00006'dan U01004'e kadar gider.
+        codes.ShouldContain("U00006");
+        codes.ShouldContain("U01004");
+        (await (await client.GetAsync($"{Products}/next-code")).JsonAsync()).GetProperty("code").GetString().ShouldBe("U01005");
+    }
+
+    [Test]
     public async Task CommitExpired_Returns410() {
         using var client  = await Manager(Tenant);
         var       preview = await PreviewOk(client, Sheet(Row("E1", "Süresi dolacak")));

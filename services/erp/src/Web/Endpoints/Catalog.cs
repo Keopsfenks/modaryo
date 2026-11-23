@@ -1,3 +1,4 @@
+using ERP.Application.Catalog;
 using ERP.Application.Catalog.Brands;
 using ERP.Application.Catalog.Categories;
 using ERP.Application.Catalog.CustomFields;
@@ -22,6 +23,7 @@ public class Catalog : IEndpointGroup {
     public static string? RoutePrefix => "/api/erp/catalog";
 
     public static void Map(RouteGroupBuilder groupBuilder) {
+        groupBuilder.MapGet(GetOptions, "options");
         groupBuilder.MapGet(ListCategories, "categories");
         groupBuilder.MapPost(CreateCategory, "categories");
         groupBuilder.MapPut(UpdateCategory, "categories/{id:guid}");
@@ -53,6 +55,12 @@ public class Catalog : IEndpointGroup {
         groupBuilder.MapPost(CreateCustomField, "custom-fields");
         groupBuilder.MapPut(UpdateCustomField, "custom-fields/{id:guid}");
         groupBuilder.MapDelete(DeleteCustomField, "custom-fields/{id:guid}");
+    }
+
+    [EndpointSummary("Katalog seçenekleri")]
+    [EndpointDescription("katalog.read yeterlidir. Ürün formu için birim listesi, varsayılan KDV ve özel alan tanımları. Kod şablonu, barkod öneki ve sayaçlar ayarlar.katalog ile ayrı okunur.")]
+    public static async Task<Ok<CatalogOptionsDto>> GetOptions(ISender sender) {
+        return TypedResults.Ok(await sender.Send(new GetCatalogOptionsQuery()));
     }
 
     [EndpointSummary("Ürün ve hizmet listesi")]

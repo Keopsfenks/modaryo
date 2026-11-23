@@ -21,6 +21,18 @@ public sealed record CustomFieldDto(
     int             Sort
 );
 
+/// <summary>Zorunlu özel alanların ne zaman denetleneceği.</summary>
+public enum RequiredMode {
+    /// <summary>Her zorunlu alan dolu olmalıdır (formdan/API'den kart oluşturma).</summary>
+    All,
+
+    /// <summary>Yalnızca istekte anahtarı bulunan (boşaltılmış olsa da) zorunlu alanlar denetlenir (güncelleme).</summary>
+    PresentOnly,
+
+    /// <summary>Zorunluluk denetlenmez (Excel içe aktarma: tabloda özel alan sütunu yoktur).</summary>
+    None
+}
+
 public static partial class CustomFieldRules {
     public const int MaxDefinitions = 30;
 
@@ -47,17 +59,22 @@ public static partial class CustomFieldRules {
     /// <summary>
     ///     Ürün kartındaki özel alan değerlerini tanımlara göre doğrular ve normalleştirir. Karta uygulanmayan ya da
     ///     tanımı silinmiş anahtarlar sessizce atılır; boş (null) değer yok sayılır. Hatalar failures'a eklenir.
+    ///     required: zorunlu alanların ne zaman denetlendiği (RequiredMode).
     /// </summary>
-    public static string Normalize(JsonElement?                     input,
+    public static string Normalize(JsonElement?                         input,
                                    IReadOnlyList<CustomFieldDefinition> definitions,
-                                   ProductKind                      kind,
-                                   List<ValidationFailure>          failures
+                                   ProductKind                          kind,
+                                   List<ValidationFailure>              failures,
+                                   RequiredMode                         required = RequiredMode.All
     ) {
-        var values = new Dictionary<string, JsonElement>();
+        var values  = new Dictionary<string, JsonElement>();
+        var present = new HashSet<string>(StringComparer.Ordinal);
         if (input is { ValueKind: JsonValueKind.Object } obj) {
-            foreach (var property in obj.EnumerateObject())
+            foreach (var property in obj.EnumerateObject()) {
+                present.Add(property.Name);
                 if (property.Value.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined))
                     values[property.Name] = property.Value;
+            }
         } else if (input is { } other && other.ValueKind is not (JsonValueKind.Null or JsonValueKind.Undefined)) {
             failures.Add(new ValidationFailure("CustomFields", "Özel alanlar bir nesne olmalıdır."));
         }
@@ -66,7 +83,12 @@ public static partial class CustomFieldRules {
         foreach (var def in definitions.Where(d => kind == ProductKind.Product ? d.AppliesToProduct : d.AppliesToService)) {
             var field = $"CustomFields.{def.Key}";
             if (!values.TryGetValue(def.Key, out var raw)) {
-                if (def.Required) failures.Add(new ValidationFailure(field, $"\"{def.Label}\" alanı zorunludur."));
+                if (def.Required && required switch {
+                        RequiredMode.All         => true,
+                        RequiredMode.PresentOnly => present.Contains(def.Key),
+                        _                        => false
+                    })
+                    failures.Add(new ValidationFailure(field, $"\"{def.Label}\" alanı zorunludur."));
                 continue;
             }
 

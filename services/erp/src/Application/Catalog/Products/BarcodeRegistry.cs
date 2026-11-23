@@ -28,13 +28,22 @@ public sealed class BarcodeRegistry(IApplicationDbContext db, ICurrentTenant ten
         if (clash is not null) throw Taken(clash);
     }
 
+    /// <summary>İçe aktarma: aynı denetim, ama veritabanına gitmeden önceden yüklenmiş barkod sahiplerine karşı.</summary>
+    public static void EnsureFree(IEnumerable<string> values, Guid productId, ImportContext import) {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var value in values) {
+            if (!seen.Add(value)) throw Taken(value);
+            if (import.BarcodeOwners.TryGetValue(value, out var owner) && owner != productId) throw Taken(value);
+        }
+    }
+
     /// <summary>Verilen değerin herhangi bir kartta kayıtlı olup olmadığı.</summary>
     public Task<bool> IsTakenAsync(string value, CancellationToken ct) {
         return db.Barcodes.AnyAsync(b => b.Value == value, ct);
     }
 
     /// <summary>Ürünün barkod satırlarını kartın güncel durumuyla eşitler; ürünün barkodu productBarcode'dur.</summary>
-    public async Task SyncAsync(Product product, string? productBarcode, CancellationToken ct) {
+    public async Task SyncAsync(Product product, string? productBarcode, CancellationToken ct, bool isNew = false) {
         var tenantId = tenant.TenantId ?? throw new InvalidOperationException("Aktif firma yok.");
         var wanted   = new Dictionary<string, (BarcodeOwner Owner, Guid OwnerId)>(StringComparer.Ordinal);
 
@@ -44,7 +53,7 @@ public sealed class BarcodeRegistry(IApplicationDbContext db, ICurrentTenant ten
         foreach (var u in product.Units.Where(u => u.Barcode is not null))
             wanted[u.Barcode!] = (BarcodeOwner.Unit, u.Id);
 
-        var existing = await db.Barcodes.Where(b => b.ProductId == product.Id).ToListAsync(ct);
+        var existing = isNew ? [] : await db.Barcodes.Where(b => b.ProductId == product.Id).ToListAsync(ct);
         foreach (var row in existing) {
             if (wanted.Remove(row.Value, out var target)) {
                 row.Owner   = target.Owner;

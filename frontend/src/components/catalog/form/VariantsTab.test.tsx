@@ -66,8 +66,81 @@ describe("VariantsTab", () => {
         await user.keyboard("{Backspace}");
         expect(screen.getByText("1 varyant oluşacak")).toBeInTheDocument();
         await user.click(screen.getByRole("button", { name: "Özellikleri kaydet" }));
+        // Kaldırılan M varyantı silineceği için önce onay istenir.
+        await user.click(await screen.findByRole("button", { name: "Sil ve kaydet" }));
 
         expect(await screen.findByText("Bu varyant kullanıldığı için kaldırılamaz; pasifleştirebilirsiniz.")).toBeInTheDocument();
         expect(onChanged).not.toHaveBeenCalled();
+    });
+
+    const withBarcodes = (): ProductDto =>
+        productDto({
+            attributes: [{ id: "a1", name: "Beden", values: ["S", "M"], sort: 0 }],
+            variants: [
+                { id: "v1", code: "U00001-1", barcode: "8690000000011", values: { Beden: "S" }, salePriceOverride: { amount: 12.3456, currency: "TRY", vatIncluded: true }, purchasePriceOverride: null, isActive: true, inUse: false },
+                { id: "v2", code: "U00001-2", barcode: "8690000000028", values: { Beden: "M" }, salePriceOverride: null, purchasePriceOverride: null, isActive: true, inUse: false },
+            ],
+        });
+
+    it("VariantsTab_RemovingValue_ConfirmsVariantCountBarcodesAndPrices", async () => {
+        let calls = 0;
+        server.use(
+            http.put("*/api/erp/catalog/products/p-1/attributes", () => {
+                calls++;
+                return HttpResponse.json(productDto());
+            }),
+        );
+        const { user } = renderWithTheme(<VariantsTab product={withBarcodes()} canManage onChanged={vi.fn()} />);
+
+        await user.click(screen.getByLabelText("1. özellik değerleri"));
+        await user.keyboard("{Backspace}");
+        await user.click(screen.getByRole("button", { name: "Özellikleri kaydet" }));
+
+        const dialog = await screen.findByRole("dialog");
+        expect(dialog).toHaveTextContent("1 varyant silinecek");
+        expect(dialog).toHaveTextContent("U00001-2");
+        expect(dialog).toHaveTextContent("8690000000028");
+        expect(dialog).not.toHaveTextContent("8690000000011");
+        expect(calls).toBe(0);
+
+        await user.click(screen.getByRole("button", { name: "Vazgeç" }));
+        expect(calls).toBe(0);
+        await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    });
+
+    it("VariantsTab_RenamingAttribute_ListsAllVariantsWithPrices", async () => {
+        const body: unknown[] = [];
+        server.use(
+            http.put("*/api/erp/catalog/products/p-1/attributes", async ({ request }) => {
+                body.push(await request.json());
+                return HttpResponse.json(productDto());
+            }),
+        );
+        const onChanged = vi.fn();
+        const { user } = renderWithTheme(<VariantsTab product={withBarcodes()} canManage onChanged={onChanged} />);
+
+        await user.type(screen.getByLabelText("1. özellik adı"), "lar");
+        await user.click(screen.getByRole("button", { name: "Özellikleri kaydet" }));
+
+        const dialog = await screen.findByRole("dialog");
+        expect(dialog).toHaveTextContent("2 varyant silinecek");
+        expect(dialog).toHaveTextContent("8690000000011");
+        expect(dialog).toHaveTextContent("12,3456 TRY");
+
+        await user.click(screen.getByRole("button", { name: "Sil ve kaydet" }));
+        await waitFor(() => expect(onChanged).toHaveBeenCalled());
+        expect(body).toHaveLength(1);
+    });
+
+    it("VariantsTab_AddingValueOnly_SavesWithoutConfirm", async () => {
+        server.use(http.put("*/api/erp/catalog/products/p-1/attributes", () => HttpResponse.json(productDto())));
+        const onChanged = vi.fn();
+        const { user } = renderWithTheme(<VariantsTab product={withBarcodes()} canManage onChanged={onChanged} />);
+
+        await user.type(screen.getByLabelText("1. özellik değerleri"), "L{Enter}");
+        await user.click(screen.getByRole("button", { name: "Özellikleri kaydet" }));
+
+        await waitFor(() => expect(onChanged).toHaveBeenCalled());
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 });

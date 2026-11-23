@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatBalance, formatMoney, parseAmount } from "./money";
+import { formatBalance, formatMoney, parseAmount, parseUnitPrice } from "./money";
 
 describe("money", () => {
     it("formatBalance_TwoDecimals", () => {
@@ -35,6 +35,20 @@ describe("money", () => {
         expect(parseAmount("1500.5")).toBe(1500.5);
         expect(parseAmount("1.234.567,89")).toBe(1234567.89);
         expect(parseAmount("  25 ")).toBe(25);
+    });
+
+    it("parseUnitPrice_AllowsFourDecimals", () => {
+        expect(parseUnitPrice("12,3456")).toBe(12.3456);
+        expect(parseUnitPrice("12.3456")).toBe(12.3456);
+        expect(parseUnitPrice("1.234,5678")).toBe(1234.5678);
+        expect(parseUnitPrice("149,9")).toBe(149.9);
+        expect(parseUnitPrice("12,34567")).toBeNull();
+        expect(parseUnitPrice("1.500")).toBe(1500);
+    });
+
+    it("parseAmount_DefaultStillTwoDecimals", () => {
+        expect(parseAmount("12,345")).toBeNull();
+        expect(parseAmount("12,3456")).toBeNull();
     });
 
     it("parseAmount_Invalid", () => {

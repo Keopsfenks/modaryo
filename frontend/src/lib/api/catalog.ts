@@ -172,7 +172,9 @@ export type CatalogSettings = {
     nextCodeSequence: number;
 };
 
-export const DEFAULT_UNITS = ["adet", "kg", "g", "lt", "m", "m2", "m3", "koli", "paket", "saat", "gün", "iş"];
+/** Ürün formunun seçenekleri (katalog.read yeterli): birimler, varsayılan KDV ve özel alan tanımları. */
+export type CatalogOptions = { units: string[]; defaultVatRate: number; customFields: CustomFieldDto[] };
+
 export const VAT_RATES = [0, 1, 10, 20];
 
 export type ImportRowResult = {
@@ -248,6 +250,7 @@ async function download(path: string, fileName: string): Promise<void> {
 }
 
 export const catalog = {
+    options: () => get<CatalogOptions>("/options"),
     categories: () => get<CategoryNode[]>("/categories"),
     createCategory: (name: string, parentId: string | null) => send<CategoryNode>("POST", "/categories", { name, parentId }),
     updateCategory: (id: string, body: { name: string; parentId: string | null; sort: number }) =>

@@ -113,14 +113,20 @@ public sealed class ProductWriter(
     /// <summary>
     ///     existing null ise yeni kart oluşturulur. Dönen değer kartın Id'sidir. joinOpenTransaction: çağıranın açtığı işleme
     ///     katılır (kendi işlemini açmaz/onaylamaz, benzersiz indeks hatalarını da olduğu gibi yukarı bırakır).
+    ///     import: Excel içe aktarma bağlamı; verilirse ayarlar, tanımlar, kodlar ve barkodlar satır başına sorgulanmaz.
+    ///     Boş kod güncellemede mevcut kodu korur; yeni kartta sıradaki kod verilir. Zorunlu özel alanlar kart
+    ///     oluşturulurken tümüyle, güncellemede yalnızca istekte gönderilen alanlar için denetlenir; içe aktarmada denetlenmez.
     /// </summary>
-    public async Task<Guid> SaveAsync(Product? existing, ProductInput input, CancellationToken ct,
-                                      bool     joinOpenTransaction = false) {
+    public async Task<Guid> SaveAsync(Product?          existing,
+                                      ProductInput      input,
+                                      CancellationToken ct,
+                                      bool              joinOpenTransaction = false,
+                                      ImportContext?    import              = null) {
         var isNew = existing is null;
         if (input.TracksSerialLot && !session.HasModule("seri-lot"))
             throw new AppException(403, "module_disabled", "Seri/lot takibi için Seri-Lot modülü firmanızda kapalı.");
 
-        var settings = await settingsService.GetAsync<CatalogSettings>(ct);
+        var settings = import?.Settings ?? await settingsService.GetAsync<CatalogSettings>(ct);
         var f        = new List<ValidationFailure>();
 
         void Fail(string field, string message) {
@@ -134,7 +140,8 @@ public sealed class ProductWriter(
         var name = (input.Name ?? string.Empty).Trim();
         if (name.Length is < 1 or > 200) Fail("Name", "Ad 1 ile 200 karakter arasında olmalıdır.");
 
-        var code = string.IsNullOrWhiteSpace(input.Code) ? null : input.Code.Trim();
+        // Boş kod güncellemede mevcut kodu korur (sessizce yeni kod verilmez).
+        var code = string.IsNullOrWhiteSpace(input.Code) ? existing?.Code : input.Code.Trim();
         if (code is { Length: > 30 }) Fail("Code", "Kod 1 ile 30 karakter arasında olmalıdır.");
 
         var description = string.IsNullOrWhiteSpace(input.Description) ? null : input.Description.Trim();
@@ -192,10 +199,13 @@ public sealed class ProductWriter(
             .Distinct(StringComparer.CurrentCultureIgnoreCase).ToList();
         if (tags.Count > 20 || tags.Any(t => t.Length > 30)) Fail("Tags", "En fazla 20 etiket, her biri en fazla 30 karakter olabilir.");
 
-        if (input.CategoryId is { } categoryId && !await db.Categories.AnyAsync(c => c.Id == categoryId, ct))
-            Fail("CategoryId", "Kategori bulunamadı.");
-        if (input.BrandId is { } brandId && !await db.Brands.AnyAsync(b => b.Id == brandId, ct))
-            Fail("BrandId", "Marka bulunamadı.");
+        // İçe aktarma kategori ve markayı kendisi çözer/oluşturur; kimlikler zaten geçerlidir.
+        if (import is null) {
+            if (input.CategoryId is { } categoryId && !await db.Categories.AnyAsync(c => c.Id == categoryId, ct))
+                Fail("CategoryId", "Kategori bulunamadı.");
+            if (input.BrandId is { } brandId && !await db.Brands.AnyAsync(b => b.Id == brandId, ct))
+                Fail("BrandId", "Marka bulunamadı.");
+        }
 
         // Birimler
         var units = new List<UnitInput>();
@@ -219,7 +229,7 @@ public sealed class ProductWriter(
         if (suppliers.Count(s => s.IsDefault) > 1) Fail("Suppliers", "En fazla bir varsayılan tedarikçi olabilir.");
         if (suppliers.Any(s => s.SupplierCode is { Length: > 60 })) Fail("Suppliers", "Tedarikçi kodu en fazla 60 karakter olabilir.");
         Dictionary<Guid, string> supplierNames = new();
-        if (suppliers.Count > 0) {
+        if (suppliers.Count > 0 && import is null) {
             var ids  = suppliers.Select(s => s.CurrentAccountId).ToList();
             var rows = await db.CurrentAccounts.AsNoTracking().Where(a => ids.Contains(a.Id))
                            .Select(a => new { a.Id, a.IsSupplier, a.Name }).ToListAsync(ct);
@@ -232,14 +242,16 @@ public sealed class ProductWriter(
         // Görseller
         var images = (input.Images ?? []).Select(i => i.FileId).Distinct().ToList();
         if (images.Count > 10) Fail("Images", "En fazla 10 görsel eklenebilir.");
-        else if (images.Count > 0
+        else if (images.Count > 0 && import is null
                  && await db.StoredFiles.CountAsync(x => images.Contains(x.Id) && x.Kind == FileKinds.Image, ct)
                  != images.Count)
             Fail("Images", "Görsel dosyası bulunamadı. Önce görseli yükleyin.");
 
         // Özel alanlar
-        var definitions = await db.CustomFieldDefinitions.AsNoTracking().ToListAsync(ct);
-        var customJson  = CustomFieldRules.Normalize(input.CustomFields, definitions, kind, f);
+        IReadOnlyList<CustomFieldDefinition> definitions
+            = import?.Definitions ?? (IReadOnlyList<CustomFieldDefinition>)await db.CustomFieldDefinitions.AsNoTracking().ToListAsync(ct);
+        var requiredMode = import is not null ? RequiredMode.None : isNew ? RequiredMode.All : RequiredMode.PresentOnly;
+        var customJson   = CustomFieldRules.Normalize(input.CustomFields, definitions, kind, f, requiredMode);
 
         // Varyant özellikleri (yalnızca oluştururken)
         var attributes = new List<VariantAttribute>();
@@ -268,22 +280,34 @@ public sealed class ProductWriter(
         // Kod ve barkod tekilliği, sayaçlar ve kayıt tek işlemde
         await using var transaction = joinOpenTransaction ? null : await db.BeginTransactionAsync(ct);
 
+        int? explicitSequence = null;
         if (code is null) {
-            var free = await ProductCodes.NextFreeSequenceAsync(db, settings, ct);
-            var seq  = await db.ReserveCatalogSequenceAsync("nextCodeSequence", free,
-                                                            ProductCodes.SeedJson("nextCodeSequence", free + 1), ct);
-            code = ProductCodes.Format(settings.CodeTemplate, seq);
+            if (import is not null) {
+                code = ProductCodes.Format(settings.CodeTemplate, import.TakeAutoSequence());
+            } else {
+                var free = await ProductCodes.NextFreeSequenceAsync(db, settings, ct);
+                var seq  = await db.ReserveCatalogSequenceAsync("nextCodeSequence", free,
+                                                                ProductCodes.SeedJson("nextCodeSequence", free + 1), ct);
+                code = ProductCodes.Format(settings.CodeTemplate, seq);
+            }
         } else if (isNew && ProductCodes.ParseSequence(settings.CodeTemplate, code) is { } given
                    && given >= settings.NextCodeSequence) {
-            await db.ReserveCatalogSequenceAsync("nextCodeSequence", given,
-                                                 ProductCodes.SeedJson("nextCodeSequence", given + 1), ct);
+            if (import is null)
+                await db.ReserveCatalogSequenceAsync("nextCodeSequence", given,
+                                                     ProductCodes.SeedJson("nextCodeSequence", given + 1), ct);
+            else
+                explicitSequence = given;
         }
 
         var product = existing ?? new Product();
 
-        if (await db.Products.AnyAsync(p => p.Code == code && p.Id != product.Id, ct)
-            || await db.ProductVariants.AnyAsync(v => v.Code == code, ct))
+        if (import is null
+                ? await db.Products.AnyAsync(p => p.Code == code && p.Id != product.Id, ct)
+                  || await db.ProductVariants.AnyAsync(v => v.Code == code, ct)
+                : (existing is null || existing.Code != code) && import.UsedCodes.Contains(code))
             throw CatalogErrors.CodeTaken(code);
+
+        if (explicitSequence is { } noted) import?.NoteExplicitSequence(noted);
 
         product.Kind                 = kind;
         product.Code                 = code;
@@ -340,9 +364,11 @@ public sealed class ProductWriter(
             var variantCodes = product.Variants.Select(v => v.Code).ToList();
             if (variantCodes.Append(code).Distinct(StringComparer.Ordinal).Count() != variantCodes.Count + 1)
                 throw CatalogErrors.CodeTaken(variantCodes.GroupBy(c => c).FirstOrDefault(g => g.Count() > 1)?.Key ?? code);
-            var clash = await db.Products.Where(p => variantCodes.Contains(p.Code)).Select(p => p.Code)
-                            .Concat(db.ProductVariants.Where(v => variantCodes.Contains(v.Code)).Select(v => v.Code))
-                            .FirstOrDefaultAsync(ct);
+            var clash = import is not null
+                            ? variantCodes.FirstOrDefault(import.UsedCodes.Contains)
+                            : await db.Products.Where(p => variantCodes.Contains(p.Code)).Select(p => p.Code)
+                                  .Concat(db.ProductVariants.Where(v => variantCodes.Contains(v.Code)).Select(v => v.Code))
+                                  .FirstOrDefaultAsync(ct);
             if (clash is not null) throw CatalogErrors.CodeTaken(clash);
         }
 
@@ -354,15 +380,21 @@ public sealed class ProductWriter(
         if (barcode is not null) allBarcodes.Add(barcode);
         allBarcodes.AddRange(product.Variants.Where(v => v.Barcode is not null).Select(v => v.Barcode!));
         allBarcodes.AddRange(product.Units.Where(u => u.Barcode is not null).Select(u => u.Barcode!));
-        await barcodes.EnsureFreeAsync(allBarcodes, product.Id, ct);
+        if (import is null) await barcodes.EnsureFreeAsync(allBarcodes, product.Id, ct);
+        else BarcodeRegistry.EnsureFree(allBarcodes, product.Id, import);
 
         if (isNew) db.Products.Add(product);
-        await barcodes.SyncAsync(product, barcode, ct);
+        await barcodes.SyncAsync(product, barcode, ct, isNew);
 
         try {
             await db.SaveChangesAsync(ct);
         } catch (DbUpdateException ex) when (!joinOpenTransaction && CatalogErrors.FromUniqueViolation(ex) is { } conflict) {
             throw conflict;
+        }
+
+        if (import is not null) {
+            import.Register(product, allBarcodes, barcode);
+            import.SavedCard = product;
         }
 
         if (transaction is not null) await transaction.CommitAsync(ct);

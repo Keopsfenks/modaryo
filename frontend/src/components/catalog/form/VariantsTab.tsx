@@ -6,6 +6,11 @@ import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import Switch from "@mui/material/Switch";
@@ -20,7 +25,8 @@ import Typography from "@mui/material/Typography";
 import { IconTrash } from "@tabler/icons-react";
 import { catalog, type Money4, type ProductDto, type VariantDto } from "@/lib/api/catalog";
 import { errorMessage } from "@/lib/api/errorMessages";
-import { parseAmount } from "@/lib/money";
+import { parseUnitPrice } from "@/lib/money";
+import { variantsToRemove } from "./variantChanges";
 
 const MAX_ATTRIBUTES = 3;
 const MAX_VALUES = 50;
@@ -36,12 +42,18 @@ type VariantsTabProps = {
 
 const amountText = (m: Money4 | null) => (m ? String(m.amount).replace(".", ",") : "");
 
+const priceLabel = (m: Money4 | null) => (m ? `${amountText(m)} ${m.currency}` : "-");
+
+/** Onay penceresinde tek tek listelenen en fazla varyant sayısı. */
+const MAX_LISTED = 20;
+
 /** Varyantlar sekmesi: özellik düzenleyici (ad + değer çipleri), canlı varyant sayısı ve varyant tablosu. */
 export default function VariantsTab({ product, canManage, onChanged }: VariantsTabProps) {
     const [attrs, setAttrs] = useState<AttributeRow[]>(() => product.attributes.map((a) => ({ name: a.name, values: a.values })));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saved, setSaved] = useState(false);
+    const [pendingRemoval, setPendingRemoval] = useState<VariantDto[] | null>(null);
 
     const used = attrs.filter((a) => a.name.trim() && a.values.length > 0);
     const count = used.length === 0 ? 0 : used.reduce((n, a) => n * a.values.length, 1);
@@ -52,7 +64,18 @@ export default function VariantsTab({ product, canManage, onChanged }: VariantsT
         setAttrs((current) => current.map((a, i) => (i === index ? { ...a, ...patch } : a)));
     };
 
+    /** Kaydetmeden önce silinecek varyant varsa (barkod ve fiyatlarıyla birlikte) onay ister. */
+    function requestSave() {
+        const removed = variantsToRemove(product.variants, used.map((a) => ({ name: a.name.trim(), values: a.values })));
+        if (removed.length > 0) {
+            setPendingRemoval(removed);
+            return;
+        }
+        void save();
+    }
+
     async function save() {
+        setPendingRemoval(null);
         setBusy(true);
         setError(null);
         setSaved(false);
@@ -136,11 +159,40 @@ export default function VariantsTab({ product, canManage, onChanged }: VariantsT
                     </Alert>
                 )}
                 {canManage && (
-                    <Button sx={{ mt: 2 }} variant="contained" disabled={busy || tooMany} onClick={() => void save()}>
+                    <Button sx={{ mt: 2 }} variant="contained" disabled={busy || tooMany} onClick={requestSave}>
                         {busy ? "Kaydediliyor..." : "Özellikleri kaydet"}
                     </Button>
                 )}
             </Box>
+
+            <Dialog open={pendingRemoval !== null} onClose={() => setPendingRemoval(null)} maxWidth="sm" fullWidth aria-labelledby="variant-removal-title">
+                <DialogTitle id="variant-removal-title">{pendingRemoval?.length} varyant silinecek</DialogTitle>
+                <DialogContent>
+                    <DialogContentText sx={{ mb: 2 }}>
+                        Bu özellik değişikliğinde karşılığı kalmayan varyantlar silinir; barkodları ve fiyatları da gider. Özelliği yeniden adlandırmak ya da yeni özellik eklemek tüm varyantları siler ve yeniden üretir.
+                    </DialogContentText>
+                    <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+                        {pendingRemoval?.slice(0, MAX_LISTED).map((variant) => (
+                            <li key={variant.id}>
+                                <Typography variant="body2">
+                                    <strong>{variant.code}</strong> ({Object.values(variant.values).join(" / ")}) - Barkod: {variant.barcode ?? "-"}; Satış: {priceLabel(variant.salePriceOverride)}; Alış: {priceLabel(variant.purchasePriceOverride)}
+                                </Typography>
+                            </li>
+                        ))}
+                    </Box>
+                    {pendingRemoval && pendingRemoval.length > MAX_LISTED && (
+                        <Typography variant="body2" sx={{ mt: 1 }}>
+                            ve {pendingRemoval.length - MAX_LISTED} varyant daha.
+                        </Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setPendingRemoval(null)}>Vazgeç</Button>
+                    <Button color="error" variant="contained" onClick={() => void save()}>
+                        Sil ve kaydet
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             {product.variants.length > 0 && (
                 <Box>
@@ -192,7 +244,7 @@ function VariantRow({ product, variant, attributeNames, canManage, onChanged }: 
 
     const money = (text: string, current: Money4 | null, fallback: Money4 | null): Money4 | null | "invalid" => {
         if (!text.trim()) return null;
-        const amount = parseAmount(text);
+        const amount = parseUnitPrice(text);
         if (amount === null) return "invalid";
         const base = current ?? fallback;
         return { amount, currency: base?.currency ?? "TRY", vatIncluded: base?.vatIncluded ?? true };
@@ -203,8 +255,8 @@ function VariantRow({ product, variant, attributeNames, canManage, onChanged }: 
         if (code.trim().length < 1 || code.trim().length > 40) next.code = "Kod 1 ile 40 karakter arasında olmalı.";
         const salePrice = money(sale, variant.salePriceOverride, product.defaultSalePrice);
         const purchasePrice = money(purchase, variant.purchasePriceOverride, product.defaultPurchasePrice);
-        if (salePrice === "invalid") next.sale = "Geçerli tutar";
-        if (purchasePrice === "invalid") next.purchase = "Geçerli tutar";
+        if (salePrice === "invalid") next.sale = "Geçerli tutar (en çok 4 ondalık)";
+        if (purchasePrice === "invalid") next.purchase = "Geçerli tutar (en çok 4 ondalık)";
         setErrors(next);
         if (Object.keys(next).length > 0 || salePrice === "invalid" || purchasePrice === "invalid") return;
 
