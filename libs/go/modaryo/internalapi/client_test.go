@@ -101,3 +101,21 @@ func TestClient_CallsErpPing(t *testing.T) {
 	defer cancel()
 	require.NoError(t, NewClient(url, service, []byte(secret), nil).Do(ctx, "GET", "/internal/ping", uuid.Nil, "", nil, nil))
 }
+
+func TestClient_DoesNotFollowRedirects(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		if r.URL.Path == "/internal/ping" {
+			http.Redirect(w, r, "/elsewhere", http.StatusTemporaryRedirect)
+		}
+	}))
+	defer srv.Close()
+	own := &http.Client{}
+	err := NewClient(srv.URL, "einvoice", testSecret, own).Do(context.Background(), "GET", "/internal/ping", uuid.Nil, "", nil, nil)
+	var pe *problem.Error
+	require.True(t, errors.As(err, &pe))
+	assert.Equal(t, 307, pe.Status)
+	assert.Equal(t, 1, hits)
+	assert.Nil(t, own.CheckRedirect, "caller's client must not be mutated")
+}

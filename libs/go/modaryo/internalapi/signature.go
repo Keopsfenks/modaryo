@@ -1,6 +1,9 @@
 // Package internalapi implements the signed service-to-service API (internal-api v1): the HMAC
 // signature, a signing HTTP client, a verifying middleware and idempotency storage. It is
 // byte- and behaviour-compatible with libs/dotnet/Modaryo.Internal; see contracts/README.md.
+//
+// Middleware must be mounted at the router root, not below a stripped prefix: it signs and
+// checks the raw request target, and rejects non-canonical "/internal" paths.
 package internalapi
 
 import (

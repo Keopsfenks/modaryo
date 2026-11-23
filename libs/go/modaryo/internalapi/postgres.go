@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -87,7 +88,7 @@ func (s *PostgresStore) Reserve(ctx context.Context, caller, key string, tenant 
 func (s *PostgresStore) Complete(ctx context.Context, caller, key string, owner uuid.UUID, status int, body []byte) error {
 	_, err := s.pool.Exec(ctx,
 		`UPDATE idempotency_records SET status = $4, response_json = $5 WHERE caller = $1 AND key = $2 AND owner_token = $3`,
-		caller, key, owner, status, string(body))
+		caller, key, owner, status, validText(body))
 	return err
 }
 
@@ -105,4 +106,9 @@ func (s *PostgresStore) Purge(ctx context.Context, olderThan time.Time) (int64, 
 		return 0, err
 	}
 	return tag.RowsAffected(), nil
+}
+
+// validText makes a response body storable in a text column: invalid UTF-8 becomes U+FFFD and NUL bytes are dropped.
+func validText(body []byte) string {
+	return strings.ReplaceAll(strings.ToValidUTF8(string(body), "\uFFFD"), "\x00", "")
 }

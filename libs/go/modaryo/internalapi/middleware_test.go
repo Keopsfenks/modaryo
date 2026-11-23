@@ -492,3 +492,63 @@ func TestMiddleware_CompleteFailureKeepsPendingAndStillResponds(t *testing.T) {
 	assert.Equal(t, 409, w.Code)
 	assert.Equal(t, "idempotency_in_progress", code(t, w))
 }
+
+func TestMiddleware_HugeTimestampsRejected(t *testing.T) {
+	h := newHarness(nil, nil)
+	for _, ts := range []string{"9000000000000000", "1000000000000000000", "9223372036854775807", "0",
+		"-9223372036854775807", "-9000000000000000", "-1", "99999999999999999999"} {
+		r := sreq{method: "GET", target: "/internal/einvoice/x", tenant: testTenant.String()}.build()
+		r.Header.Set(HeaderTimestamp, ts)
+		w := h.do(r)
+		assert.Equal(t, 401, w.Code, ts)
+	}
+}
+
+func TestMiddleware_NonCanonicalInternalPaths(t *testing.T) {
+	h := newHarness(nil, nil)
+	for _, target := range []string{"//internal/ping", "/./internal/ping", "/internal/einvoice/../ping", "/internal/einvoice/../identity/x", "/internal//ping"} {
+		w := h.do(sreq{method: "GET", target: target, tenant: testTenant.String()}.build())
+		assert.Equal(t, 400, w.Code, target)
+		assert.Equal(t, "internal_bad_path", code(t, w), target)
+	}
+	assert.Equal(t, 200, h.do(sreq{method: "GET", target: "/internal/ping/"}.build()).Code)
+}
+
+func TestMiddleware_LowercaseMethodIsSafe(t *testing.T) {
+	h := newHarness(nil, nil)
+	// no Idempotency-Key and no 400: treated as a read
+	r := sreq{method: "get", target: "/internal/einvoice/x", tenant: testTenant.String()}.build()
+	assert.Equal(t, 201, h.do(r).Code)
+}
+
+func TestIdempotency_SameKeySameBody_ReturnsStored(t *testing.T) {
+	h := newHarness(nil, nil)
+	mk := func() *http.Request {
+		return sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: "k", body: `{"a":1}`}.build()
+	}
+	first, second := h.do(mk()), h.do(mk())
+	assert.Equal(t, first.Code, second.Code)
+	assert.Equal(t, first.Body.String(), second.Body.String())
+	assert.EqualValues(t, 1, h.calls.Load())
+}
+
+func TestIdempotency_SameKeyDifferentBody_Conflict(t *testing.T) {
+	h := newHarness(nil, nil)
+	h.do(sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: "k", body: `{"a":1}`}.build())
+	w := h.do(sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: "k", body: `{"a":2}`}.build())
+	assert.Equal(t, 409, w.Code)
+	assert.Equal(t, "idempotency_conflict", code(t, w))
+}
+
+type errStore struct{ *memStore }
+
+func (errStore) Reserve(context.Context, string, string, uuid.UUID, string, time.Time, time.Duration) (Reservation, error) {
+	return Reservation{}, context.Canceled
+}
+
+func TestMiddleware_StoreFailure_503(t *testing.T) {
+	h := newHarness(func(o *Options) { o.Store = errStore{newMemStore()} }, nil)
+	w := h.do(sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: "k", body: "{}"}.build())
+	assert.Equal(t, 503, w.Code)
+	assert.Equal(t, CodeUnavailable, code(t, w))
+}

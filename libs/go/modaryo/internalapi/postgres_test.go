@@ -80,3 +80,16 @@ func TestPostgresStore_StoresLargeUnicodeBody(t *testing.T) {
 	assert.Equal(t, Replay, again.Outcome)
 	assert.Equal(t, body, again.StoredBody)
 }
+
+func TestPostgresStore_BinaryBodyIsStoredAsValidText(t *testing.T) {
+	ctx := context.Background()
+	store := NewPostgresStore(newTestPool(t))
+	now := time.Now().UTC()
+	r, err := store.Reserve(ctx, "c", "k", uuid.New(), "h", now, time.Minute)
+	require.NoError(t, err)
+	require.NoError(t, store.Complete(ctx, "c", "k", r.Owner, 200, []byte("a\x00b\xff\xfec")))
+	again, err := store.Reserve(ctx, "c", "k", uuid.New(), "h", now, time.Minute)
+	require.NoError(t, err)
+	require.Equal(t, Replay, again.Outcome)
+	assert.Equal(t, "ab\uFFFDc", string(again.StoredBody))
+}

@@ -3,9 +3,11 @@ package internalapi
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +28,9 @@ const (
 	CodeConflict         = "idempotency_conflict"
 	CodeInProgress       = "idempotency_in_progress"
 	CodeMethodNotAllowed = "internal_method_not_allowed"
+	// CodeUnavailable: the idempotency store failed (Go services; .NET answers 500). Retry with the same key.
+	CodeUnavailable = "internal_unavailable"
+	CodeBadPath     = "internal_bad_path"
 
 	// PingPath is the one internal path that does not need a tenant header.
 	PingPath = "/internal/ping"
@@ -91,18 +96,29 @@ func Middleware(opts Options) func(http.Handler) http.Handler {
 	m := &verifier{opts}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !isInternalPath(r.URL.Path) {
+			p := r.URL.Path
+			clean := path.Clean(p)
+			if !isInternalPath(clean) {
 				next.ServeHTTP(w, r)
 				return
 			}
-			m.serve(w, r, next)
+			// "/internal/ping/" is fine; any other non-canonical spelling is rejected before anything else.
+			canon := p
+			if len(canon) > 1 && strings.HasSuffix(canon, "/") {
+				canon = canon[:len(canon)-1]
+			}
+			if canon != clean {
+				writeProblem(w, http.StatusBadRequest, CodeBadPath, "Geçersiz istek.", "İç API yolu normalleştirilmiş biçimde olmalıdır.")
+				return
+			}
+			m.serve(w, r, next, clean)
 		})
 	}
 }
 
 type verifier struct{ opts Options }
 
-func (v *verifier) serve(w http.ResponseWriter, r *http.Request, next http.Handler) {
+func (v *verifier) serve(w http.ResponseWriter, r *http.Request, next http.Handler, cleanPath string) {
 	service := r.Header.Get(HeaderService)
 	signature := r.Header.Get(HeaderSignature)
 	ts, tsOK := parseTimestamp(r.Header.Get(HeaderTimestamp))
@@ -115,11 +131,13 @@ func (v *verifier) serve(w http.ResponseWriter, r *http.Request, next http.Handl
 		unauthorized(w)
 		return
 	}
-	skew := v.opts.Now().Unix() - ts
-	if skew < 0 {
-		skew = -skew
+	// ts is >= 0 (digits only) and now is >= 0, so neither subtraction can overflow.
+	now := v.opts.Now().Unix()
+	skew := now - ts
+	if ts > now {
+		skew = ts - now
 	}
-	if time.Duration(skew)*time.Second > v.opts.MaxSkew {
+	if skew > int64(v.opts.MaxSkew/time.Second) {
 		unauthorized(w)
 		return
 	}
@@ -148,7 +166,7 @@ func (v *verifier) serve(w http.ResponseWriter, r *http.Request, next http.Handl
 		unauthorized(w)
 		return
 	}
-	if !routeAllowed(caller, r.URL.Path) {
+	if !routeAllowed(caller, cleanPath) {
 		writeProblem(w, http.StatusForbidden, CodeForbidden, "İstek reddedildi.", "Bu servis bu yola erişemez.")
 		return
 	}
@@ -163,7 +181,7 @@ func (v *verifier) serve(w http.ResponseWriter, r *http.Request, next http.Handl
 			return
 		}
 		tenantID, hasTenant = parsed, true
-	} else if !isPing(r.URL.Path) {
+	} else if !isPing(cleanPath) {
 		writeProblem(w, http.StatusBadRequest, CodeTenantInvalid, "Geçersiz istek.",
 			"'"+HeaderTenant+"' başlığı zorunludur.")
 		return
@@ -201,8 +219,10 @@ func (v *verifier) runIdempotent(w http.ResponseWriter, r *http.Request, next ht
 	hash := RequestHash(r.Method, pathAndQuery, tenantHeader, body)
 	res, err := store.Reserve(ctx, caller, key, tenantID, hash, v.opts.Now(), v.opts.PendingTimeout)
 	if err != nil {
-		v.opts.Logger.Error("internal api idempotency reserve failed", "caller", caller, "key", key, "error", err)
-		writeProblem(w, http.StatusServiceUnavailable, "internal_unavailable", "Hizmet geçici olarak kullanılamıyor.", "")
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			v.opts.Logger.Error("internal api idempotency reserve failed", "caller", caller, "key", key, "error", err)
+		}
+		writeProblem(w, http.StatusServiceUnavailable, CodeUnavailable, "Hizmet geçici olarak kullanılamıyor.", "")
 		return
 	}
 	switch res.Outcome {
@@ -302,7 +322,9 @@ func isInternalPath(path string) bool {
 
 func isPing(path string) bool { return strings.EqualFold(strings.TrimRight(path, "/"), PingPath) }
 
-func isSafeMethod(m string) bool { return m == http.MethodGet || m == http.MethodHead }
+func isSafeMethod(m string) bool {
+	return strings.EqualFold(m, http.MethodGet) || strings.EqualFold(m, http.MethodHead)
+}
 
 // parseTimestamp accepts digits only (no sign, no spaces), like the .NET NumberStyles.None.
 func parseTimestamp(s string) (int64, bool) {

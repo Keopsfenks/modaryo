@@ -35,6 +35,10 @@ func NewClient(baseURL, service string, secret []byte, hc *http.Client) *Client 
 	if hc == nil {
 		hc = &http.Client{Timeout: 30 * time.Second}
 	}
+	// Never follow redirects: a signed request must not be replayed to another target. Work on a copy.
+	cp := *hc
+	cp.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	hc = &cp
 	return &Client{baseURL: strings.TrimRight(baseURL, "/"), service: service, secret: secret, hc: hc, now: time.Now}
 }
 

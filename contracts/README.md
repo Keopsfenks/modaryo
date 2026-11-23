@@ -97,6 +97,8 @@ Geliştirme sırları yalnızca `appsettings.Development.json` içindedir; kodda
 | 409 | `idempotency_conflict` | Anahtar farklı bir gövde/istek özetiyle kullanılmış |
 | 409 | `idempotency_in_progress` | Aynı anahtar ve aynı istek hâlâ işleniyor; `Retry-After: 1` başlığı döner |
 | 405 | `internal_method_not_allowed` | Servis iç yazma isteği kabul etmiyor (kimlik servisi) |
+| 503 | `internal_unavailable` | Idempotency deposu yanıt vermedi (Go servisleri; .NET 500 döner). Aynı anahtarla yeniden denenebilir |
+| 400 | `internal_bad_path` | `/internal` yolu normalleştirilmiş biçimde değil (`//`, `.`/`..` parçaları); Go servisleri |
 
 ### Kimlik servisi ↔ ERP uçları (şubeler)
 
