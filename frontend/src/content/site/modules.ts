@@ -1,3 +1,4 @@
+import { moduleBodies, type ModuleBody } from "./moduleBodies";
 import type { Icon } from "@tabler/icons-react";
 import {
     IconBell,
@@ -25,7 +26,7 @@ import {
     IconUsers,
 } from "@tabler/icons-react";
 
-export type SiteModule = {
+export type ModuleBase = {
     slug: string;
     name: string;
     summary: string;
@@ -35,10 +36,10 @@ export type SiteModule = {
     specRef: string;
 };
 
-export const moduleGroups: SiteModule["group"][] = ["Satış", "Stok ve Satın Alma", "Finans", "Operasyon"];
+export const moduleGroups: ModuleBase["group"][] = ["Satış", "Stok ve Satın Alma", "Finans", "Operasyon"];
 
 /** Yalnızca gerçekten geliştirilmiş modüller "available" olur; diğerleri "Yakında" olarak gösterilir. */
-export const siteModules: SiteModule[] = [
+const baseModules: ModuleBase[] = [
     { slug: "cari-hesaplar", name: "Cari hesaplar", summary: "Müşteri ve tedarikçi bakiyeleri, hareketler ve vade takibi tek yerde.", icon: IconUsers, status: "available", group: "Finans", specRef: "—" },
     { slug: "urun-katalogu", name: "Ürün kataloğu", summary: "Ürünler, varyantlar, birimler ve kategoriler düzenli bir katalogda.", icon: IconBox, status: "coming", group: "Satış", specRef: "§1" },
     { slug: "fiyatlandirma", name: "Fiyatlandırma", summary: "Fiyat listeleri, iskontolar ve müşteriye özel fiyat kuralları.", icon: IconTags, status: "coming", group: "Satış", specRef: "§2" },
@@ -63,6 +64,10 @@ export const siteModules: SiteModule[] = [
     { slug: "kalite", name: "Kalite", summary: "Kalite kontrol kayıtları ve uygunsuzluk takibi.", icon: IconCertificate, status: "coming", group: "Operasyon", specRef: "§12j" },
     { slug: "proje", name: "Proje", summary: "Proje bazlı görev, maliyet ve zaman takibi.", icon: IconChecklist, status: "coming", group: "Operasyon", specRef: "§12k" },
 ];
+
+export type SiteModule = ModuleBase & ModuleBody;
+
+export const siteModules: SiteModule[] = baseModules.map((m) => ({ ...m, ...moduleBodies[m.slug] }));
 
 export function getModule(slug: string): SiteModule | undefined {
     return siteModules.find((m) => m.slug === slug);
