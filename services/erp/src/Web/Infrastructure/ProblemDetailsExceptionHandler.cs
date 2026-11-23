@@ -27,37 +27,42 @@ public class ProblemDetailsExceptionHandler : IExceptionHandler {
                                                                                    Title
                                                                                        = "İstek okunamadı. Gönderilen verinin biçimini kontrol edin.",
                                                                                    Type
-                                                                                       = "https://tools.ietf.org/html/rfc9110#section-15.5.1"
+                                                                                       = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                                                                                   Extensions = { ["code"] = "bad_request" }
                                                                                }),
                                                ValidationException ve => (StatusCodes.Status400BadRequest,
                                                                           new ValidationProblemDetails(ve.Errors) {
                                                                               Status = StatusCodes.Status400BadRequest,
                                                                               Type
-                                                                                  = "https://tools.ietf.org/html/rfc9110#section-15.5.1"
+                                                                                  = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+                                                                              Title      = "Formdaki hataları düzeltin.",
+                                                                              Extensions = { ["code"] = "validation_failed" }
                                                                           }),
                                                NotFoundException ne => (StatusCodes.Status404NotFound,
                                                                         new ProblemDetails {
                                                                             Status = StatusCodes.Status404NotFound,
                                                                             Type
                                                                                 = "https://tools.ietf.org/html/rfc9110#section-15.5.5",
-                                                                            Title
-                                                                                = "The specified resource was not found.",
-                                                                            Detail = ne.Message
+                                                                            Title      = "Kayıt bulunamadı.",
+                                                                            Detail     = ne.Message,
+                                                                            Extensions = { ["code"] = "not_found" }
                                                                         }),
                                                UnauthorizedAccessException => (StatusCodes.Status401Unauthorized,
                                                                                new ProblemDetails {
                                                                                    Status = StatusCodes
                                                                                        .Status401Unauthorized,
-                                                                                   Title = "Unauthorized",
+                                                                                   Title = "Oturum açmanız gerekiyor.",
                                                                                    Type
-                                                                                       = "https://tools.ietf.org/html/rfc9110#section-15.5.2"
+                                                                                       = "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+                                                                                   Extensions = { ["code"] = "unauthorized" }
                                                                                }),
                                                ForbiddenAccessException => (StatusCodes.Status403Forbidden,
                                                                             new ProblemDetails {
                                                                                 Status = StatusCodes.Status403Forbidden,
-                                                                                Title  = "Forbidden",
+                                                                                Title  = "Bu işlem için yetkiniz yok.",
                                                                                 Type
-                                                                                    = "https://tools.ietf.org/html/rfc9110#section-15.5.4"
+                                                                                    = "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+                                                                                Extensions = { ["code"] = "forbidden" }
                                                                             }),
                                                _ => (-1, null)
                                            };
@@ -65,7 +70,8 @@ public class ProblemDetailsExceptionHandler : IExceptionHandler {
         if (problemDetails is null) return false;
 
         httpContext.Response.StatusCode = statusCode;
-        await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
+        await httpContext.Response.WriteAsJsonAsync(problemDetails, problemDetails.GetType(), (System.Text.Json.JsonSerializerOptions?)null,
+            "application/problem+json", cancellationToken);
         return true;
     }
-}
+}

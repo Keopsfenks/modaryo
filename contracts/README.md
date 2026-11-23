@@ -166,3 +166,32 @@ Cari hesaba her hareket eklendiğinde (hareket girişi ve kart açılışındaki
 | `date` | string | Hareket tarihi, `yyyy-MM-dd` |
 | `due_date` | string veya `null` | Vade tarihi, `yyyy-MM-dd` |
 | `description` | string veya `null` | Açıklama |
+
+## Hata biçimi (ProblemDetails)
+
+Tüm servisler (.NET ve Go) hataları aynı gövdeyle döndürür. İçerik türü `application/problem+json`; Türkçe başlıklar kullanıcıya olduğu gibi gösterilir (frontend alan hatası yoksa `title`'ı gösterir, `code` ile dallanır).
+
+| Alan | Zorunlu | Açıklama |
+|---|---|---|
+| `type` | hayır | RFC 9110 bölüm bağlantısı (400/401/403/404 için) |
+| `title` | evet | Türkçe, kullanıcıya gösterilebilir kısa başlık |
+| `status` | evet | HTTP durum kodu |
+| `detail` | hayır | Ek açıklama |
+| `code` | hayır | Makine tarafından okunur kod (üst düzey alan) |
+| `errors` | hayır | Alan adı → ileti listesi (yalnızca `validation_failed`) |
+
+`traceId` ve `instance` değişkendir; karşılaştırmalarda yok sayılır ve örneklerde yer almaz.
+
+| Durum | `code` | `title` | `type` bölümü |
+|---|---|---|---|
+| 400 | `validation_failed` | Formdaki hataları düzeltin. | 15.5.1 |
+| 400 | `bad_request` | İstek okunamadı. Gönderilen verinin biçimini kontrol edin. | 15.5.1 |
+| 401 | `unauthorized` | Oturum açmanız gerekiyor. | 15.5.2 |
+| 403 | `forbidden` | Bu işlem için yetkiniz yok. | 15.5.4 |
+| 403 | `csrf_header_missing` | İstek reddedildi. | yok |
+| 404 | `not_found` | Kayıt bulunamadı. | 15.5.5 |
+| 503 | `session_store_unavailable` | Oturum servisine şu anda ulaşılamıyor. | yok |
+
+İş kuralı hataları (`AppException`) `type` taşımaz: `{ title, status, code }` (örn. 403 `module_disabled`, 409 `period_locked`).
+
+Gerçek ERP yanıtlarından alınmış örnekler: `fixtures/problem-validation.json`, `problem-unauthorized.json`, `problem-forbidden.json`, `problem-not-found.json`, `problem-app.json`. ERP testi (`ProblemFixtureTests`) yanıtları bu dosyalarla, Go testi (`Problem_JsonShapeMatchesDotnetFixture`) kendi gövdelerini bu dosyalarla karşılaştırır. Yeniden üretmek için ERP işlevsel testlerini `MODARYO_WRITE_FIXTURES=1` ile çalıştırın.

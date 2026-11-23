@@ -1,0 +1,7 @@
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+  "title": "Kayıt bulunamadı.",
+  "status": 404,
+  "detail": "Queried object CurrentAccount was not found, Key: 0197a3c2-5b1e-7c3a-9d2f-4e6b8a1c0d99",
+  "code": "not_found"
+}

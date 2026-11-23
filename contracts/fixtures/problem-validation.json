@@ -1,0 +1,19 @@
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+  "title": "Formdaki hataları düzeltin.",
+  "status": 400,
+  "errors": {
+    "Name": [
+      "Ünvan / ad soyad zorunludur.",
+      "Ünvan 2 ile 200 karakter arasında olmalıdır."
+    ],
+    "Code": [
+      "Cari kodu zorunludur.",
+      "Cari kodu 1 ile 20 karakter arasında olmalıdır."
+    ],
+    "IsCustomer": [
+      "Cari en az müşteri veya tedarikçi olarak işaretlenmelidir."
+    ]
+  },
+  "code": "validation_failed"
+}

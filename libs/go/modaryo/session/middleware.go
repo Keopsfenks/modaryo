@@ -17,10 +17,6 @@ type Options struct {
 	Optional bool
 }
 
-func unauthorized() problem.Details {
-	return problem.App(http.StatusUnauthorized, "unauthorized", "Oturum açmanız gerekiyor.")
-}
-
 // Middleware reads the "modaryo_sid" cookie and stores the *Record in the context.
 // An invalid session yields 401; a Valkey failure yields 503.
 func Middleware(r *Reader, opts Options) func(http.Handler) http.Handler {
@@ -35,7 +31,7 @@ func Middleware(r *Reader, opts Options) func(http.Handler) http.Handler {
 					next.ServeHTTP(w, req)
 					return
 				}
-				problem.Write(w, unauthorized())
+				problem.Write(w, problem.Unauthorized())
 			}
 
 			c, err := req.Cookie(CookieName)
@@ -68,7 +64,7 @@ func RequirePermission(p string) func(http.Handler) http.Handler {
 		if rec.HasPermission(p) {
 			return nil
 		}
-		d := problem.App(http.StatusForbidden, "forbidden", "Bu işlem için yetkiniz yok.")
+		d := problem.Forbidden()
 		return &d
 	})
 }
@@ -89,7 +85,7 @@ func guard(check func(*Record) *problem.Details) func(http.Handler) http.Handler
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			rec, ok := FromContext(req.Context())
 			if !ok {
-				problem.Write(w, unauthorized())
+				problem.Write(w, problem.Unauthorized())
 				return
 			}
 			if d := check(rec); d != nil {

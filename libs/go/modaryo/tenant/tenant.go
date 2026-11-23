@@ -1,0 +1,43 @@
+// Package tenant carries the active company (tenant) id of a request.
+package tenant
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/google/uuid"
+
+	"github.com/keopsfenks/modaryo/libs/go/modaryo/problem"
+	"github.com/keopsfenks/modaryo/libs/go/modaryo/session"
+)
+
+type ctxKey struct{}
+
+// WithTenant puts the tenant id into the context.
+func WithTenant(ctx context.Context, id uuid.UUID) context.Context {
+	return context.WithValue(ctx, ctxKey{}, id)
+}
+
+// FromContext returns the tenant id stored by WithTenant or FromSession.
+func FromContext(ctx context.Context) (uuid.UUID, bool) {
+	id, ok := ctx.Value(ctxKey{}).(uuid.UUID)
+	return id, ok
+}
+
+// FromSession copies the tenant of the session record (put there by session.Middleware) into the
+// context. Like ERP, no session yields 401 "unauthorized" and a session without an active
+// company yields 403 "forbidden".
+func FromSession(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		rec, ok := session.FromContext(r.Context())
+		if !ok {
+			problem.Write(w, problem.Unauthorized())
+			return
+		}
+		if rec.TenantID == nil {
+			problem.Write(w, problem.Forbidden())
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(WithTenant(r.Context(), *rec.TenantID)))
+	})
+}

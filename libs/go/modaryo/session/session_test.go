@@ -234,6 +234,7 @@ func TestMiddleware_NoCookie_401(t *testing.T) {
 	rr := do(h, "")
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 	assert.Contains(t, rr.Header().Get("Content-Type"), "application/problem+json")
+	assert.JSONEq(t, `{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.2","title":"Oturum açmanız gerekiyor.","status":401,"code":"unauthorized"}`, rr.Body.String())
 	assert.False(t, saw)
 }
 
@@ -255,6 +256,34 @@ func TestMiddleware_Optional_PassesThroughWithoutRecord(t *testing.T) {
 	rr := do(h, "")
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.False(t, has)
+}
+
+func TestMiddleware_Optional_InvalidCookiePassesAsAnonymous(t *testing.T) {
+	rdb := testRedis(t)
+	var has bool
+	h := session.Middleware(session.NewReader(rdb, fixedClock(fixtureNow)), session.Options{Optional: true})(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, has = session.FromContext(r.Context())
+		}))
+	assert.Equal(t, http.StatusOK, do(h, newSid(t)).Code, "unknown sid")
+	assert.False(t, has)
+
+	sid := newSid(t)
+	key := seed(t, rdb, sid, fixture(t, "session-v1-full.json"))
+	require.NoError(t, rdb.Expire(context.Background(), key, 1000*time.Second).Err())
+	h = session.Middleware(session.NewReader(rdb, fixedClock(time.Unix(1795286400, 0))), session.Options{Optional: true})(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, has = session.FromContext(r.Context())
+		}))
+	assert.Equal(t, http.StatusOK, do(h, sid).Code, "expired record")
+	assert.False(t, has)
+}
+
+func TestMiddleware_Optional_ValkeyDown_Still503(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1", DialTimeout: 200 * time.Millisecond, MaxRetries: -1})
+	t.Cleanup(func() { _ = rdb.Close() })
+	h := session.Middleware(session.NewReader(rdb, fixedClock(fixtureNow)), session.Options{Optional: true})(okHandler(new(bool)))
+	assert.Equal(t, http.StatusServiceUnavailable, do(h, "abc").Code)
 }
 
 func TestMiddleware_DealerRejectedByDefault(t *testing.T) {

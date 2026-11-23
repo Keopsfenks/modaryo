@@ -1,0 +1,6 @@
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.4",
+  "title": "Bu işlem için yetkiniz yok.",
+  "status": 403,
+  "code": "forbidden"
+}
