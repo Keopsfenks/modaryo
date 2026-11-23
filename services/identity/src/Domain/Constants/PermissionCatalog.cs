@@ -41,6 +41,10 @@ public static class PermissionCatalog
             new(Permissions.CariManage, null, "Cari hesaplar", "Cari hesapları yönet", "Cari hesap oluşturabilir, düzenleyebilir ve pasife alabilir."),
             new(Permissions.CariMovements, null, "Cari hesaplar", "Cari hareketleri gir", "Cari hesaplara borç, alacak ve tahsilat hareketi girebilir."),
 
+            new(Permissions.CatalogRead, null, "Katalog", "Ürün ve hizmetleri görüntüle", "Ürün, hizmet, kategori ve markaları görüntüleyebilir."),
+            new(Permissions.CatalogManage, null, "Katalog", "Ürün ve hizmetleri yönet", "Ürün, hizmet, kategori ve marka oluşturabilir, düzenleyebilir, içe aktarabilir."),
+            new(Permissions.SettingsCatalog, null, "Katalog", "Katalog ayarlarını yönet", "Ürün kodu şablonu, birimler, KDV oranı, barkod öneki ve özel alanları düzenleyebilir."),
+
             new(Permissions.AuditRead, null, "Denetim", "Denetim kaydını görüntüle", "Firmadaki işlem geçmişini ve denetim kayıtlarını görüntüleyebilir."));
         CoreCount = Entries.Count;
     }

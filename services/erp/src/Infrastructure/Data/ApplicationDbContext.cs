@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using System.Reflection;
 using ERP.Application.Common.Interfaces;
+using ERP.Domain.Catalog;
 using ERP.Domain.Common;
 using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Platform;
@@ -42,6 +43,24 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<ErpAuditEntry> AuditEntries => Set<ErpAuditEntry>();
 
     public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
+
+    public DbSet<Product> Products => Set<Product>();
+
+    public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
+
+    public DbSet<ProductUnit> ProductUnits => Set<ProductUnit>();
+
+    public DbSet<ProductSupplier> ProductSuppliers => Set<ProductSupplier>();
+
+    public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+
+    public DbSet<Category> Categories => Set<Category>();
+
+    public DbSet<Brand> Brands => Set<Brand>();
+
+    public DbSet<Barcode> Barcodes => Set<Barcode>();
+
+    public DbSet<CustomFieldDefinition> CustomFieldDefinitions => Set<CustomFieldDefinition>();
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 

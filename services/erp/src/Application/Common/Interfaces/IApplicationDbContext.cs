@@ -1,3 +1,4 @@
+using ERP.Domain.Catalog;
 using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Files;
 using ERP.Domain.Settings;
@@ -21,6 +22,24 @@ public interface IApplicationDbContext {
     DbSet<ErpAuditEntry> AuditEntries { get; }
 
     DbSet<StoredFile> StoredFiles { get; }
+
+    DbSet<Product> Products { get; }
+
+    DbSet<ProductVariant> ProductVariants { get; }
+
+    DbSet<ProductUnit> ProductUnits { get; }
+
+    DbSet<ProductSupplier> ProductSuppliers { get; }
+
+    DbSet<ProductImage> ProductImages { get; }
+
+    DbSet<Category> Categories { get; }
+
+    DbSet<Brand> Brands { get; }
+
+    DbSet<Barcode> Barcodes { get; }
+
+    DbSet<CustomFieldDefinition> CustomFieldDefinitions { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 

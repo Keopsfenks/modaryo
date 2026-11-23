@@ -48,7 +48,9 @@ public class PermissionSyncTests : TestBase
 
     private static readonly string[] V3Codes = ["ayarlar.finans", "ayarlar.firma", "ayarlar.genel"];
 
-    private static readonly string[] NewCodes = V2Codes.Concat(V3Codes).ToArray();
+    private static readonly string[] V4Codes = ["ayarlar.katalog", "katalog.manage", "katalog.read"];
+
+    private static readonly string[] NewCodes = V2Codes.Concat(V3Codes).Concat(V4Codes).ToArray();
 
     private static TenantRole LegacyRole(Guid tenantId, string name, string? systemKey, string[] permissions)
     {
@@ -76,7 +78,7 @@ public class PermissionSyncTests : TestBase
         added.ShouldBeGreaterThanOrEqualTo(5);
         var admin = await PermissionsOfAsync(tenantId, "admin");
         admin.ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
-        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "members.read"]);
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "katalog.read", "members.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
     }
 
@@ -89,8 +91,23 @@ public class PermissionSyncTests : TestBase
 
         added.ShouldBeGreaterThanOrEqualTo(3);
         (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
-        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "members.read"]);
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "katalog.read", "members.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
+    }
+
+    [Test]
+    public async Task Sync_AppliesVersion4CatalogPermissions()
+    {
+        var (tenantId, _) = await SeedLegacyTenantAsync(3, AdminV1.Concat(V2Codes).Concat(V3Codes).ToArray());
+
+        var added = await SyncAsync();
+
+        added.ShouldBeGreaterThanOrEqualTo(4);
+        (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "katalog.read", "members.read"]);
+        (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
+        PermissionCatalog.All.Where(p => p.Group == "Katalog").Select(p => p.Code).Order().ToArray()
+            .ShouldBe(["ayarlar.katalog", "katalog.manage", "katalog.read"], ignoreOrder: true);
     }
 
     [Test]

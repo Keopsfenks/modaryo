@@ -26,5 +26,10 @@ public static class Permissions
     public const string SettingsGeneral = "ayarlar.genel";
     public const string SettingsFinance = "ayarlar.finans";
 
+    public const string SettingsCatalog = "ayarlar.katalog";
+
+    public const string CatalogRead = "katalog.read";
+    public const string CatalogManage = "katalog.manage";
+
     public const string AuditRead = "denetim.read";
 }
