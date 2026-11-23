@@ -2,8 +2,6 @@ package internalapi
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"testing"
 	"time"
 
@@ -11,36 +9,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/keopsfenks/modaryo/libs/go/modaryo/testinfra"
 )
 
 // newTestPool creates a temporary database, applies the idempotency schema and drops the database at the end.
 func newTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	ctx := context.Background()
-	admin, err := pgxpool.New(ctx, sprintfURL("postgres"))
-	require.NoError(t, err)
-	require.NoError(t, admin.Ping(ctx), "Postgres must be running on localhost:5432 (infra/up.sh)")
-
-	suffix := make([]byte, 6)
-	_, _ = rand.Read(suffix)
-	name := "modaryo_go_test_" + hex.EncodeToString(suffix)
-	_, err = admin.Exec(ctx, "CREATE DATABASE "+name)
-	require.NoError(t, err)
-
-	pool, err := pgxpool.New(ctx, sprintfURL(name))
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		pool.Close()
-		_, _ = admin.Exec(ctx, "DROP DATABASE IF EXISTS "+name+" WITH (FORCE)")
-		admin.Close()
-	})
-	_, err = pool.Exec(ctx, IdempotencySchemaSQL)
+	pool, _ := testinfra.TempDatabase(t)
+	_, err := pool.Exec(context.Background(), IdempotencySchemaSQL)
 	require.NoError(t, err)
 	return pool
-}
-
-func sprintfURL(db string) string {
-	return "postgres://modaryo:modaryo_dev@localhost:5432/" + db + "?sslmode=disable"
 }
 
 func TestPostgresStore_Contract(t *testing.T) {
