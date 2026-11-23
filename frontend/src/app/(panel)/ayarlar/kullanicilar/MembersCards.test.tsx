@@ -39,7 +39,7 @@ const render = (ui: React.ReactElement) => renderWithTheme(<SessionProvider>{ui}
 const rowOf = async (name: string | RegExp) => (await screen.findByText(name)).closest("tr")!;
 
 describe("Firma üyeleri", () => {
-    beforeEach(() => resetNavigation("/firma/uyeler"));
+    beforeEach(() => resetNavigation("/ayarlar/kullanicilar"));
 
     it("Members_HidesManageControlsWithoutPermission", async () => {
         asUser(["members.read"], "member");
@@ -61,6 +61,19 @@ describe("Firma üyeleri", () => {
 
         const options = within(await screen.findByRole("listbox")).getAllByRole("option").map((o) => o.textContent);
         expect(options).toEqual(["Yönetici", "Kullanıcı"]);
+    });
+
+    it("MemberRoleSelect_ListsCustomRoles", async () => {
+        asUser(["*"], "owner");
+        server.use(http.get(`${API}/companies/current/roles`, () => HttpResponse.json([
+            ...roles, { id: "r-kasiyer", name: "Kasiyer", systemKey: null },
+        ])));
+        const { user } = render(<MembersTable />);
+
+        await user.click(within(await rowOf("Veli Kaya")).getByRole("combobox"));
+
+        const options = within(await screen.findByRole("listbox")).getAllByRole("option").map((o) => o.textContent);
+        expect(options).toContain("Kasiyer");
     });
 
     it("Members_OwnRowHasNoRemoveButton", async () => {
@@ -192,7 +205,7 @@ describe("Firma üyeleri", () => {
         render(<SidebarContent />);
 
         await screen.findByText("Genel Bakış");
-        expect(screen.queryByText("Firma Üyeleri")).not.toBeInTheDocument();
+        expect(screen.queryByText("Kullanıcılar")).not.toBeInTheDocument();
     });
 
     it("Sidebar_ShowsMembersItemWithPermission", async () => {
@@ -200,6 +213,6 @@ describe("Firma üyeleri", () => {
 
         render(<SidebarContent />);
 
-        expect(await screen.findByText("Firma Üyeleri")).toBeInTheDocument();
+        expect(await screen.findByText("Kullanıcılar")).toBeInTheDocument();
     });
 });

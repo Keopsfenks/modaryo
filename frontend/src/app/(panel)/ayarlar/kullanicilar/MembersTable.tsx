@@ -22,6 +22,7 @@ import Typography from "@mui/material/Typography";
 import FormAlert from "@/components/auth/FormAlert";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import { initials } from "@/components/layout/Header";
+import MemberBranchesDialog from "@/components/settings/MemberBranchesDialog";
 import { ApiError } from "@/lib/api/client";
 import { identity, type MemberDto, type RoleDto } from "@/lib/api/identity";
 import { formatDate } from "@/lib/format";
@@ -37,19 +38,20 @@ export default function MembersTable() {
     const [roles, setRoles] = useState<RoleDto[]>([]);
     const [error, setError] = useState<ApiError | null>(null);
     const [removing, setRemoving] = useState<MemberDto | null>(null);
+    const [branchesFor, setBranchesFor] = useState<MemberDto | null>(null);
 
     const canManage = hasPermission("members.manage");
     const me = members?.find((m) => m.userId === session.user.id);
     const callerIsOwner = me?.roleSystemKey === "owner";
 
     const load = useCallback(async () => {
-        const [loadedMembers, loadedRoles] = await Promise.all([identity.getMembers(), identity.getRoles()]);
+        const [loadedMembers, loadedRoles] = await Promise.all([identity.getMembers(), identity.roles.list()]);
         setMembers(loadedMembers);
         setRoles(loadedRoles);
     }, []);
 
     useEffect(() => {
-        Promise.all([identity.getMembers(), identity.getRoles()]).then(
+        Promise.all([identity.getMembers(), identity.roles.list()]).then(
             ([loadedMembers, loadedRoles]) => {
                 setMembers(loadedMembers);
                 setRoles(loadedRoles);
@@ -155,6 +157,11 @@ export default function MembersTable() {
                                         </TableCell>
                                         <TableCell>{formatDate(m.joinedAt)}</TableCell>
                                         <TableCell align="right">
+                                            {editable && (
+                                                <Button size="small" onClick={() => setBranchesFor(m)}>
+                                                    Şube erişimi
+                                                </Button>
+                                            )}
                                             {editable && !isMe && (
                                                 <Button size="small" color="error" onClick={() => setRemoving(m)}>
                                                     Çıkar
@@ -167,6 +174,18 @@ export default function MembersTable() {
                         </TableBody>
                     </Table>
                 </TableContainer>
+            )}
+
+            {branchesFor && roles.find((r) => r.id === branchesFor.roleId) && (
+                <MemberBranchesDialog
+                    member={branchesFor}
+                    role={roles.find((r) => r.id === branchesFor.roleId)!}
+                    onClose={() => setBranchesFor(null)}
+                    onSaved={() => {
+                        setBranchesFor(null);
+                        void load();
+                    }}
+                />
             )}
 
             <Dialog open={Boolean(removing)} onClose={() => setRemoving(null)}>

@@ -91,7 +91,7 @@ export const navigation: NavSection[] = [
     {
         title: "Sistem",
         items: [
-            { title: "Firma Üyeleri", href: "/firma/uyeler", icon: IconUsersGroup, permission: "members.read", implemented: true },
+            { title: "Kullanıcılar", href: "/ayarlar/kullanicilar", icon: IconUsersGroup, permission: "members.read", implemented: true },
             { title: "Görevler", href: "/sistem/gorevler", icon: IconClipboardList },
             { title: "Ayarlar", href: "/ayarlar", icon: IconSettings, implemented: true },
         ],

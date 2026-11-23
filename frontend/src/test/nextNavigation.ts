@@ -27,3 +27,4 @@ export const useSearchParams = () => search;
 export const useParams = () => ({});
 export const redirect = vi.fn();
 export const notFound = vi.fn();
+export const permanentRedirect = vi.fn();

@@ -62,6 +62,8 @@ export type MemberDto = {
     roleName: string;
     roleSystemKey: string | null;
     joinedAt: string;
+    /** null → rolün şubeleri; dizi → daraltılmış şube kümesi. */
+    branchIds?: string[] | null;
 };
 
 export type InvitationDto = { id: string; email: string; roleId: string; roleName: string; expiresAt: string; invitedBy: string };
@@ -69,6 +71,19 @@ export type InvitationDto = { id: string; email: string; roleId: string; roleNam
 export type MyInvitationDto = { id: string; companyName: string; invitedBy: string; roleName: string; expiresAt: string };
 
 export type InvitationPreview = { companyName: string; invitedBy: string; email: string; expiresAt: string; accountExists: boolean };
+
+export type IdentityAuditEntry = {
+    id: string;
+    at: string;
+    actorLabel: string;
+    action: string;
+    entityType: string;
+    entityId: string;
+    before: unknown;
+    after: unknown;
+};
+
+export type IdentityAuditPage = { items: IdentityAuditEntry[]; total: number };
 
 export type CompanyDto = { id: string; name: string; createdAt: string };
 
@@ -137,6 +152,16 @@ export const identity = {
         update: (id: string, body: RoleInput) => put<RoleDto>(`/companies/current/roles/${id}`, body),
         remove: (id: string) => del(`/companies/current/roles/${id}`),
         reset: (id: string) => post<RoleDto>(`/companies/current/roles/${id}/reset`),
+    },
+    audit: {
+        list: (q: { page?: number; pageSize?: number; entityType?: string } = {}) => {
+            const params = new URLSearchParams();
+            if (q.page !== undefined) params.set("page", String(q.page));
+            if (q.pageSize !== undefined) params.set("pageSize", String(q.pageSize));
+            if (q.entityType) params.set("entityType", q.entityType);
+            const text = params.toString();
+            return get<IdentityAuditPage>(`/companies/current/audit${text ? `?${text}` : ""}`);
+        },
     },
     permissions: {
         catalog: () => get<{ groups: PermissionGroup[] }>("/permissions").then((c) => c.groups),
