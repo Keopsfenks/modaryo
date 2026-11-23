@@ -4,6 +4,7 @@ using ERP.Application.Catalog.CustomFields;
 using ERP.Application.Catalog.Products;
 using ERP.Application.Catalog.Products.Commands;
 using ERP.Application.Catalog.Products.Queries;
+using ERP.Application.Catalog.Variants.Commands;
 using ERP.Application.CurrentAccounts;
 using ERP.Domain.Catalog;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -31,6 +32,10 @@ public class Catalog : IEndpointGroup {
         groupBuilder.MapPost(DeactivateProduct, "products/{id:guid}/deactivate");
         groupBuilder.MapDelete(DeleteProduct, "products/{id:guid}");
         groupBuilder.MapPost(GenerateBarcode, "products/{id:guid}/barcode/generate");
+        groupBuilder.MapPut(SetAttributes, "products/{id:guid}/attributes");
+        groupBuilder.MapPut(UpdateVariant, "products/{id:guid}/variants/{variantId:guid}");
+        groupBuilder.MapPost(ActivateVariant, "products/{id:guid}/variants/{variantId:guid}/activate");
+        groupBuilder.MapPost(DeactivateVariant, "products/{id:guid}/variants/{variantId:guid}/deactivate");
         groupBuilder.MapGet(ListCustomFields, "custom-fields");
         groupBuilder.MapPost(CreateCustomField, "custom-fields");
         groupBuilder.MapPut(UpdateCustomField, "custom-fields/{id:guid}");
@@ -101,6 +106,30 @@ public class Catalog : IEndpointGroup {
     [EndpointDescription("Ayarlardaki önek ve sıra sayacından kullanılmayan bir barkod döndürür; karta yazmaz.")]
     public static async Task<Ok<BarcodeResult>> GenerateBarcode(ISender sender, Guid id) {
         return TypedResults.Ok(await sender.Send(new GenerateBarcodeCommand(id)));
+    }
+
+    [EndpointSummary("Varyant özelliklerini ayarla")]
+    [EndpointDescription("Kombinasyonları yeniden üretir. Değer kümesi korunan varyantlar (kimlik, kod, barkod) değişmez; yeni kombinasyonlar {ürünKodu}-{n} koduyla eklenir. Kaldırılan değerin varyantı kullanımdaysa 409 variant_in_use; kullanılmayanlar silinir. 500'ü aşarsa 409 too_many_variants.")]
+    public static async Task<Ok<ProductDto>> SetAttributes(ISender sender, Guid id, SetAttributesBody body) {
+        return TypedResults.Ok(await sender.Send(new SetAttributesCommand(id, body.Attributes)));
+    }
+
+    [EndpointSummary("Varyantı güncelle")]
+    [EndpointDescription("Kod, barkod ve fiyat geçersiz kılmaları bütün olarak değiştirilir. Çakışmada 409 code_taken veya barcode_taken.")]
+    public static async Task<Ok<ProductDto>> UpdateVariant(ISender sender, Guid id, Guid variantId, UpdateVariantCommand command) {
+        return TypedResults.Ok(await sender.Send(command with { ProductId = id, VariantId = variantId }));
+    }
+
+    [EndpointSummary("Varyantı aktifleştir")]
+    public static async Task<NoContent> ActivateVariant(ISender sender, Guid id, Guid variantId) {
+        await sender.Send(new SetVariantActiveCommand(id, variantId, true));
+        return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("Varyantı pasifleştir")]
+    public static async Task<NoContent> DeactivateVariant(ISender sender, Guid id, Guid variantId) {
+        await sender.Send(new SetVariantActiveCommand(id, variantId, false));
+        return TypedResults.NoContent();
     }
 
     [EndpointSummary("Özel alan tanımları")]
@@ -178,3 +207,5 @@ public class Catalog : IEndpointGroup {
         return TypedResults.NoContent();
     }
 }
+
+public sealed record SetAttributesBody(List<AttributeValuesInput>? Attributes);

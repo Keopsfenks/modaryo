@@ -390,7 +390,7 @@ public sealed class ProductWriter(
         return attributes.All(a => values.TryGetValue(a.Name, out var v) && a.Values.Contains(v));
     }
 
-    private static void CheckMoney(Money4? money, string field, Action<string, string> fail) {
+    public static void CheckMoney(Money4? money, string field, Action<string, string> fail) {
         if (money is null) return;
 
         if (money.Amount is < 0 or > MaxMoney || decimal.Round(money.Amount, 4) != money.Amount)
