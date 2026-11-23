@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.CurrentAccounts.Allocation;
+using ERP.Domain.Common;
 using ERP.Domain.CurrentAccounts;
 
 namespace ERP.Application.CurrentAccounts;
@@ -28,7 +29,7 @@ public static class CardRules {
 
     /// <summary>Arama terimini veritabanındaki lower(...).Replace("ı","i") ile aynı biçimde katlar (Türkçe I/ı/İ/i).</summary>
     public static string FoldSearch(string search) {
-        return search.Trim().ToLower(CultureInfo.GetCultureInfo("tr-TR")).Replace('ı', 'i');
+        return TurkishText.Fold(search);
     }
 
     public static void AddCardRules<T>(this AbstractValidator<T> v) where T : ICardFields {
