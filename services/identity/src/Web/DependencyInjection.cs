@@ -23,10 +23,24 @@ public static class DependencyInjection
 
         builder.Services.AddIdentityRateLimiting(builder.Configuration);
 
+        // İstemci adresi (hız sınırı anahtarı) yalnızca güvenilir proxy'nin eklediği SAĞDAKİ X-Forwarded-For girdisinden alınır.
+        // ForwardLimit = 1: istemcinin başa eklediği sahte girdiler yok sayılır. Güvenilir proxy'ler yapılandırmadan gelir:
+        // ForwardedHeaders:KnownProxies (IP dizisi) ve ForwardedHeaders:KnownNetworks (CIDR dizisi); varsayılan yalnızca loopback.
+        // Dağıtımda Next.js'in önünde X-Forwarded-For'u ezen/ekleyen bir uç (nginx, yük dengeleyici) bulunmalıdır.
+        var forwarded = builder.Configuration.GetSection("ForwardedHeaders");
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
         {
-            // Varsayılan KnownProxies yalnızca loopback: geliştirmede Next.js proxy aynı makinede çalışır.
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            options.ForwardLimit = 1;
+            foreach (var proxy in forwarded.GetSection("KnownProxies").Get<string[]>() ?? [])
+            {
+                options.KnownProxies.Add(System.Net.IPAddress.Parse(proxy));
+            }
+            foreach (var network in forwarded.GetSection("KnownNetworks").Get<string[]>() ?? [])
+            {
+                var parts = network.Split('/');
+                options.KnownIPNetworks.Add(new System.Net.IPNetwork(System.Net.IPAddress.Parse(parts[0]), int.Parse(parts[1])));
+            }
         });
 
         builder.Services.AddHttpContextAccessor();

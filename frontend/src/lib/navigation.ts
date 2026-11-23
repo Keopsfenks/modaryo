@@ -22,9 +22,12 @@ export const PUBLIC_PATHS = [
     "/robots.txt",
 ];
 
+/** Next.js metadata görselleri: `/opengraph-image-<karma>` (uzantısız, karma ekli). Sosyal ağ botları çerezsiz erişir. */
+const METADATA_IMAGE = /^\/(?:opengraph|twitter)-image(?:-[a-z0-9]+)?$/;
+
 /** "/" (tanıtım ana sayfası) yalnızca tam eşleşmeyle herkese açıktır; diğerleri önek eşleşmesidir. */
 export function isPublicPath(pathname: string): boolean {
-    return pathname === "/" || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    return pathname === "/" || METADATA_IMAGE.test(pathname) || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 /**

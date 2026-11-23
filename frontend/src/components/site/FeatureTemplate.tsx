@@ -24,7 +24,7 @@ export default function FeatureTemplate({ module: m }: { module: SiteModule }) {
                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) minmax(0, 1.1fr)" }, gap: { xs: 5, md: 8 }, alignItems: "center" }}>
                         <Box>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
-                                <Box component={m.icon} size={28} stroke={1.6} aria-hidden sx={{ color: "primary.main" }} />
+                                <Box sx={{ color: "primary.main", display: "flex" }}><m.icon size={28} stroke={1.6} aria-hidden /></Box>
                                 {coming && <ComingSoonChip />}
                             </Box>
                             <Typography id="modul-baslik" component="h1" sx={{ fontSize: "clamp(2rem, 4.6vw, 3.25rem)", fontWeight: 800, lineHeight: 1.1, letterSpacing: "-0.03em", mb: 2 }}>

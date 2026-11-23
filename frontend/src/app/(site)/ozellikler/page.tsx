@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LinkBox } from "@/components/site/LinkBox";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -24,7 +24,7 @@ export default function FeaturesIndexPage() {
                         {siteModules.filter((m) => m.group === group).map((m) => (
                             <Box key={m.slug} component="li" sx={{ py: 2, borderTop: "1px solid", borderColor: "divider" }}>
                                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 0.5 }}>
-                                    <Box component={Link} href={`/ozellikler/${m.slug}`} sx={{ fontWeight: 700, color: "text.primary" }}>{m.name}</Box>
+                                    <LinkBox href={`/ozellikler/${m.slug}`} sx={{ fontWeight: 700, color: "text.primary" }}>{m.name}</LinkBox>
                                     {m.status === "coming" && <ComingSoonChip />}
                                 </Box>
                                 <Typography sx={{ color: "text.secondary", lineHeight: 1.55 }}>{m.summary}</Typography>

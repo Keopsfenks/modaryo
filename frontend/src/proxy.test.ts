@@ -40,7 +40,7 @@ describe("proxy", () => {
 });
 
 describe("proxy / herkese açık site", () => {
-    it.each(["/", "/ozellikler/satis", "/ozellikler", "/cozumler/hali-ev-tekstili", "/fiyatlar", "/demo", "/iletisim", "/kvkk", "/blog/ilk-yazi", "/yardim", "/sitemap.xml", "/robots.txt"])(
+    it.each(["/", "/ozellikler/satis", "/ozellikler", "/cozumler/hali-ev-tekstili", "/fiyatlar", "/demo", "/iletisim", "/kvkk", "/blog/ilk-yazi", "/yardim", "/sitemap.xml", "/robots.txt", "/opengraph-image", "/opengraph-image-12o0cb", "/twitter-image"])(
         "Proxy_PublicSiteRoutesAllowed %s",
         (path) => {
             const response = proxy(request(path));
@@ -50,7 +50,7 @@ describe("proxy / herkese açık site", () => {
         },
     );
 
-    it.each(["/panel", "/ayarlar", "/cari", "/ozellikleri-gizle"])("Proxy_PanelStillProtected %s", (path) => {
+    it.each(["/panel", "/ayarlar", "/cari", "/ozellikleri-gizle", "/opengraph-imagex/y", "/opengraph-image-A"])("Proxy_PanelStillProtected %s", (path) => {
         const response = proxy(request(path));
 
         expect(response.status).toBe(307);

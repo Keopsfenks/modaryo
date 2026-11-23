@@ -141,6 +141,26 @@ public class ContactTests : TestBase
     }
 
     [Test]
+    public async Task Contact_SpoofedForwardedForPrefix_SharesTheTrustedProxyBucket()
+    {
+        await using var limited = new IdentityApiFactory(TestEnvironment.ConnectionString, new Dictionary<string, string?> { ["RateLimits:Enabled"] = "true" });
+        using var client = limited.CreateClientWithCookies();
+        var statuses = new List<HttpStatusCode>();
+
+        for (var i = 0; i < 6; i++)
+        {
+            // Güvenilir proxy istemciyi sağa ekler (203.0.113.9); istemcinin başa yazdığı sahte adres her istekte farklı.
+            using var request = new HttpRequestMessage(HttpMethod.Post, Url) { Content = JsonContent.Create(Valid(email: $"kisi{i}@ornek.com")) };
+            request.Headers.Add("X-Forwarded-For", $"198.51.100.{i + 1}, 203.0.113.9");
+            using var response = await client.SendAsync(request);
+            statuses.Add(response.StatusCode);
+        }
+
+        statuses.Take(5).ShouldAllBe(s => s == HttpStatusCode.Accepted);
+        statuses[5].ShouldBe(HttpStatusCode.TooManyRequests);
+    }
+
+    [Test]
     public async Task Contact_WithoutCsrfHeader_Returns403()
     {
         using var client = Factory.CreateClient();

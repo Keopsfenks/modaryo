@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LinkBox } from "@/components/site/LinkBox";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -15,13 +15,12 @@ function FooterColumn({ title, items }: { title: string; items: MenuItem[] }) {
             <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, display: "grid", gap: 1 }}>
                 {items.map((item) => (
                     <li key={item.href}>
-                        <Box
-                            component={Link}
+                        <LinkBox
                             href={item.href}
                             sx={{ color: "text.secondary", textDecoration: "none", fontSize: "0.875rem", "&:hover": { color: "text.primary", textDecoration: "underline" } }}
                         >
                             {item.label}
-                        </Box>
+                        </LinkBox>
                     </li>
                 ))}
             </Box>

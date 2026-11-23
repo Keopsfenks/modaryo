@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LinkBox } from "@/components/site/LinkBox";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -65,7 +65,7 @@ export default function SectorTemplate({ sector }: { sector: SiteSector }) {
                 <Box component="ul" sx={{ listStyle: "none", p: 0, m: 0, display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, columnGap: 8 }}>
                     {related.map((m) => (
                         <Box key={m.slug} component="li" sx={{ py: 2, borderTop: "1px solid", borderColor: "divider", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-                            <Box component={Link} href={`/ozellikler/${m.slug}`} sx={{ fontWeight: 600, color: "text.primary" }}>{m.name}</Box>
+                            <LinkBox href={`/ozellikler/${m.slug}`} sx={{ fontWeight: 600, color: "text.primary" }}>{m.name}</LinkBox>
                             {m.status === "coming" && <ComingSoonChip />}
                         </Box>
                     ))}

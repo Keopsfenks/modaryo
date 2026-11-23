@@ -1,5 +1,5 @@
-import Link from "next/link";
-import Button, { type ButtonProps } from "@mui/material/Button";
+import { LinkButton } from "@/components/site/LinkBox";
+import { type ButtonProps } from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 
 type CtaProps = Pick<ButtonProps, "size" | "fullWidth" | "sx">;
@@ -7,18 +7,17 @@ type CtaProps = Pick<ButtonProps, "size" | "fullWidth" | "sx">;
 /** Ana çağrı: kayıt sayfası. */
 export function PrimaryCta({ label = "Ücretsiz başla", ...props }: CtaProps & { label?: string }) {
     return (
-        <Button component={Link} href="/kayit" variant="contained" {...props}>
+        <LinkButton href="/kayit" variant="contained" {...props}>
             {label}
-        </Button>
+        </LinkButton>
     );
 }
-
 /** İkincil çağrı: demo talebi. */
 export function SecondaryCta({ label = "Demo iste", href = "/demo", ...props }: CtaProps & { label?: string; href?: string }) {
     return (
-        <Button component={Link} href={href} variant="outlined" color="inherit" {...props}>
+        <LinkButton href={href} variant="outlined" color="inherit" {...props}>
             {label}
-        </Button>
+        </LinkButton>
     );
 }
 

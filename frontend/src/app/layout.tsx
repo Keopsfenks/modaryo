@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import InitColorSchemeScript from "@mui/material/InitColorSchemeScript";
 import { AppRouterCacheProvider } from "@mui/material-nextjs/v16-appRouter";
 import ThemeRegistry from "@/theme/ThemeRegistry";
+import { siteUrl } from "@/content/site/seo";
 
 // latin-ext: Türkçe karakterler (ş, ğ, ı, İ) için gerekli
 const jakarta = Plus_Jakarta_Sans({
@@ -12,6 +13,8 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+    // Göreli og:image/canonical adreslerinin mutlak hale gelmesi için; üretimde NEXT_PUBLIC_SITE_URL verilmelidir.
+    metadataBase: new URL(siteUrl()),
     title: {
         default: "Modaryo ERP",
         template: "%s | Modaryo ERP",
