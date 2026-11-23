@@ -7,9 +7,18 @@ Kendi kendine üye olunan, çok kiracılı (SaaS) bir ERP. Mikroservis mimarisin
 | `services/identity` | Kimlik ve firma servisi (.NET) — kayıt, giriş, oturum, firma, rol, davet |
 | `services/erp` | ERP iş servisi (.NET) — cari hesaplar (müşteri/tedarikçi, hareketler, ekstre, vade takibi) |
 | `libs/dotnet/Modaryo.Sessions` | .NET servislerinin ortak oturum okuma / CSRF / izin kodu |
+| `libs/go/modaryo` | Go servislerinin ortak kütüphanesi (`go.work` ile bağlı) |
 | `frontend` | Next.js arayüzü |
 | `infra` | Yerel altyapı (Docker Compose) |
 | `docs` | Tasarım, plan ve sözleşme belgeleri |
+
+## Gereksinimler
+
+- .NET SDK 10
+- Node.js (frontend için)
+- Docker (WSL içinde)
+- Go 1.27.4 (`go.work`: `go 1.27`, `toolchain go1.27.4`) ve staticcheck v0.8.2:
+  `go install honnef.co/go/tools/cmd/staticcheck@v0.8.2`
 
 ## Altyapı
 
@@ -65,6 +74,7 @@ infra/up.sh
 dotnet test libs/dotnet/Modaryo.Libs.slnx
 dotnet test services/identity/IdentityService.slnx
 dotnet test services/erp/ERP.slnx
+bash scripts/go-check.sh   # gofmt, go vet, staticcheck, go test
 ```
 
 Testler compose'daki PostgreSQL'de geçici veritabanları açıp sonunda siler; Valkey'de 1–3 numaralı veritabanlarını kullanır.

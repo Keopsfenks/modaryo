@@ -112,3 +112,18 @@ resharper_web_config_wrong_module_highlighting = warning
 indent_style = space
 indent_size = 4
 tab_width = 4
+
+[*.go]
+indent_style = tab
+end_of_line = lf
+charset = utf-8
+
+[{go.mod,go.sum,go.work,go.work.sum}]
+end_of_line = lf
+charset = utf-8
+
+[*.sh]
+end_of_line = lf
+charset = utf-8
+indent_style = space
+indent_size = 2

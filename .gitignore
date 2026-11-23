@@ -35,3 +35,7 @@ Thumbs.db
 !README.md
 docs
 .claude
+
+# Go
+/services/*/bin/
+*.test
