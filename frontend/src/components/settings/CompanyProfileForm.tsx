@@ -62,6 +62,7 @@ export default function CompanyProfileForm({ fields, submitLabel, onSaved }: Com
     const [errors, setErrors] = useState<Errors>({});
     const [saved, setSaved] = useState(false);
     const value = form.value;
+    const shown: Errors = { ...form.fieldErrors, ...errors };
 
     const set = (patch: Partial<CompanyProfileSettings>) => form.setValue({ ...value!, ...patch });
     const setIban = (i: number, patch: Partial<IbanEntry>) =>
@@ -96,8 +97,8 @@ export default function CompanyProfileForm({ fields, submitLabel, onSaved }: Com
                                     multiline={f.multiline}
                                     value={value[f.key] ?? ""}
                                     onChange={(e) => set({ [f.key]: e.target.value })}
-                                    error={!!errors[f.key]}
-                                    helperText={errors[f.key]}
+                                    error={!!shown[f.key]}
+                                    helperText={shown[f.key]}
                                 />
                             </Grid>
                         ))}
@@ -114,8 +115,8 @@ export default function CompanyProfileForm({ fields, submitLabel, onSaved }: Com
                                             label="Banka adı"
                                             value={row.bankName}
                                             onChange={(e) => setIban(i, { bankName: e.target.value })}
-                                            error={!!errors[`ibans.${i}.bankName`]}
-                                            helperText={errors[`ibans.${i}.bankName`]}
+                                            error={!!shown[`ibans.${i}.bankName`]}
+                                            helperText={shown[`ibans.${i}.bankName`]}
                                         />
                                     </Grid>
                                     <Grid size={{ xs: 12, md: 5 }}>
@@ -124,8 +125,8 @@ export default function CompanyProfileForm({ fields, submitLabel, onSaved }: Com
                                             label="IBAN"
                                             value={row.iban}
                                             onChange={(e) => setIban(i, { iban: e.target.value })}
-                                            error={!!errors[`ibans.${i}.iban`]}
-                                            helperText={errors[`ibans.${i}.iban`]}
+                                            error={!!shown[`ibans.${i}.iban`]}
+                                            helperText={shown[`ibans.${i}.iban`]}
                                         />
                                     </Grid>
                                     <Grid size={{ xs: 6, md: 2 }}>

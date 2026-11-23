@@ -176,7 +176,7 @@ export default function AccountList({ role, title }: AccountListProps) {
                             page={page}
                             rowsPerPage={pageSize}
                             rowsPerPageOptions={[25, 50, 100]}
-                            labelRowsPerPage="Sayfa başına"
+                            labelRowsPerPage="Sayfa başına:"
                             labelDisplayedRows={({ from, to, count }) => `${from}–${to} / ${count}`}
                             onPageChange={(_, next) => setPage(next)}
                             onRowsPerPageChange={(e) => {

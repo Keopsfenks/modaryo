@@ -66,4 +66,21 @@ describe("useSettingsForm", () => {
         expect(result.current.value).toEqual({ periodLockDate: "2026-03-31" });
         expect(result.current.version).toBe(3);
     });
+
+    it("SettingsForm_ValidationError_ExposesNormalizedFieldErrors", async () => {
+        server.use(
+            getHandler(3, { periodLockDate: null }),
+            http.put("*/api/erp/settings/finans", () =>
+                HttpResponse.json(problem(400, "Doğrulama", "validation_failed", { Email: ["E-posta geçersiz."], "Ibans[0].Iban": ["IBAN hatalı."] }), { status: 400 }),
+            ),
+        );
+        const { result } = renderHook(() => useSettingsForm<Value>("finans"));
+        await waitFor(() => expect(result.current.loading).toBe(false));
+
+        await act(async () => {
+            await result.current.save();
+        });
+
+        expect(result.current.fieldErrors).toEqual({ email: "E-posta geçersiz.", "ibans.0.iban": "IBAN hatalı." });
+    });
 });

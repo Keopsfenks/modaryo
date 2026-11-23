@@ -50,7 +50,8 @@ export default function FinanceSettingsForm() {
                 <TextField
                     type="date"
                     label="Dönem kilit tarihi"
-                    helperText="Bu tarih ve öncesine kayıt, iptal ve maliyet yeniden hesabı yapılamaz."
+                    error={!!form.fieldErrors.periodLockDate}
+                    helperText={form.fieldErrors.periodLockDate ?? "Bu tarih ve öncesine kayıt, iptal ve maliyet yeniden hesabı yapılamaz."}
                     value={value.periodLockDate ?? ""}
                     onChange={(e) => form.setValue({ periodLockDate: e.target.value || null })}
                     slotProps={{ inputLabel: { shrink: true } }}

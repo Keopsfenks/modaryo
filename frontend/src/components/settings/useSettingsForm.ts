@@ -5,6 +5,20 @@ import { ApiError } from "@/lib/api/client";
 import { erp } from "@/lib/api/erp";
 import { errorMessage } from "@/lib/api/errorMessages";
 
+/** Sunucu anahtarlarını form alan adlarına çevirir: PascalCase -> camelCase, "ibans[0].iban" -> "ibans.0.iban". */
+export function normalizeFieldErrors(errors: Record<string, string>): Record<string, string> {
+    return Object.fromEntries(
+        Object.entries(errors).map(([key, message]) => [
+            key
+                .replace(/\[(\d+)\]/g, ".$1")
+                .split(".")
+                .map((part) => part.charAt(0).toLowerCase() + part.slice(1))
+                .join("."),
+            message,
+        ]),
+    );
+}
+
 /** Bir ayar kategorisini yükler, düzenletir ve sürümüyle (iyimser kilit) kaydeder. 409'da girilen değer korunur. */
 export function useSettingsForm<T>(category: string) {
     const [value, setValue] = useState<T | null>(null);
@@ -13,6 +27,7 @@ export function useSettingsForm<T>(category: string) {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [conflict, setConflict] = useState(false);
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
     const reload = useCallback(async () => {
         setLoading(true);
@@ -58,6 +73,7 @@ export function useSettingsForm<T>(category: string) {
         setSaving(true);
         setError(null);
         setConflict(false);
+        setFieldErrors({});
         try {
             const dto = await erp.settings.put<T>(category, version, value);
             setValue(dto.value);
@@ -65,6 +81,7 @@ export function useSettingsForm<T>(category: string) {
             return true;
         } catch (e) {
             setError(errorMessage(e));
+            setFieldErrors(e instanceof ApiError ? normalizeFieldErrors(e.fieldErrors) : {});
             setConflict(e instanceof ApiError && e.code === "version_conflict");
             return false;
         } finally {
@@ -72,5 +89,5 @@ export function useSettingsForm<T>(category: string) {
         }
     }, [category, value, version]);
 
-    return { value, version, loading, saving, error, conflict, setValue, save, reload };
+    return { value, version, loading, saving, error, conflict, fieldErrors, setValue, save, reload };
 }

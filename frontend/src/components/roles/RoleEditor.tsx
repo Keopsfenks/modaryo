@@ -53,6 +53,11 @@ export default function RoleEditor({ roleId }: { roleId?: string }) {
     const [role, setRole] = useState<RoleDto | null>(null);
     const [form, setForm] = useState<FormState | null>(null);
     const [initial, setInitial] = useState("");
+    const [dropped, setDropped] = useState(false);
+    const hasPermissionRef = useRef(hasPermission);
+    useEffect(() => {
+        hasPermissionRef.current = hasPermission;
+    });
     const [loadError, setLoadError] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [nameError, setNameError] = useState<string | null>(null);
@@ -71,7 +76,17 @@ export default function RoleEditor({ roleId }: { roleId?: string }) {
             sourceId ? identity.roles.get(sourceId) : Promise.resolve(null),
         ]).then(
             ([catalog, branchList, source]) => {
-                const next = source ? fromRole(source, roleId ? source.name : `${source.name} (kopya)`) : EMPTY;
+                let next = source ? fromRole(source, roleId ? source.name : `${source.name} (kopya)`) : EMPTY;
+                let droppedAny = false;
+                if (source && !roleId) {
+                    // Kopyada "*" katalog kodlarına açılır; sunucu oluşturmada her izni çağıranda arar.
+                    const catalogCodes = catalog.flatMap((g) => g.permissions.map((p) => p.code));
+                    const wanted = source.permissions.includes("*") ? catalogCodes : source.permissions;
+                    const kept = wanted.filter((c) => hasPermissionRef.current(c));
+                    droppedAny = kept.length < wanted.length;
+                    next = { ...next, permissions: [...kept].sort() };
+                }
+                setDropped(droppedAny);
                 setGroups(catalog);
                 setBranches(branchList);
                 setRole(roleId ? source : null);
@@ -175,6 +190,7 @@ export default function RoleEditor({ roleId }: { roleId?: string }) {
     return (
         <Stack spacing={3}>
             {locked && <Alert severity="info">{OWNER_MESSAGE}</Alert>}
+            {dropped && <Alert severity="info">Sahip olmadığınız izinler kopyaya alınmadı.</Alert>}
             {error && <Alert severity="error">{error}</Alert>}
 
             <TextField

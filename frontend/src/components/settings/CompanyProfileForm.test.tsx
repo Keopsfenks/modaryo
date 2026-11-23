@@ -42,6 +42,20 @@ describe("CompanyProfileForm", () => {
         expect(put).toBe(false);
     });
 
+    it("CompanyProfile_ServerFieldError_ShownOnField", async () => {
+        server.use(
+            http.get("*/api/erp/settings/firma", () => HttpResponse.json({ version: 1, value: profile() })),
+            http.put("*/api/erp/settings/firma", () =>
+                HttpResponse.json({ status: 400, title: "x", code: "validation_failed", errors: { Email: ["E-posta adresi geçerli değil."] } }, { status: 400 }),
+            ),
+        );
+        const { user } = renderWithTheme(<CompanyProfileForm />);
+
+        await user.click(await screen.findByRole("button", { name: "Kaydet" }));
+
+        expect(await screen.findByText("E-posta adresi geçerli değil.")).toBeInTheDocument();
+    });
+
     it("CompanyProfile_LogoUpload_SetsLogoFileId", async () => {
         let body: { value: { logoFileId: string | null } } | undefined;
         let kind: string | null = null;

@@ -121,6 +121,45 @@ describe("RoleEditor", () => {
         expect(screen.getByRole("checkbox", { name: /Cari görüntüle/ })).toBeChecked();
     });
 
+    it("RoleEditor_CopyOwner_ExpandsStarAndDropsUngrantable", async () => {
+        resetNavigation("/ayarlar/roller/yeni", "kopya=r-1");
+        setup(<RoleEditor />, ["roller.read", "roller.manage", "cari.read"], role({ name: "Sahip", permissions: ["*"] }));
+
+        expect(await screen.findByText("Sahip olmadığınız izinler kopyaya alınmadı.")).toBeInTheDocument();
+        expect(screen.getByRole("checkbox", { name: /Cari görüntüle/ })).toBeChecked();
+        expect(screen.getByRole("checkbox", { name: /Cari düzenle/ })).not.toBeChecked();
+    });
+
+    it("RoleEditor_CopyOwnerAsOwner_ExpandsStarWithoutAlert", async () => {
+        resetNavigation("/ayarlar/roller/yeni", "kopya=r-1");
+        let body: { permissions: string[] } | undefined;
+        server.use(
+            http.post(ROLES, async ({ request }) => {
+                body = (await request.json()) as { permissions: string[] };
+                return HttpResponse.json(role());
+            }),
+        );
+        const { user } = setup(<RoleEditor />, ["*"], role({ name: "Sahip", permissions: ["*"] }));
+
+        await waitFor(() => expect(screen.getByRole("checkbox", { name: /Cari düzenle/ })).toBeChecked());
+        expect(screen.queryByText("Sahip olmadığınız izinler kopyaya alınmadı.")).not.toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Kaydet" }));
+        await waitFor(() => expect(body).toBeDefined());
+        expect(body!.permissions).toEqual(["cari.read", "cari.write"]);
+    });
+
+    it("RoleEditor_EditKeepsUngrantableChecked_CanUncheck", async () => {
+        const { user } = setup(<RoleEditor roleId="r-1" />, ["roller.read", "roller.manage"], role({ permissions: ["cari.read"] }));
+
+        const box = await screen.findByRole("checkbox", { name: /Cari görüntüle/ });
+        expect(box).toBeChecked();
+        expect(box).toBeEnabled();
+        await user.click(box);
+        const after = screen.getByRole("checkbox", { name: /Cari görüntüle/ });
+        expect(after).not.toBeChecked();
+        expect(after).toBeDisabled();
+    });
+
     it("RoleEditor_ResetSystemRole_AsksConfirm", async () => {
         let reset = false;
         server.use(

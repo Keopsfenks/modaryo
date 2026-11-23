@@ -38,6 +38,8 @@ export default function GeneralSettingsForm() {
     const [saved, setSaved] = useState(false);
     const [newHoliday, setNewHoliday] = useState("");
     const [validation, setValidation] = useState<string | null>(null);
+    const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
+    const shown: Record<string, string> = { ...form.fieldErrors, ...clientErrors };
     const value = form.value;
 
     const set = (patch: Partial<GeneralSettings>) => form.setValue({ ...value!, ...patch });
@@ -45,11 +47,24 @@ export default function GeneralSettingsForm() {
 
     const submit = async () => {
         setSaved(false);
+        const found: Record<string, string> = {};
+        const q = value!.quantityDecimals;
+        const u = value!.unitPriceDecimals;
+        if (!Number.isInteger(q) || q < 0 || q > 4) {
+            found.quantityDecimals = "Miktar ondalık basamağı 0 ile 4 arasında olmalıdır.";
+        }
+        if (!Number.isInteger(u) || u < 2 || u > 6) {
+            found.unitPriceDecimals = "Birim fiyat ondalık basamağı 2 ile 6 arasında olmalıdır.";
+        }
+        setClientErrors(found);
         if (value!.workDays.length === 0) {
             setValidation("En az bir çalışma günü seçilmelidir.");
             return;
         }
         setValidation(null);
+        if (Object.keys(found).length > 0) {
+            return;
+        }
         setSaved(await form.save());
     };
 
@@ -66,7 +81,7 @@ export default function GeneralSettingsForm() {
                 <>
                     <Grid container spacing={2}>
                         <Grid size={{ xs: 12, md: 4 }}>
-                            <TextField select fullWidth label="Varsayılan para birimi" value={value.defaultCurrency} onChange={(e) => set({ defaultCurrency: e.target.value as GeneralSettings["defaultCurrency"] })}>
+                            <TextField select fullWidth label="Varsayılan para birimi" value={value.defaultCurrency} error={!!shown.defaultCurrency} helperText={shown.defaultCurrency} onChange={(e) => set({ defaultCurrency: e.target.value as GeneralSettings["defaultCurrency"] })}>
                                 {CURRENCIES.map((c) => (
                                     <MenuItem key={c} value={c}>
                                         {c}
@@ -75,7 +90,7 @@ export default function GeneralSettingsForm() {
                             </TextField>
                         </Grid>
                         <Grid size={{ xs: 12, md: 4 }}>
-                            <TextField select fullWidth label="Tarih biçimi" value={value.dateFormat} onChange={(e) => set({ dateFormat: e.target.value as DateFormat })}>
+                            <TextField select fullWidth label="Tarih biçimi" value={value.dateFormat} error={!!shown.dateFormat} helperText={shown.dateFormat} onChange={(e) => set({ dateFormat: e.target.value as DateFormat })}>
                                 {DATE_FORMATS.map((f) => (
                                     <MenuItem key={f.key} value={f.key}>
                                         {f.label}
@@ -84,7 +99,7 @@ export default function GeneralSettingsForm() {
                             </TextField>
                         </Grid>
                         <Grid size={{ xs: 12, md: 4 }}>
-                            <TextField select fullWidth label="Haftanın ilk günü" value={value.weekStart} onChange={(e) => set({ weekStart: e.target.value as WeekDay })}>
+                            <TextField select fullWidth label="Haftanın ilk günü" value={value.weekStart} error={!!shown.weekStart} helperText={shown.weekStart} onChange={(e) => set({ weekStart: e.target.value as WeekDay })}>
                                 {DAYS.map((d) => (
                                     <MenuItem key={d.key} value={d.key}>
                                         {d.label}
@@ -97,7 +112,8 @@ export default function GeneralSettingsForm() {
                                 fullWidth
                                 type="number"
                                 label="Miktar ondalık basamağı"
-                                helperText="0 ile 4 arasında"
+                                error={!!shown.quantityDecimals}
+                                helperText={shown.quantityDecimals ?? "0 ile 4 arasında"}
                                 value={value.quantityDecimals}
                                 onChange={(e) => set({ quantityDecimals: num(e.target.value) })}
                                 slotProps={{ htmlInput: { min: 0, max: 4 } }}
@@ -108,7 +124,8 @@ export default function GeneralSettingsForm() {
                                 fullWidth
                                 type="number"
                                 label="Birim fiyat ondalık basamağı"
-                                helperText="2 ile 6 arasında"
+                                error={!!shown.unitPriceDecimals}
+                                helperText={shown.unitPriceDecimals ?? "2 ile 6 arasında"}
                                 value={value.unitPriceDecimals}
                                 onChange={(e) => set({ unitPriceDecimals: num(e.target.value) })}
                                 slotProps={{ htmlInput: { min: 2, max: 6 } }}

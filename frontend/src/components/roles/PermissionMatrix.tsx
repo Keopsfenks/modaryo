@@ -62,7 +62,8 @@ export default function PermissionMatrix({ groups, selected, grantable, onChange
                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } }}>
                         {group.permissions.map((p) => {
                             const allowed = grantable(p.code);
-                            const disabled = readOnly || !allowed;
+                            // Verilemeyen ama zaten işaretli izin kaldırılabilir; sunucu yalnızca yeni eklenenleri denetler.
+                            const disabled = readOnly || (!allowed && !selected.has(p.code));
                             const control = (
                                 <FormControlLabel
                                     control={
@@ -76,7 +77,7 @@ export default function PermissionMatrix({ groups, selected, grantable, onChange
                                     label={p.name}
                                 />
                             );
-                            return !readOnly && !allowed ? (
+                            return !readOnly && !allowed && !selected.has(p.code) ? (
                                 <Tooltip key={p.code} title={NOT_GRANTABLE_HINT}>
                                     <span>{control}</span>
                                 </Tooltip>

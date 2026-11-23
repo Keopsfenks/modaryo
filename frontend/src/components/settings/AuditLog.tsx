@@ -199,6 +199,8 @@ function AuditTable({ source }: { source: Source }) {
                 page={page}
                 rowsPerPage={PAGE_SIZE}
                 rowsPerPageOptions={[PAGE_SIZE]}
+                labelRowsPerPage="Sayfa başına:"
+                labelDisplayedRows={({ from, to, count }) => `${from}–${to} / ${count}`}
                 onPageChange={(_, p) => setPage(p)}
             />
         </>
