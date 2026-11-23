@@ -5,6 +5,7 @@ package csrf
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/keopsfenks/modaryo/libs/go/modaryo/problem"
 )
@@ -31,10 +32,12 @@ func Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// isSafe compares case-insensitively, like .NET HttpMethods.IsGet/IsHead/IsOptions/IsTrace.
 func isSafe(method string) bool {
-	switch method {
-	case http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodTrace:
-		return true
+	for _, m := range [...]string{http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodTrace} {
+		if strings.EqualFold(method, m) {
+			return true
+		}
 	}
 	return false
 }

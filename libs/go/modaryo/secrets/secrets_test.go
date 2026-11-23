@@ -3,7 +3,9 @@ package secrets
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -215,4 +217,44 @@ func TestSecrets_Redaction(t *testing.T) {
 			assert.NotContains(t, strings.ToLower(out), "abababab", f)
 		}
 	}
+}
+
+func TestSecrets_KeyJSONAndSlogAreRedacted(t *testing.T) {
+	secret := bytes.Repeat([]byte{0xAB}, 32)
+	k := Key{ID: "k1", Secret: secret}
+	b64 := base64.StdEncoding.EncodeToString(secret)
+	leaks := func(t *testing.T, out string) {
+		t.Helper()
+		assert.NotContains(t, out, b64)
+		assert.NotContains(t, out, b64[:16])
+		assert.NotContains(t, out, "171")
+		assert.NotContains(t, strings.ToLower(out), "abababab")
+		assert.Contains(t, out, redacted)
+	}
+
+	for name, v := range map[string]any{
+		"value":   k,
+		"pointer": &k,
+		"nested":  struct{ K Key }{k},
+		"slice":   []Key{k},
+	} {
+		t.Run("json_"+name, func(t *testing.T) {
+			out, err := json.Marshal(v)
+			require.NoError(t, err)
+			leaks(t, string(out))
+		})
+	}
+
+	t.Run("slog_json", func(t *testing.T) {
+		var buf bytes.Buffer
+		l := slog.New(slog.NewJSONHandler(&buf, nil))
+		l.Info("key", "key", k, "ptr", &k)
+		l.Info("any", slog.Any("key", k))
+		leaks(t, buf.String())
+	})
+	t.Run("slog_text", func(t *testing.T) {
+		var buf bytes.Buffer
+		slog.New(slog.NewTextHandler(&buf, nil)).Info("key", "key", k)
+		leaks(t, buf.String())
+	})
 }

@@ -1,0 +1,7 @@
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+  "title": "Kimlik doğrulanamadı.",
+  "status": 401,
+  "detail": "İç API isteği doğrulanamadı.",
+  "code": "internal_unauthorized"
+}

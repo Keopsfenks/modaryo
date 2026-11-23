@@ -51,3 +51,11 @@ func TestCsrf_BodyMatchesDotnetFixture(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, string(raw), serve(http.MethodPost, "").Body.String())
 }
+
+// .NET HttpMethods.IsGet etc. compare case-insensitively; so does the Go middleware.
+func TestCsrf_SafeMethodsCaseInsensitive(t *testing.T) {
+	for _, m := range []string{"get", "Head", "options", "trace"} {
+		assert.Equal(t, http.StatusNoContent, serve(m, "").Code, m)
+	}
+	assert.Equal(t, http.StatusForbidden, serve("post", "").Code)
+}

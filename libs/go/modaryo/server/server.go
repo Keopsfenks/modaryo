@@ -3,6 +3,12 @@
 // /health/live and /health/ready are mounted in front of the application handler, so they
 // bypass its middleware (including request logging). The handler is mounted on an
 // http.ServeMux, so ServeMux path cleaning (redirects for "//" and "..") applies to it.
+//
+// Create the signal context once in main (signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM))
+// and pass that same context to Run and to background workers such as streams.Consumer.Run, so one
+// signal stops all of them. Run also listens for SIGINT/SIGTERM itself, but a consumer started on a
+// different context would keep running. See the root package doc (package modaryo) for the full
+// service wiring.
 package server
 
 import (

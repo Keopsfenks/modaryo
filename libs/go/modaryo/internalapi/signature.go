@@ -3,7 +3,13 @@
 // byte- and behaviour-compatible with libs/dotnet/Modaryo.Internal; see contracts/README.md.
 //
 // Middleware must be mounted at the router root, not below a stripped prefix: it signs and
-// checks the raw request target, and rejects non-canonical "/internal" paths.
+// checks the raw request target, and rejects non-canonical "/internal" paths. Route requests with
+// IsInternalPath; the wiring of a whole service is shown in the root package doc (package modaryo).
+//
+// Idempotency records are never deleted by the middleware once stored. A service using
+// PostgresStore must schedule PostgresStore.Purge itself, for example once a day with
+// time.Now().Add(-IdempotencyRetention) to delete records older than 7 days (the .NET services
+// do the same).
 package internalapi
 
 import (

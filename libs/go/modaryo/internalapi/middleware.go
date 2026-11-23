@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"path"
 	"strconv"
@@ -75,8 +76,8 @@ func CallerFromContext(ctx context.Context) (string, bool) {
 
 // Middleware verifies "/internal/*" requests like the .NET InternalAuthMiddleware: body-free
 // pre-checks, bounded body read, HMAC signature, route allow-list, tenant header and, for
-// writes, idempotency. Requests outside "/internal" pass through untouched. On success the
-// context carries the caller (CallerFromContext) and the tenant (tenant.FromContext).
+// writes, idempotency. Requests for which IsInternalPath is false pass through untouched. On
+// success the context carries the caller (CallerFromContext) and the tenant (tenant.FromContext).
 func Middleware(opts Options) func(http.Handler) http.Handler {
 	if opts.MaxSkew <= 0 {
 		opts.MaxSkew = 300 * time.Second
@@ -97,11 +98,11 @@ func Middleware(opts Options) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			p := r.URL.Path
-			clean := path.Clean(p)
-			if !isInternalPath(clean) && !isInternalPath(p) {
+			if !IsInternalPath(p) {
 				next.ServeHTTP(w, r)
 				return
 			}
+			clean := path.Clean(p)
 			// "/internal/ping/" is fine; any other non-canonical spelling is rejected before anything else.
 			canon := p
 			if len(canon) > 1 && strings.HasSuffix(canon, "/") {
@@ -115,6 +116,9 @@ func Middleware(opts Options) func(http.Handler) http.Handler {
 		})
 	}
 }
+
+// settleTimeout bounds each idempotency Complete/Release call (a variable so tests can shorten it).
+var settleTimeout = 5 * time.Second
 
 type verifier struct{ opts Options }
 
@@ -246,13 +250,15 @@ func (v *verifier) runIdempotent(w http.ResponseWriter, r *http.Request, next ht
 		return
 	}
 
-	// Reserved. Once the handler returned < 500 the operation may have been applied: the
-	// record is then never released. 5xx and panics release it so a retry can run.
-	bg := context.WithoutCancel(ctx)
+	// Reserved. Once the handler returned a stored outcome (see keepRecord) the operation may
+	// have been applied: the record is then never released. 5xx, problem+json 4xx and panics
+	// release it so a retry with the same key runs again.
 	handled := false
 	defer func() {
 		if !handled {
-			if err := store.Release(bg, caller, key, res.Owner); err != nil {
+			sctx, cancel := settleContext(ctx)
+			defer cancel()
+			if err := store.Release(sctx, caller, key, res.Owner); err != nil {
 				v.opts.Logger.Warn("internal api idempotency release failed", "caller", caller, "key", key, "error", err)
 			}
 		}
@@ -261,14 +267,40 @@ func (v *verifier) runIdempotent(w http.ResponseWriter, r *http.Request, next ht
 	rec := &bufferedWriter{ResponseWriter: w, status: http.StatusOK}
 	next.ServeHTTP(rec, r)
 
-	if rec.status < 500 {
+	if keepRecord(rec.status, w.Header()) {
 		handled = true
-		if err := store.Complete(bg, caller, key, res.Owner, rec.status, rec.buf.Bytes()); err != nil {
+		sctx, cancel := settleContext(ctx)
+		err := store.Complete(sctx, caller, key, res.Owner, rec.status, rec.buf.Bytes())
+		cancel()
+		if err != nil {
 			// The record stays pending and can be taken over after the timeout; the response still goes out.
 			v.opts.Logger.Warn("internal api idempotency complete failed", "caller", caller, "key", key, "error", err)
 		}
 	}
 	rec.flush()
+}
+
+// settleContext is used for Complete/Release: it survives a cancelled request (the outcome must
+// still be recorded) but is bounded so a hung store cannot hold the response.
+func settleContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), settleTimeout)
+}
+
+// keepRecord reports whether a handler response is stored for replay. Like ERP, where business,
+// validation, not-found and authorization errors are exceptions that release the key, a 4xx
+// "application/problem+json" response is an error outcome and is released, so a corrected retry
+// with the same key runs again. 5xx is released too. Every other status < 500 (2xx, 3xx and 4xx
+// with another content type) is stored.
+func keepRecord(status int, h http.Header) bool {
+	if status >= 500 {
+		return false
+	}
+	if status >= 400 {
+		if mt, _, err := mime.ParseMediaType(h.Get("Content-Type")); err == nil && strings.EqualFold(mt, "application/problem+json") {
+			return false
+		}
+	}
+	return true
 }
 
 // bufferedWriter holds status and body until the idempotency record is settled; headers go
@@ -314,10 +346,18 @@ func routeAllowed(c Caller, path string) bool {
 	return false
 }
 
-func isInternalPath(path string) bool {
-	const p = "/internal"
-	return strings.EqualFold(path, p) ||
-		(len(path) > len(p) && path[len(p)] == '/' && strings.EqualFold(path[:len(p)], p))
+// IsInternalPath reports whether Middleware treats p (r.URL.Path) as an internal API path:
+// "/internal" or below it, case-insensitive, in its raw or its path.Clean form. Routers use it to
+// send these requests to the internal branch (Middleware + internal router) and everything else to
+// the public chain (csrf, session, tenant), like ERP's UseWhen(!InternalAuthMiddleware.IsInternalPath).
+func IsInternalPath(p string) bool {
+	return underInternal(p) || underInternal(path.Clean(p))
+}
+
+func underInternal(p string) bool {
+	const prefix = "/internal"
+	return strings.EqualFold(p, prefix) ||
+		(len(p) > len(prefix) && p[len(prefix)] == '/' && strings.EqualFold(p[:len(prefix)], prefix))
 }
 
 func isPing(path string) bool { return strings.EqualFold(strings.TrimRight(path, "/"), PingPath) }
@@ -361,9 +401,10 @@ func bodyTooLarge(w http.ResponseWriter) {
 		"İç API istek gövdesi izin verilen boyutu aşıyor.")
 }
 
-// writeProblem uses the same titles and details as the .NET middleware.
+// writeProblem uses the same titles, details and types as the .NET middleware (TypedResults.Problem).
 func writeProblem(w http.ResponseWriter, status int, code, title, detail string) {
 	d := problem.App(status, code, title)
+	d.Type = problem.TypeFor(status)
 	d.Detail = detail
 	problem.Write(w, d)
 }

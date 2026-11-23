@@ -74,3 +74,22 @@ func TestError_ImplementsError(t *testing.T) {
 	assert.Equal(t, "idempotency_conflict", pe.Code)
 	assert.Equal(t, "409 idempotency_conflict: Çakışma.", err.Error())
 }
+
+func TestTypeFor_MatchesDotnetDefaults(t *testing.T) {
+	const base = "https://tools.ietf.org/html/rfc9110#section-"
+	cases := map[int]string{
+		400: base + "15.5.1", 401: base + "15.5.2", 403: base + "15.5.4", 404: base + "15.5.5",
+		405: base + "15.5.6", 409: base + "15.5.10", 413: base + "15.5.14",
+		500: base + "15.6.1", 503: base + "15.6.4",
+		422: "https://tools.ietf.org/html/rfc4918#section-11.2",
+		200: "", 302: "", 402: "", 999: "",
+	}
+	for status, want := range cases {
+		assert.Equal(t, want, problem.TypeFor(status), status)
+	}
+	// The named constructors use the same URIs.
+	assert.Equal(t, problem.TypeFor(400), problem.Validation(nil).Type)
+	assert.Equal(t, problem.TypeFor(401), problem.Unauthorized().Type)
+	assert.Equal(t, problem.TypeFor(403), problem.Forbidden().Type)
+	assert.Equal(t, problem.TypeFor(404), problem.NotFound("").Type)
+}

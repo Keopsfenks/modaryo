@@ -722,3 +722,58 @@ func TestShutdown_FailedHandlerIsNotDeadLettered(t *testing.T) {
 	assert.Empty(t, dlq(t, rdb, stream))
 	assert.EqualValues(t, 1, pendingCount(t, rdb, stream, "g"))
 }
+
+// While one handler of a batch runs long, the heartbeat must keep the idle time of the batch's
+// later entries fresh too, otherwise another consumer's XAUTOCLAIM could take them meanwhile.
+func TestHeartbeat_RefreshesRemainingEntriesOfBatch(t *testing.T) {
+	rdb := testRedis(t)
+	stream := newStream(t, rdb)
+	const total = 3
+	for i := 0; i < total; i++ {
+		require.NoError(t, streams.Produce(context.Background(), rdb, stream, envelope(testType, `{}`)))
+	}
+	opts := fastOpts()
+	opts.ClaimIdle = 300 * time.Millisecond
+	opts.Count = total
+
+	var mu sync.Mutex
+	var maxIdle time.Duration
+	var pendingSeen int
+	first := true
+	c := streams.NewConsumer(rdb, stream, "g", "c1", opts)
+	c.Handle(testType, func(ctx context.Context, e streams.Envelope) error {
+		mu.Lock()
+		isFirst := first
+		first = false
+		mu.Unlock()
+		if !isFirst {
+			return nil
+		}
+		time.Sleep(4 * opts.ClaimIdle) // well past ClaimIdle
+		ext, err := rdb.XPendingExt(context.Background(), &redis.XPendingExtArgs{
+			Stream: stream, Group: "g", Consumer: "c1", Start: "-", End: "+", Count: 100,
+		}).Result()
+		if err != nil {
+			return err
+		}
+		mu.Lock()
+		pendingSeen = len(ext)
+		for _, p := range ext {
+			maxIdle = max(maxIdle, p.Idle)
+		}
+		mu.Unlock()
+		return nil
+	})
+	start(t, c)
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		started := !first
+		mu.Unlock()
+		return started && pendingCount(t, rdb, stream, "g") == 0
+	}, 10*time.Second, 50*time.Millisecond)
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, total, pendingSeen, "the whole batch is pending while the first handler runs")
+	assert.Less(t, maxIdle, opts.ClaimIdle, "idle time of every remaining entry stays below ClaimIdle")
+}

@@ -1,9 +1,12 @@
 package session_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,6 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/keopsfenks/modaryo/libs/go/modaryo/logx"
 	"github.com/keopsfenks/modaryo/libs/go/modaryo/session"
 )
 
@@ -336,7 +340,37 @@ func TestMiddleware_ValkeyDown_503(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{Addr: "127.0.0.1:1", DialTimeout: 200 * time.Millisecond, MaxRetries: -1})
 	t.Cleanup(func() { _ = rdb.Close() })
 	h := session.Middleware(session.NewReader(rdb, fixedClock(fixtureNow)), session.Options{})(okHandler(new(bool)))
-	assert.Equal(t, http.StatusServiceUnavailable, do(h, "abc").Code)
+	rr := do(h, "abc")
+	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+	assert.JSONEq(t, `{"type":"https://tools.ietf.org/html/rfc9110#section-15.6.4","title":"Oturum servisine şu anda ulaşılamıyor.","status":503,"code":"session_store_unavailable"}`, rr.Body.String())
+}
+
+func TestMiddleware_TenantInAccessLog(t *testing.T) {
+	rdb := testRedis(t)
+	sid := newSid(t)
+	seed(t, rdb, sid, fixture(t, "session-v1-legacy.json")) // employee with tenant 0193a6f3-...
+	var buf bytes.Buffer
+	l := slog.New(slog.NewJSONHandler(&buf, nil))
+	h := logx.RequestMiddleware(l)(
+		session.Middleware(session.NewReader(rdb, fixedClock(fixtureNow)), session.Options{})(okHandler(new(bool))))
+
+	assert.Equal(t, http.StatusOK, do(h, sid).Code)
+	var line map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &line), buf.String())
+	assert.Equal(t, "0193a6f3-0a42-7c11-8e2b-6d9f4a3c5b21", line["tenant_id"])
+}
+
+func TestMiddleware_RejectedSession_NoTenantInAccessLog(t *testing.T) {
+	rdb := testRedis(t)
+	sid := newSid(t)
+	seed(t, rdb, sid, fixture(t, "session-v1-full.json")) // dealer: rejected by default
+	var buf bytes.Buffer
+	l := slog.New(slog.NewJSONHandler(&buf, nil))
+	h := logx.RequestMiddleware(l)(
+		session.Middleware(session.NewReader(rdb, fixedClock(fixtureNow)), session.Options{})(okHandler(new(bool))))
+
+	assert.Equal(t, http.StatusUnauthorized, do(h, sid).Code)
+	assert.NotContains(t, buf.String(), "tenant_id")
 }
 
 // --- RequirePermission / RequireModule ---

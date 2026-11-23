@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/keopsfenks/modaryo/libs/go/modaryo/logx"
 	"github.com/keopsfenks/modaryo/libs/go/modaryo/problem"
 )
 
@@ -18,7 +19,8 @@ type Options struct {
 }
 
 // Middleware reads the "modaryo_sid" cookie and stores the *Record in the context.
-// An invalid session yields 401; a Valkey failure yields 503.
+// An invalid session yields 401; a Valkey failure yields 503. An accepted record with an active
+// company also records the tenant for the access log (logx.SetTenant).
 func Middleware(r *Reader, opts Options) func(http.Handler) http.Handler {
 	allowed := opts.AllowedUserTypes
 	if len(allowed) == 0 {
@@ -45,13 +47,19 @@ func Middleware(r *Reader, opts Options) func(http.Handler) http.Handler {
 				reject()
 				return
 			case err != nil:
-				problem.Write(w, problem.App(http.StatusServiceUnavailable, "session_store_unavailable",
-					"Oturum servisine şu anda ulaşılamıyor."))
+				d := problem.App(http.StatusServiceUnavailable, "session_store_unavailable",
+					"Oturum servisine şu anda ulaşılamıyor.")
+				d.Type = problem.TypeFor(http.StatusServiceUnavailable)
+				problem.Write(w, d)
 				return
 			}
 			if !isKnownUserType(rec.UserType) || !slices.Contains(allowed, rec.UserType) {
 				reject()
 				return
+			}
+			if rec.TenantID != nil {
+				// Lets the outer logx.RequestMiddleware report tenant_id on the access line.
+				logx.SetTenant(req.Context(), *rec.TenantID)
 			}
 			next.ServeHTTP(w, req.WithContext(WithRecord(req.Context(), rec)))
 		})

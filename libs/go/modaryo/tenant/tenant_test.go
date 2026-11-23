@@ -41,6 +41,7 @@ func TestTenant_NoSession_401(t *testing.T) {
 	rr, _, _ := run(nil)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	assert.JSONEq(t, `{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.2","title":"Oturum açmanız gerekiyor.","status":401,"code":"unauthorized"}`, rr.Body.String())
 }
 
 func TestTenant_FromSession_SetsTenant(t *testing.T) {

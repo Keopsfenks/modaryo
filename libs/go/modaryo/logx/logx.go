@@ -1,5 +1,7 @@
 // Package logx provides structured logging and a request-logging middleware.
 //
+// Mount RequestMiddleware outermost and Recover directly inside it (see Recover).
+//
 // RequestMiddleware stores a mutable per-request record in the context. Code that learns the
 // tenant later in the chain (tenant.WithTenant does this) calls SetTenant, so the final access
 // log line and FromContext loggers carry tenant_id even though the logging middleware runs
@@ -11,15 +13,19 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/keopsfenks/modaryo/libs/go/modaryo/problem"
 )
 
 const requestIDHeader = "X-Request-Id"
@@ -123,6 +129,38 @@ func RequestMiddleware(l *slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(sw, r.WithContext(ctx))
 		})
 	}
+}
+
+// Recover turns a handler panic into a 500 "application/problem+json" response
+// ({type 15.6.1, title "Beklenmeyen bir hata oluştu.", status 500, code "internal_error"}) and
+// logs the panic once, with its stack, through FromContext (so request_id/tenant_id are on it).
+// Mount it directly inside RequestMiddleware: the access line then shows 500 and the panic is not
+// logged twice. http.ErrAbortHandler is re-raised untouched. If the response had already started,
+// the panic is logged and the handler is aborted with http.ErrAbortHandler (a 500 cannot be sent).
+func Recover(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		defer func() {
+			rec := recover()
+			if rec == nil {
+				return
+			}
+			if rec == http.ErrAbortHandler { // sentinel panic value, compared like net/http does
+				panic(rec)
+			}
+			FromContext(r.Context()).LogAttrs(r.Context(), slog.LevelError, "panic recovered",
+				slog.String("panic", fmt.Sprint(rec)),
+				slog.String("stack", string(debug.Stack())),
+			)
+			if sw.wroteHeader {
+				panic(http.ErrAbortHandler)
+			}
+			d := problem.App(http.StatusInternalServerError, "internal_error", "Beklenmeyen bir hata oluştu.")
+			d.Type = problem.TypeFor(http.StatusInternalServerError)
+			problem.Write(sw, d)
+		}()
+		next.ServeHTTP(sw, r)
+	})
 }
 
 func validRequestID(s string) bool {

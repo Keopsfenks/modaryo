@@ -76,14 +76,22 @@ Geliştirme sırları yalnızca `appsettings.Development.json` içindedir; kodda
 
 - Yazma isteği (GET/HEAD dışı) `Idempotency-Key` taşımalıdır. Kayıt anahtarı `(çağıran, Idempotency-Key)`'dir.
 - İstek özeti = SHA-256(`method \n pathAndQuery \n tenant \n body`). İstek çalışmadan önce bekleyen kayıt, bir sahiplik belirteciyle birlikte eklenir; tamamlama ve serbest bırakma yalnızca bu belirteç hâlâ kaydın sahibiyse etki eder.
-- Aynı anahtar + aynı özet, tamamlanmışsa: kayıtlı durum ve gövde `Content-Type: application/json` ile aynen döner (istek yeniden çalıştırılmaz). Diğer yanıt başlıkları (örn. `Location`) yeniden oynatılmaz.
+- Aynı anahtar + aynı özet, tamamlanmışsa: kayıtlı durum ve gövde `Content-Type: application/json; charset=utf-8` ile aynen döner (istek yeniden çalıştırılmaz; gövde boşsa `Content-Type` yazılmaz). Diğer yanıt başlıkları (örn. `Location`) yeniden oynatılmaz.
 - Aynı anahtar + farklı özet: `409 idempotency_conflict`. Aynı anahtar + aynı özet ama istek hâlâ işleniyor: `409 idempotency_in_progress` ve `Retry-After: 1` başlığı; istemci kısa süre sonra aynı isteği tekrarlar.
 - Bekleyen kayıt 5 dakikadan (`Internal:PendingTimeoutSeconds`) eskiyse (işleyen süreç çökmüş olabilir) aynı çağıran, anahtar ve özetle gelen yeni istek kaydı devralır (yeni sahiplik belirteci); eski sahibin geç gelen tamamlama/silmesi yeni kaydı etkilemez. Daha tazeyse `409 idempotency_in_progress`.
-- Yalnızca uç noktanın kendi yazdığı, durumu < 500 olan yanıtlar saklanır. İstisnayla üretilen hata yanıtları (doğrulama 400, 404, iş kuralı 409, yetkilendirmeden 401/403) middleware'in dışındaki istisna işleyicisinden döner; bu durumda kayıt silinir ve aynı anahtarla yeniden deneme isteği yeniden çalıştırır. Uç nokta 5xx döndürürse veya istisna fırlatırsa kayıt silinir.
-- Uç nokta < 500 ile döndükten sonra kayıt asla silinmez; tamamlama başarısız olursa kayıt bekleyen kalır (uyarı günlüğe yazılır) ve zaman aşımından sonra devralınabilir.
+- Hangi yanıt saklanır, hangisinde kayıt silinir (serbest bırakılır)? Silinen kayıtta aynı anahtarla yeniden deneme isteği yeniden çalıştırır (örn. düzeltilmiş bir istek):
+
+| Uç noktanın sonucu | .NET (`Modaryo.Internal`) | Go (`internalapi`) |
+|---|---|---|
+| İstisna / panik | silinir (iş, doğrulama 400, 404, yetkilendirme 401/403 hataları istisnadır ve middleware'in dışındaki istisna işleyicisinden döner) | silinir (panik yeniden fırlatılır) |
+| Durum ≥ 500 | silinir | silinir |
+| Durum 400–499 ve `Content-Type` medya türü `application/problem+json` (parametreler, örn. `charset`, önemsizdir) | uç noktanın kendisi yazdıysa saklanır | silinir (Go'da hata istisna değil, problem+json yanıtıdır; ERP'nin istisna davranışının karşılığı) |
+| Diğer durum < 500 (2xx, 3xx, başka içerik türlü 4xx) | saklanır | saklanır |
+
+- Saklanan sonuçtan sonra kayıt asla silinmez; tamamlama başarısız olursa kayıt bekleyen kalır (uyarı günlüğe yazılır) ve zaman aşımından sonra devralınabilir. Go'da tamamlama ve silme çağrıları istek iptal edilse de çalışır ve her biri en çok 5 sn sürer.
 - Yeniden deneme kuralları: 5xx, ağ hatası veya zaman aşımında aynı anahtar ve aynı gövdeyle yeniden denenir. En-az-bir-kez penceresi: işleyici işlemi kaydettikten sonra ama kayıt tamamlanmadan süreç çökerse, anahtar zaman aşımı sonunda devralınır ve istek yeniden çalışabilir. Bu yüzden yazma işleyicileri, tamamlama sonraki bir planda atomik yapılana dek kendi başlarına idempotent olmalıdır.
 - Kimlik servisi iç yazma isteği kabul etmez (idempotency deposu yoktur): imzalı GET/HEAD dışı istek `405 internal_method_not_allowed` alır.
-- Kayıtlar 7 gün sonra silinir.
+- Kayıtlar 7 gün sonra silinir. ERP bunu kendisi yapar; Go servisleri `PostgresStore.Purge(time.Now().Add(-internalapi.IdempotencyRetention))` çağrısını kendileri zamanlar (örn. günde bir).
 
 ### Hatalar (ProblemDetails, `code` alanı)
 
@@ -99,6 +107,9 @@ Geliştirme sırları yalnızca `appsettings.Development.json` içindedir; kodda
 | 405 | `internal_method_not_allowed` | Servis iç yazma isteği kabul etmiyor (kimlik servisi) |
 | 503 | `internal_unavailable` | Idempotency deposu yanıt vermedi (Go servisleri; .NET 500 döner). Aynı anahtarla yeniden denenebilir |
 | 400 | `internal_bad_path` | `/internal` yolu normalleştirilmiş biçimde değil (`//`, `.`/`..` parçaları); Go servisleri |
+
+Gövdeler `type` taşır (durumun RFC 9110 bölümü, `TypedResults.Problem` varsayılanı; Go: `problem.TypeFor`). Gerçek ERP örneği: `fixtures/problem-internal-unauthorized.json`.
+Go servislerinde `/internal/*` yolları yönlendiricide `internalapi.IsInternalPath` ile ayrılır ve CSRF/oturum zincirine girmez (ERP'deki `UseWhen(!IsInternalPath)` karşılığı; bkz. `libs/go/modaryo/doc.go`).
 
 ### Kimlik servisi ↔ ERP uçları (şubeler)
 
@@ -153,6 +164,21 @@ XADD ile işaretleme arasında süreç ölürse aynı olay akışa **yeniden** y
 Röle kayıtları yaklaşık oluşturulma sırasıyla iletir (`id` UUIDv7'dir ve kayıt oluşturulurken atanır, işlem onayında değil; eşzamanlı işlemler araya girebilir). Tüketiciler kesin sıraya güvenmemelidir. Birden çok röle örneği aynı kaydı aynı anda iletmez (`FOR UPDATE SKIP LOCKED`), ancak örnekler arasında sıra garantisi yoktur.
 Valkey erişilemezken olaylar bekler; röle 1 sn, 2 sn, 4 sn ... en çok 60 sn aralıkla yeniden dener.
 
+### Ölü mektup akışı (DLQ, Go tüketicileri)
+
+İşlenemeyen girdi (bozuk zarf, bilinmeyen sürüm, en çok deneme sayısını aşan işleyici hatası) `{stream}.dlq` akışına (örn. `erp.events.dlq`) yazılır,
+ardından asıl girdi onaylanır (`XACK`). DLQ girdisi asıl girdinin tüm alanlarını (`type`, `tenant_id`, `event`) aynen taşır ve şu alanları ekler:
+
+| Alan | Anlam |
+|---|---|
+| `error` | Hata nedeni (en çok 1000 karakter) |
+| `deliveries` | Teslim sayısı (işleyici deneme sayısı) |
+| `original_id` | Asıl akıştaki girdi kimliği |
+| `failed_at` | Hata anı, ISO-8601 UTC (`2026-11-22T21:30:15.123Z`) |
+| `group` | Tüketici grubu |
+
+DLQ da `MAXLEN ~ 100000` ile kırpılır. DLQ'ya yazılamazsa girdi bekleyen kalır ve yeniden denenir.
+
 ### `current-account.entry-added`
 
 Cari hesaba her hareket eklendiğinde (hareket girişi ve kart açılışındaki açılış bakiyesi dahil; hareket başına bir olay) yayılır.
@@ -175,7 +201,7 @@ Tüm servisler (.NET ve Go) hataları aynı gövdeyle döndürür. İçerik tür
 
 | Alan | Zorunlu | Açıklama |
 |---|---|---|
-| `type` | hayır | RFC 9110 bölüm bağlantısı (400/401/403/404 için) |
+| `type` | hayır | Durumun RFC 9110 bölüm bağlantısı (ASP.NET Core `TypedResults.Problem` varsayılanı; Go: `problem.TypeFor`). İş kuralı hataları (`AppException`) taşımaz |
 | `title` | evet | Türkçe, kullanıcıya gösterilebilir kısa başlık |
 | `status` | evet | HTTP durum kodu |
 | `detail` | hayır | Ek açıklama |
@@ -193,10 +219,12 @@ Tüm servisler (.NET ve Go) hataları aynı gövdeyle döndürür. İçerik tür
 | 403 | `tenant_required` | Önce bir firma seçin. | 15.5.4 |
 | 403 | `csrf_header_missing` | İstek reddedildi. | 15.5.4 |
 | 404 | `not_found` | Kayıt bulunamadı. | 15.5.5 |
-| 503 | `session_store_unavailable` | Oturum servisine şu anda ulaşılamıyor. | yok |
+| 500 | `internal_error` | Beklenmeyen bir hata oluştu. | 15.6.1 |
+| 503 | `session_store_unavailable` | Oturum servisine şu anda ulaşılamıyor. | 15.6.4 |
 
+`internal_error`: Go servislerinde `logx.Recover` işleyici paniğini bu gövdeye çevirir. `session_store_unavailable` yalnızca Go servislerinde vardır.
 `tenant_required`: oturumda aktif firma yoksa Go servisleri bunu döndürür; ERP şimdilik aynı durumda 403 `forbidden` döner ve ileride bu koda geçecektir. `csrf_header_missing` gövdesi `fixtures/problem-csrf.json` ile aynıdır.
 
 İş kuralı hataları (`AppException`) `type` taşımaz: `{ title, status, code }` (örn. 403 `module_disabled`, 409 `period_locked`).
 
-Gerçek ERP yanıtlarından alınmış örnekler: `fixtures/problem-validation.json`, `problem-unauthorized.json`, `problem-forbidden.json`, `problem-not-found.json`, `problem-app.json`, `problem-csrf.json`. ERP testi (`ProblemFixtureTests`) yanıtları bu dosyalarla, Go testi (`Problem_JsonShapeMatchesDotnetFixture`) kendi gövdelerini bu dosyalarla karşılaştırır. Yeniden üretmek için ERP işlevsel testlerini `MODARYO_WRITE_FIXTURES=1` ile çalıştırın.
+Gerçek ERP yanıtlarından alınmış örnekler: `fixtures/problem-validation.json`, `problem-unauthorized.json`, `problem-forbidden.json`, `problem-not-found.json`, `problem-app.json`, `problem-csrf.json`, `problem-internal-unauthorized.json`. ERP testi (`ProblemFixtureTests`) yanıtları bu dosyalarla, Go testleri (`Problem_JsonShapeMatchesDotnetFixture`, `Csrf_BodyMatchesDotnetFixture`, `Middleware_Unauthorized_MatchesDotnetFixture`) kendi gövdelerini bu dosyalarla karşılaştırır. Yeniden üretmek için ERP işlevsel testlerini `MODARYO_WRITE_FIXTURES=1` ile çalıştırın.

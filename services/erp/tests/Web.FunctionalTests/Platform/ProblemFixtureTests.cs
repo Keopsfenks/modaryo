@@ -106,4 +106,13 @@ public class ProblemFixtureTests : TestBase {
 
         await AssertFixtureAsync(response, HttpStatusCode.Forbidden, "problem-app.json");
     }
+
+    [Test]
+    public async Task InternalUnauthorized_MatchesFixture() {
+        using var client = Factory.CreateClient();
+
+        using var response = await client.GetAsync("/internal/ping");
+
+        await AssertFixtureAsync(response, HttpStatusCode.Unauthorized, "problem-internal-unauthorized.json");
+    }
 }

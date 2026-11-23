@@ -255,7 +255,7 @@ func (c *Consumer) processBatch(ctx context.Context, items []item) {
 			c.skipStolen(it.m)
 			continue
 		}
-		c.process(ctx, it.m, it.deliveries)
+		c.process(ctx, it.m, it.deliveries, items[i:])
 	}
 	c.stolen = nil
 }
@@ -307,8 +307,10 @@ func (c *Consumer) refresh(ctx context.Context, items []item) (map[string]bool, 
 	return owned, err
 }
 
-// heartbeat keeps the idle time of one entry fresh while its handler runs; call the result to stop it.
-func (c *Consumer) heartbeat(ctx context.Context, m redis.XMessage) (stop func()) {
+// heartbeat keeps the idle time of the remaining entries of the batch (the in-flight one and the
+// ones after it, all still owned by this consumer) fresh while a handler runs; call the result to
+// stop it. Ownership changes it sees are left to processBatch's own refresh (no shared state here).
+func (c *Consumer) heartbeat(ctx context.Context, rest []item) (stop func()) {
 	interval := c.opts.ClaimIdle / 2
 	if interval <= 0 {
 		interval = time.Millisecond
@@ -324,8 +326,8 @@ func (c *Consumer) heartbeat(ctx context.Context, m redis.XMessage) (stop func()
 			case <-hctx.Done():
 				return
 			case <-t.C:
-				if _, err := c.refresh(hctx, []item{{m: m}}); err != nil && hctx.Err() == nil {
-					c.log.Warn("streams: heartbeat failed", "entry_id", m.ID, "error", err.Error())
+				if _, err := c.refresh(hctx, rest); err != nil && hctx.Err() == nil {
+					c.log.Warn("streams: heartbeat failed", "entry_id", rest[0].m.ID, "error", err.Error())
 				}
 			}
 		}
@@ -347,12 +349,13 @@ func (c *Consumer) deliveries(ctx context.Context, id string) (int64, error) {
 	return ext[0].RetryCount, nil
 }
 
-// process handles one entry. deliveries is its delivery count including this one.
+// process handles one entry. deliveries is its delivery count including this one; rest is the
+// unprocessed tail of the batch starting with this entry (kept fresh by the heartbeat).
 //
 // A handler gets at most MaxDeliveries attempts: when the attempt number MaxDeliveries fails the
 // entry is dead-lettered right away; an entry already past that count (for example a consumer
 // crashed in the last attempt) is dead-lettered without calling the handler.
-func (c *Consumer) process(ctx context.Context, m redis.XMessage, deliveries int64) {
+func (c *Consumer) process(ctx context.Context, m redis.XMessage, deliveries int64, rest []item) {
 	log := c.log.With("entry_id", m.ID, "deliveries", deliveries)
 
 	raw, _ := m.Values["event"].(string)
@@ -387,7 +390,7 @@ func (c *Consumer) process(ctx context.Context, m redis.XMessage, deliveries int
 		return
 	}
 
-	stopHeartbeat := c.heartbeat(ctx, m)
+	stopHeartbeat := c.heartbeat(ctx, rest)
 	err := c.call(ctx, h, e)
 	stopHeartbeat()
 	if err != nil {

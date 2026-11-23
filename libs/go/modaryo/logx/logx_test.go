@@ -185,3 +185,86 @@ func TestLogx_NewWithWriter_DevTextProdJSON(t *testing.T) {
 	require.NoError(t, json.Unmarshal(prod.Bytes(), &rec))
 	assert.Equal(t, "einvoice", rec["service"])
 }
+
+func logLines(t *testing.T, buf *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var out []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		var m map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &m), line)
+		out = append(out, m)
+	}
+	return out
+}
+
+func TestRecover_PanicBecomes500Problem(t *testing.T) {
+	h := logx.Recover(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { panic("boom") }))
+	rr := httptest.NewRecorder()
+	assert.NotPanics(t, func() { h.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/x", nil)) })
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Equal(t, "application/problem+json", rr.Header().Get("Content-Type"))
+	assert.JSONEq(t, `{"type":"https://tools.ietf.org/html/rfc9110#section-15.6.1","title":"Beklenmeyen bir hata oluştu.","status":500,"code":"internal_error"}`, rr.Body.String())
+}
+
+func TestRecover_WithRequestMiddleware_Access500AndPanicLoggedOnce(t *testing.T) {
+	var buf bytes.Buffer
+	h := logx.RequestMiddleware(jsonLogger(&buf))(logx.Recover(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("boom")
+	})))
+	rr := httptest.NewRecorder()
+	assert.NotPanics(t, func() { h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/x", nil)) })
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+
+	lines := logLines(t, &buf)
+	require.Len(t, lines, 2, buf.String())
+	panics := 0
+	for _, l := range lines {
+		if l["msg"] == "panic recovered" {
+			panics++
+			assert.Equal(t, "ERROR", l["level"])
+			assert.Equal(t, "boom", l["panic"])
+			assert.NotEmpty(t, l["stack"])
+			assert.Equal(t, rr.Header().Get("X-Request-Id"), l["request_id"])
+		}
+	}
+	assert.Equal(t, 1, panics)
+	access := lines[len(lines)-1]
+	assert.Equal(t, "request", access["msg"])
+	assert.EqualValues(t, 500, access["status"])
+}
+
+func TestRecover_AbortHandlerIsRepanickedWithoutLogging(t *testing.T) {
+	var buf bytes.Buffer
+	h := logx.RequestMiddleware(jsonLogger(&buf))(logx.Recover(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic(http.ErrAbortHandler)
+	})))
+	assert.PanicsWithValue(t, http.ErrAbortHandler, func() {
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
+	})
+	lines := logLines(t, &buf)
+	require.Len(t, lines, 1, buf.String())
+	assert.Equal(t, "request", lines[0]["msg"])
+}
+
+func TestRecover_PanicAfterResponseStarted_LogsAndAborts(t *testing.T) {
+	var buf bytes.Buffer
+	h := logx.RequestMiddleware(jsonLogger(&buf))(logx.Recover(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("partial"))
+		panic("late boom")
+	})))
+	rr := httptest.NewRecorder()
+	assert.PanicsWithValue(t, http.ErrAbortHandler, func() {
+		h.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/x", nil))
+	})
+	assert.Equal(t, "partial", rr.Body.String(), "no problem body appended to a started response")
+	lines := logLines(t, &buf)
+	require.Len(t, lines, 2, buf.String())
+	assert.Equal(t, "panic recovered", lines[0]["msg"])
+	assert.Equal(t, "late boom", lines[0]["panic"])
+	assert.EqualValues(t, 200, lines[1]["status"])
+}

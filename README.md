@@ -77,7 +77,17 @@ dotnet test services/erp/ERP.slnx
 bash scripts/go-check.sh   # gofmt, go vet, staticcheck, go test
 ```
 
-Testler compose'daki PostgreSQL'de geçici veritabanları açıp sonunda siler; Valkey'de 1–3 numaralı veritabanlarını kullanır.
+Testler compose'daki PostgreSQL'de geçici veritabanları açıp sonunda siler. Valkey veritabanları test takımlarına şöyle ayrılmıştır
+(birbirini silmesinler diye; `FLUSHDB` yalnızca tek sahibi olan DB'de kullanılır):
+
+| Valkey DB | Kullanan |
+|---|---|
+| 1 | .NET kütüphaneleri (`libs/dotnet/Modaryo.Libs.slnx`) |
+| 2 | Kimlik servisi (`services/identity`) |
+| 3 | ERP (`services/erp`) |
+| 4 | Go kütüphanesi paketleri, ortak (`libs/go/modaryo`: session, streams…); rastgele anahtar adlarıyla, `FLUSHDB` yok |
+| 5 | Go `testinfra` paketinin kendi testleri |
+| 6+ | Yeni Go servisleri; her biri kendi DB'sini seçer ve tek başına kullanır |
 
 ## Frontend
 

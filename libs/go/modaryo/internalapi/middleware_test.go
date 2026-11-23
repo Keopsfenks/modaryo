@@ -8,6 +8,8 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/keopsfenks/modaryo/libs/go/modaryo/problem"
 	"github.com/keopsfenks/modaryo/libs/go/modaryo/tenant"
 )
 
@@ -417,21 +420,62 @@ func TestMiddleware_Writes(t *testing.T) {
 	})
 
 	t.Run("4xx_is_stored", func(t *testing.T) {
-		h := newHarness(nil, func(h *harness) http.HandlerFunc {
-			return func(w http.ResponseWriter, r *http.Request) {
-				h.calls.Add(1)
-				w.WriteHeader(http.StatusUnprocessableEntity)
-				_, _ = w.Write([]byte(`{"x":1}`))
+		// Like ERP: a problem+json 4xx (validation, not found, business rule, authz) is an error
+		// outcome; the key is released and a corrected retry with the same key runs again.
+		t.Run("problem_json_is_released_and_retry_executes_again", func(t *testing.T) {
+			var fail atomic.Bool
+			fail.Store(true)
+			h := newHarness(nil, func(h *harness) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					h.calls.Add(1)
+					if fail.Load() {
+						d := problem.Validation(map[string][]string{"Name": {"Zorunlu."}})
+						w.Header().Set("Content-Type", "application/problem+json; charset=utf-8")
+						w.WriteHeader(d.Status)
+						_ = json.NewEncoder(w).Encode(d)
+						return
+					}
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write([]byte(`{"ok":true}`))
+				}
+			})
+			mk := func() *http.Request {
+				return sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: "k", body: "{}"}.build()
 			}
+			w := h.do(mk())
+			assert.Equal(t, 400, w.Code)
+			assert.Equal(t, "validation_failed", code(t, w))
+			fail.Store(false)
+			w = h.do(mk())
+			assert.Equal(t, 201, w.Code)
+			assert.JSONEq(t, `{"ok":true}`, w.Body.String())
+			assert.EqualValues(t, 2, h.calls.Load())
+			// the successful run is stored
+			w = h.do(mk())
+			assert.Equal(t, 201, w.Code)
+			assert.EqualValues(t, 2, h.calls.Load())
 		})
-		mk := func() *http.Request {
-			return sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: "k", body: "{}"}.build()
-		}
-		assert.Equal(t, 422, h.do(mk()).Code)
-		w := h.do(mk())
-		assert.Equal(t, 422, w.Code)
-		assert.JSONEq(t, `{"x":1}`, w.Body.String())
-		assert.EqualValues(t, 1, h.calls.Load())
+
+		t.Run("plain_json_is_stored", func(t *testing.T) {
+			h := newHarness(nil, func(h *harness) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					h.calls.Add(1)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"x":1}`))
+				}
+			})
+			mk := func() *http.Request {
+				return sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: "k", body: "{}"}.build()
+			}
+			assert.Equal(t, 422, h.do(mk()).Code)
+			w := h.do(mk())
+			assert.Equal(t, 422, w.Code)
+			assert.Equal(t, "application/json; charset=utf-8", w.Header().Get("Content-Type"))
+			assert.JSONEq(t, `{"x":1}`, w.Body.String())
+			assert.EqualValues(t, 1, h.calls.Load())
+		})
 	})
 
 	t.Run("parallel_identical_writes_execute_once", func(t *testing.T) {
@@ -559,4 +603,124 @@ func TestMiddleware_StoreFailure_503(t *testing.T) {
 	w := h.do(sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: "k", body: "{}"}.build())
 	assert.Equal(t, 503, w.Code)
 	assert.Equal(t, CodeUnavailable, code(t, w))
+}
+
+func TestMiddleware_Unauthorized_MatchesDotnetFixture(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "contracts", "fixtures", "problem-internal-unauthorized.json"))
+	require.NoError(t, err)
+	h := newHarness(nil, nil)
+	w := h.do(httptest.NewRequest(http.MethodGet, "/internal/ping", nil))
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Equal(t, "application/problem+json", w.Header().Get("Content-Type"))
+	assert.JSONEq(t, string(raw), w.Body.String())
+}
+
+func TestMiddleware_ErrorBodiesCarryType(t *testing.T) {
+	h := newHarness(nil, nil)
+	cases := map[string]*http.Request{
+		"403": sreq{method: "GET", target: "/internal/identity/x", tenant: testTenant.String()}.build(),
+		"400": sreq{method: "GET", target: "/internal/einvoice/x"}.build(),
+		"409": nil,
+	}
+	h.do(sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: "k", body: `{"a":1}`}.build())
+	cases["409"] = sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: "k", body: `{"a":2}`}.build()
+	for name, r := range cases {
+		w := h.do(r)
+		var d struct {
+			Type   string `json:"type"`
+			Status int    `json:"status"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &d), name)
+		assert.Equal(t, w.Code, d.Status, name)
+		assert.Equal(t, problem.TypeFor(w.Code), d.Type, name)
+		assert.NotEmpty(t, d.Type, name)
+	}
+	w := newHarness(func(o *Options) { o.Store = errStore{newMemStore()} }, nil).
+		do(sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: "k", body: "{}"}.build())
+	assert.Contains(t, w.Body.String(), `"type":"https://tools.ietf.org/html/rfc9110#section-15.6.4"`)
+}
+
+// blockingStore never settles: Complete and Release block until their context ends.
+type blockingStore struct {
+	*memStore
+	completeErr, releaseErr chan error
+}
+
+func (b *blockingStore) Complete(ctx context.Context, _, _ string, _ uuid.UUID, _ int, _ []byte) error {
+	<-ctx.Done()
+	b.completeErr <- ctx.Err()
+	return ctx.Err()
+}
+
+func (b *blockingStore) Release(ctx context.Context, _, _ string, _ uuid.UUID) error {
+	<-ctx.Done()
+	b.releaseErr <- ctx.Err()
+	return ctx.Err()
+}
+
+func TestMiddleware_SettleCallsAreBoundedAndOutliveTheRequest(t *testing.T) {
+	old := settleTimeout
+	settleTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { settleTimeout = old })
+
+	bs := &blockingStore{memStore: newMemStore(), completeErr: make(chan error, 1), releaseErr: make(chan error, 1)}
+	var status atomic.Int32
+	status.Store(http.StatusCreated)
+	h := newHarness(func(o *Options) { o.Store = bs }, func(h *harness) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(int(status.Load())) }
+	})
+
+	for _, tc := range []struct {
+		name   string
+		status int
+		ch     chan error
+		key    string
+	}{
+		{"complete", http.StatusCreated, bs.completeErr, "k1"},
+		{"release", http.StatusBadGateway, bs.releaseErr, "k2"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			status.Store(int32(tc.status))
+			// The request context is already cancelled: the settle call must not inherit that.
+			ctx, cancel := context.WithCancel(context.Background())
+			r := sreq{method: "POST", target: "/internal/einvoice/x", tenant: testTenant.String(), key: tc.key, body: "{}"}.build().WithContext(ctx)
+			cancel()
+			done := make(chan int, 1)
+			go func() { done <- h.do(r).Code }()
+			select {
+			case code := <-done:
+				assert.Equal(t, tc.status, code)
+			case <-time.After(3 * time.Second):
+				t.Fatal("settle call was not bounded by a timeout")
+			}
+			assert.ErrorIs(t, <-tc.ch, context.DeadlineExceeded)
+		})
+	}
+}
+
+func TestIsInternalPath_RawOrCleaned(t *testing.T) {
+	for p, want := range map[string]bool{
+		"/internal":                 true,
+		"/internal/":                true,
+		"/internal/ping":            true,
+		"/INTERNAL/Ping":            true,
+		"//internal/ping":           true, // cleaned form is internal
+		"/./internal/ping":          true,
+		"/api/../internal/ping":     true,
+		"/internal/../api/x":        true, // raw form is internal
+		"/internalx":                false,
+		"/api/internal/x":           false,
+		"/":                         false,
+		"":                          false,
+		"/api/erp/current-accounts": false,
+	} {
+		assert.Equal(t, want, IsInternalPath(p), p)
+	}
+	// The middleware uses the same rule: everything IsInternalPath accepts is handled (never passed through).
+	h := newHarness(nil, nil)
+	for _, p := range []string{"/internal/../api/x", "/api/../internal/ping", "/INTERNAL/ping"} {
+		w := h.do(httptest.NewRequest(http.MethodGet, p, nil))
+		assert.Contains(t, []int{400, 401}, w.Code, p)
+		assert.EqualValues(t, 0, h.calls.Load(), p)
+	}
 }

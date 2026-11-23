@@ -12,8 +12,10 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -65,6 +67,19 @@ func (k Key) GoString() string { return k.String() }
 
 // Format tüm fiiller için gizli değeri maskeler.
 func (k Key) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte(k.String())) }
+
+// MarshalJSON anahtar baytları yerine maskelenmiş biçimi yazar: {"ID":"...","Secret":"[REDACTED]"}.
+func (k Key) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		ID     string
+		Secret string
+	}{k.ID, redacted})
+}
+
+// LogValue slog çıktısında anahtar baytlarını maskeler.
+func (k Key) LogValue() slog.Value {
+	return slog.GroupValue(slog.String("id", k.ID), slog.String("secret", redacted))
+}
 
 type entry struct {
 	id   string
