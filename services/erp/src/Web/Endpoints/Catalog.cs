@@ -4,6 +4,8 @@ using ERP.Application.Catalog.CustomFields;
 using ERP.Application.Catalog.Products;
 using ERP.Application.Catalog.Products.Commands;
 using ERP.Application.Catalog.Products.Queries;
+using ERP.Application.Catalog.Items;
+using ERP.Application.Catalog.Items.Queries;
 using ERP.Application.Catalog.Variants.Commands;
 using ERP.Application.CurrentAccounts;
 using ERP.Domain.Catalog;
@@ -36,6 +38,8 @@ public class Catalog : IEndpointGroup {
         groupBuilder.MapPut(UpdateVariant, "products/{id:guid}/variants/{variantId:guid}");
         groupBuilder.MapPost(ActivateVariant, "products/{id:guid}/variants/{variantId:guid}/activate");
         groupBuilder.MapPost(DeactivateVariant, "products/{id:guid}/variants/{variantId:guid}/deactivate");
+        groupBuilder.MapGet(SearchItems, "items");
+        groupBuilder.MapGet(LookupBarcode, "items/barcode/{value}");
         groupBuilder.MapGet(ListCustomFields, "custom-fields");
         groupBuilder.MapPost(CreateCustomField, "custom-fields");
         groupBuilder.MapPut(UpdateCustomField, "custom-fields/{id:guid}");
@@ -130,6 +134,24 @@ public class Catalog : IEndpointGroup {
     public static async Task<NoContent> DeactivateVariant(ISender sender, Guid id, Guid variantId) {
         await sender.Send(new SetVariantActiveCommand(id, variantId, false));
         return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("Satılabilir kalem ara")]
+    [EndpointDescription("Varyantsız kart tek kalem, varyantlı kart varyant başına bir kalemdir. search: kod, ad, barkod veya tedarikçi kodu (Türkçe harf katlamalı). kind: product | service. Pasifler yalnızca includeInactive=true ile gelir. limit varsayılan 20, en fazla 50.")]
+    public static async Task<Ok<IReadOnlyList<SellableItem>>> SearchItems(
+        ISender sender,
+        string? search,
+        string? kind,
+        bool    includeInactive = false,
+        int     limit           = 20
+    ) {
+        return TypedResults.Ok(await sender.Send(new SearchItemsQuery(search, kind, includeInactive, limit)));
+    }
+
+    [EndpointSummary("Barkoddan kalem bul")]
+    [EndpointDescription("Birim barkoduysa o birim ve çevrim katsayısı, değilse temel birim ve 1 döner. Bulunamazsa 404.")]
+    public static async Task<Ok<BarcodeHit>> LookupBarcode(ISender sender, string value) {
+        return TypedResults.Ok(await sender.Send(new LookupBarcodeQuery(value)));
     }
 
     [EndpointSummary("Özel alan tanımları")]
