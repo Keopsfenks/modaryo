@@ -1,0 +1,8 @@
+{
+  "response": {
+    "status": {
+      "code": 402,
+      "message": "Bakiye yetersiz"
+    }
+  }
+}

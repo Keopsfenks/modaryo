@@ -1,0 +1,8 @@
+{
+  "response": {
+    "status": {
+      "code": 401,
+      "message": "Üyelik bilgileri hatalı"
+    }
+  }
+}

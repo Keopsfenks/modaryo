@@ -1,0 +1,26 @@
+{
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "İşlem başarılı"
+    },
+    "order": {
+      "id": "312891245",
+      "status": 114,
+      "total": 1,
+      "delivered": 1,
+      "undelivered": 0,
+      "waiting": 0,
+      "submitAt": "2026-04-29 04:32:24",
+      "sendAt": "2026-04-29 04:32:24",
+      "sender": "MODARYO",
+      "price": 1,
+      "message": [
+        {
+          "number": "+905321234567",
+          "status": 111
+        }
+      ]
+    }
+  }
+}

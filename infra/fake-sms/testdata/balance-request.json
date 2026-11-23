@@ -1,0 +1,8 @@
+{
+  "request": {
+    "authentication": {
+      "key": "dev-key",
+      "hash": "dev-hash"
+    }
+  }
+}

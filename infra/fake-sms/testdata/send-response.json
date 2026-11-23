@@ -1,0 +1,11 @@
+{
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "İşlem başarılı"
+    },
+    "order": {
+      "id": "312891245"
+    }
+  }
+}

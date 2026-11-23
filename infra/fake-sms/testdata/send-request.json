@@ -1,0 +1,18 @@
+{
+  "request": {
+    "authentication": {
+      "key": "dev-key",
+      "hash": "dev-hash"
+    },
+    "order": {
+      "sender": "MODARYO",
+      "iys": "0",
+      "message": {
+        "text": "Sayın Şükrü, ödemeniz ığüşöç İĞÜŞÖÇ",
+        "receipents": {
+          "number": ["905321234567"]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "response": {
+    "status": {
+      "code": 200,
+      "message": "İşlem başarılı"
+    },
+    "balance": {
+      "amount": 10.584,
+      "sms": 67
+    }
+  }
+}
