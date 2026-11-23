@@ -4,6 +4,6 @@
 set -euo pipefail
 COMPOSE="wsl docker compose -f /mnt/c/Users/Gurbuz/Documents/projects/modaryo/infra/docker-compose.yml"
 # Tek seferlik s3-init (çıkış koduyla biter) "--wait" ile birlikte kullanılamaz; ayrı çalıştırılır.
-MSYS_NO_PATHCONV=1 $COMPOSE up -d --wait postgres valkey mailpit s3 >/dev/null 2>&1
+MSYS_NO_PATHCONV=1 $COMPOSE up -d --build --wait postgres valkey mailpit s3 fake-sms >/dev/null 2>&1
 MSYS_NO_PATHCONV=1 $COMPOSE up --no-deps --exit-code-from s3-init s3-init >/dev/null 2>&1
 echo "altyapı hazır"

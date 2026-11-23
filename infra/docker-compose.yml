@@ -48,6 +48,22 @@ services:
       timeout: 3s
       retries: 20
 
+  # Sahte SMS sunucusu (geliştirme/test): İleti Merkezi API taklidi ve SMS kutusu arayüzü.
+  fake-sms:
+    build: ./fake-sms
+    container_name: modaryo-fake-sms
+    restart: unless-stopped
+    environment:
+      FAKE_SMS_CREDENTIALS: dev-key:dev-hash
+    ports:
+      - "8026:8026"
+      - "8027:8027"
+    healthcheck:
+      test: ["CMD", "/fake-sms", "-healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   # S3 uyumlu dosya deposu (geliştirme/test). Uygulama yalnızca S3 API'sini bilir; üretimde herhangi bir S3 uyumlu depo kullanılabilir.
   s3:
     image: chrislusf/seaweedfs:4.54

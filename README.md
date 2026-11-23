@@ -30,6 +30,7 @@ Docker, WSL (Ubuntu) içinde çalışır. Container'lar Windows'tan `localhost` 
 | Valkey | `localhost:6379` | oturum deposu |
 | Mailpit SMTP | `localhost:1025` | gönderilen tüm e-postaları yakalar |
 | Mailpit arayüzü | http://localhost:8025 | yakalanan e-postaları görmek için |
+| Sahte SMS arayüzü | http://localhost:8026 | gönderilen SMS'leri yakalar; sağlayıcı API (İleti Merkezi taklidi) `http://localhost:8027` |
 | S3 uyumlu dosya deposu (SeaweedFS) | `localhost:8333` | erişim anahtarı `modaryo`, gizli anahtar `modaryo_dev`, bucket `modaryo` (`infra/up.sh` oluşturur) |
 
 > Dosya deposu yalnızca S3 API'sini kullanır; üretimde herhangi bir S3 uyumlu depo kullanılabilir.
