@@ -26,7 +26,33 @@ export type SessionListItem = {
     rememberMe: boolean;
 };
 
-export type RoleDto = { id: string; name: string; systemKey: string | null };
+export type RoleDto = {
+    id: string;
+    name: string;
+    systemKey: string | null;
+    locked: boolean;
+    permissions: string[];
+    maxDiscountPercent: number;
+    allBranches: boolean;
+    branchIds: string[];
+    memberCount: number;
+};
+
+export type RoleInput = {
+    name: string;
+    permissions?: string[];
+    maxDiscountPercent?: number;
+    allBranches?: boolean;
+    branchIds?: string[];
+};
+
+export type PermissionItem = { code: string; name: string; description: string };
+export type PermissionGroup = { group: string; moduleKey: string | null; permissions: PermissionItem[] };
+
+export type ModuleInfo = { key: string; name: string; description: string; wave: number; enabled: boolean };
+
+export type BranchDto = { id: string; code: string; name: string; isActive: boolean; isDefault: boolean };
+export type BranchInput = { code: string; name: string; isActive?: boolean };
 
 export type MemberDto = {
     userId: string;
@@ -51,6 +77,7 @@ const post = <T = void>(path: string, body?: unknown) => apiFetch<T>(`${base}${p
 const patch = (path: string, body: unknown) => apiFetch<void>(`${base}${path}`, { method: "PATCH", body });
 const del = (path: string) => apiFetch<void>(`${base}${path}`, { method: "DELETE" });
 const get = <T>(path: string) => apiFetch<T>(`${base}${path}`);
+const put = <T = void>(path: string, body: unknown) => apiFetch<T>(`${base}${path}`, { method: "PUT", body });
 
 export const identity = {
     /** 202 → undefined (e-posta doğrulaması gerekir); davet linkiyle kayıtta 200 → oturum açılmıştır. */
@@ -88,4 +115,30 @@ export const identity = {
     createInvitation: (email: string, roleId: string) => post<InvitationDto>("/companies/current/invitations", { email, roleId }),
     resendInvitation: (id: string) => post(`/companies/current/invitations/${id}/resend`),
     revokeInvitation: (id: string) => del(`/companies/current/invitations/${id}`),
+
+    members: {
+        /** branchIds === null → daraltmayı kaldırır; boş liste sunucuda reddedilir. */
+        setBranches: (userId: string, branchIds: string[] | null) => put(`/companies/current/members/${userId}/branches`, { branchIds }),
+    },
+    modules: {
+        list: () => get<ModuleInfo[]>("/companies/current/modules"),
+        set: (enabled: string[]) => put<ModuleInfo[]>("/companies/current/modules", { enabled }),
+    },
+    branches: {
+        list: () => get<BranchDto[]>("/companies/current/branches"),
+        create: (body: BranchInput) => post<BranchDto>("/companies/current/branches", body),
+        update: (id: string, body: BranchInput) => put<BranchDto>(`/companies/current/branches/${id}`, body),
+        remove: (id: string) => del(`/companies/current/branches/${id}`),
+    },
+    roles: {
+        list: () => get<RoleDto[]>("/companies/current/roles"),
+        get: (id: string) => get<RoleDto>(`/companies/current/roles/${id}`),
+        create: (body: RoleInput & { copyFromRoleId?: string }) => post<RoleDto>("/companies/current/roles", body),
+        update: (id: string, body: RoleInput) => put<RoleDto>(`/companies/current/roles/${id}`, body),
+        remove: (id: string) => del(`/companies/current/roles/${id}`),
+        reset: (id: string) => post<RoleDto>(`/companies/current/roles/${id}/reset`),
+    },
+    permissions: {
+        catalog: () => get<{ groups: PermissionGroup[] }>("/permissions").then((c) => c.groups),
+    },
 };

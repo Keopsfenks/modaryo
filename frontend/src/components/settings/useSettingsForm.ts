@@ -3,8 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "@/lib/api/client";
 import { erp } from "@/lib/api/erp";
-
-const messageOf = (e: unknown) => (e instanceof ApiError ? e.message : "Beklenmeyen bir hata oluştu.");
+import { errorMessage } from "@/lib/api/errorMessages";
 
 /** Bir ayar kategorisini yükler, düzenletir ve sürümüyle (iyimser kilit) kaydeder. 409'da girilen değer korunur. */
 export function useSettingsForm<T>(category: string) {
@@ -24,7 +23,7 @@ export function useSettingsForm<T>(category: string) {
             setValue(dto.value);
             setVersion(dto.version);
         } catch (e) {
-            setError(messageOf(e));
+            setError(errorMessage(e));
         } finally {
             setLoading(false);
         }
@@ -42,7 +41,7 @@ export function useSettingsForm<T>(category: string) {
             },
             (e) => {
                 if (active) {
-                    setError(messageOf(e));
+                    setError(errorMessage(e));
                     setLoading(false);
                 }
             },
@@ -65,7 +64,7 @@ export function useSettingsForm<T>(category: string) {
             setVersion(dto.version);
             return true;
         } catch (e) {
-            setError(messageOf(e));
+            setError(errorMessage(e));
             setConflict(e instanceof ApiError && e.code === "version_conflict");
             return false;
         } finally {
