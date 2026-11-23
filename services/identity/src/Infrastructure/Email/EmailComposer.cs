@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Encodings.Web;
 using IdentityService.Application.Common.Interfaces;
+using IdentityService.Application.Public.Commands;
 using Microsoft.Extensions.Options;
 
 namespace IdentityService.Infrastructure.Email;
@@ -62,6 +63,50 @@ public sealed class EmailComposer(IOptions<AppOptions> options) : IEmailComposer
             + "oluşturmaz ya da bir davete katılmazsanız hesabınız silinecek.",
             "Firma oluştur veya davete katıl", $"{BaseUrl}/baslangic",
             "Hesabınızı kullanmak istemiyorsanız herhangi bir işlem yapmanıza gerek yok.");
+
+    public EmailMessage ContactRequest(string to, SubmitContactCommand request)
+    {
+        var html = HtmlEncoder.Default;
+        // Konu satırına kullanıcı metni girer: satır sonlarını temizle (başlık enjeksiyonu).
+        var who = SingleLine(string.IsNullOrWhiteSpace(request.Company) ? request.Name : request.Company);
+        var subject = $"Yeni demo talebi: {who}";
+
+        var fields = new (string Label, string? Value)[]
+        {
+            ("Konu", request.Topic == "demo" ? "Demo talebi" : "İletişim"),
+            ("Ad soyad", SingleLine(request.Name)),
+            ("Firma", request.Company is null ? null : SingleLine(request.Company)),
+            ("E-posta", SingleLine(request.Email)),
+            ("Telefon", request.Phone is null ? null : SingleLine(request.Phone)),
+            ("İlgilendiği modül", request.Interest is null ? null : SingleLine(request.Interest)),
+            ("Mesaj", request.Message?.Trim()),
+        };
+        var present = fields.Where(f => !string.IsNullOrWhiteSpace(f.Value)).ToArray();
+
+        var rows = string.Concat(present.Select(f =>
+            $"<tr><td style=\"padding:6px 12px 6px 0;color:#5a6a85;vertical-align:top;white-space:nowrap;\">{html.Encode(f.Label)}</td>"
+            + $"<td style=\"padding:6px 0;white-space:pre-wrap;\">{html.Encode(f.Value!)}</td></tr>"));
+        var htmlBody = $"""
+            <!doctype html>
+            <html lang="tr">
+            <body style="margin:0;padding:24px;background:#f2f6fa;font-family:Arial,sans-serif;color:#2a3547;">
+              <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;">
+                <div style="font-size:20px;font-weight:700;color:#5d87ff;margin-bottom:24px;">Modaryo</div>
+                <p style="margin:0 0 16px;">Tanıtım sitesinden yeni bir talep geldi.</p>
+                <table style="border-collapse:collapse;font-size:14px;">{rows}</table>
+                <p style="margin:24px 0 0;font-size:12px;color:#5a6a85;">KVKK aydınlatma metni onaylandı.</p>
+              </div>
+            </body>
+            </html>
+            """;
+        var textBody = "Tanıtım sitesinden yeni bir talep geldi.\n\n"
+            + string.Concat(present.Select(f => $"{f.Label}: {f.Value}\n"))
+            + "\nKVKK aydınlatma metni onaylandı.\n";
+        return new EmailMessage(to, subject, htmlBody, textBody);
+    }
+
+    private static string SingleLine(string value) =>
+        string.Join(' ', value.Split(['\r', '\n', '\t'], StringSplitOptions.RemoveEmptyEntries)).Trim();
 
     private static EmailMessage Build(string to, string subject, string greeting, string body, string buttonText, string link, string footer)
     {

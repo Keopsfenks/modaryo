@@ -13,6 +13,7 @@ public static class RateLimiting
     public const string Login = "login";
     public const string Register = "register";
     public const string EmailSensitive = "email-sensitive";
+    public const string Contact = "contact";
 
     public static IServiceCollection AddIdentityRateLimiting(this IServiceCollection services, IConfiguration configuration)
     {
@@ -33,6 +34,7 @@ public static class RateLimiting
             AddPolicy(options, configuration, enabled, Login, permitLimit: 10, window: TimeSpan.FromMinutes(1));
             AddPolicy(options, configuration, enabled, Register, permitLimit: 5, window: TimeSpan.FromMinutes(10));
             AddPolicy(options, configuration, enabled, EmailSensitive, permitLimit: 5, window: TimeSpan.FromMinutes(10));
+            AddPolicy(options, configuration, enabled, Contact, permitLimit: 5, window: TimeSpan.FromHours(1));
         });
 
         return services;

@@ -56,6 +56,7 @@ public static class DependencyInjection
 
         builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.Section));
         builder.Services.Configure<AppOptions>(builder.Configuration.GetSection(AppOptions.Section));
+        builder.Services.Configure<IdentityService.Application.Public.Commands.SiteOptions>(builder.Configuration.GetSection(IdentityService.Application.Public.Commands.SiteOptions.Section));
         builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
         builder.Services.AddSingleton<IEmailComposer, EmailComposer>();
 

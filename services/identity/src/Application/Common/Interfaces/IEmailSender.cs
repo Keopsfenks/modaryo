@@ -1,3 +1,5 @@
+using IdentityService.Application.Public.Commands;
+
 namespace IdentityService.Application.Common.Interfaces;
 
 public sealed record EmailMessage(string To, string Subject, string HtmlBody, string TextBody);
@@ -19,4 +21,6 @@ public interface IEmailComposer
     EmailMessage Invitation(string to, string companyName, string inviterName, string inviteToken);
 
     EmailMessage CleanupReminder(string to, string fullName, DateTimeOffset deleteOn);
+
+    EmailMessage ContactRequest(string to, SubmitContactCommand request);
 }
