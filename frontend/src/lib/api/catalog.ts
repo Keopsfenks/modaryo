@@ -50,6 +50,153 @@ export type ListProductsQuery = {
     pageSize?: number;
 };
 
+export type VariantAttributeDto = { id: string; name: string; values: string[]; sort: number };
+
+export type VariantDto = {
+    id: string;
+    code: string;
+    barcode: string | null;
+    values: Record<string, string>;
+    salePriceOverride: Money4 | null;
+    purchasePriceOverride: Money4 | null;
+    isActive: boolean;
+    inUse: boolean;
+};
+
+export type UnitDto = { id: string; unit: string; factor: number; barcode: string | null };
+export type SupplierCodeDto = { id: string; currentAccountId: string; currentAccountName: string | null; supplierCode: string | null; isDefault: boolean };
+export type ImageDto = { id: string; fileId: string; sort: number };
+
+export type ProductDto = {
+    id: string;
+    kind: ProductKind;
+    code: string;
+    name: string;
+    description: string | null;
+    categoryId: string | null;
+    categoryPath: string | null;
+    brandId: string | null;
+    brandName: string | null;
+    baseUnit: string;
+    vatRate: number;
+    isActive: boolean;
+    soldByMeasure: boolean;
+    measureUnit: string | null;
+    tracksSerialLot: boolean;
+    barcode: string | null;
+    weightKg: number | null;
+    widthCm: number | null;
+    lengthCm: number | null;
+    heightCm: number | null;
+    originCountry: string | null;
+    gtip: string | null;
+    defaultPurchasePrice: Money4 | null;
+    defaultSalePrice: Money4 | null;
+    tags: string[];
+    customFields: Record<string, unknown>;
+    attributes: VariantAttributeDto[];
+    variants: VariantDto[];
+    units: UnitDto[];
+    suppliers: SupplierCodeDto[];
+    images: ImageDto[];
+    inUse: boolean;
+};
+
+/** Oluşturma ve güncelleme gövdesi (varyantlar ayrı uçlarla yönetilir). */
+export type ProductInput = {
+    kind: ProductKind;
+    code: string | null;
+    name: string;
+    description: string | null;
+    categoryId: string | null;
+    brandId: string | null;
+    baseUnit: string;
+    vatRate: number;
+    soldByMeasure: boolean;
+    measureUnit: string | null;
+    tracksSerialLot: boolean;
+    barcode: string | null;
+    weightKg: number | null;
+    widthCm: number | null;
+    lengthCm: number | null;
+    heightCm: number | null;
+    originCountry: string | null;
+    gtip: string | null;
+    defaultPurchasePrice: Money4 | null;
+    defaultSalePrice: Money4 | null;
+    tags: string[];
+    customFields: Record<string, unknown>;
+    units: { unit: string; factor: number; barcode: string | null }[];
+    suppliers: { currentAccountId: string; supplierCode: string | null; isDefault: boolean }[];
+    images: { fileId: string }[];
+};
+
+export type UpdateVariantInput = {
+    code: string;
+    barcode: string | null;
+    salePriceOverride: Money4 | null;
+    purchasePriceOverride: Money4 | null;
+};
+
+export type CustomFieldType = "text" | "number" | "date" | "select" | "bool";
+
+export type CustomFieldDto = {
+    id: string;
+    key: string;
+    label: string;
+    type: CustomFieldType;
+    options: string[];
+    required: boolean;
+    appliesToProduct: boolean;
+    appliesToService: boolean;
+    sort: number;
+};
+
+export type CustomFieldInput = {
+    key?: string;
+    type?: CustomFieldType;
+    label: string;
+    options: string[];
+    required: boolean;
+    appliesToProduct: boolean;
+    appliesToService: boolean;
+    sort: number;
+};
+
+export type CatalogSettings = {
+    codeTemplate: string;
+    defaultVatRate: number;
+    units: string[];
+    barcodePrefix: string;
+    nextBarcodeSequence: number;
+    nextCodeSequence: number;
+};
+
+export const DEFAULT_UNITS = ["adet", "kg", "g", "lt", "m", "m2", "m3", "koli", "paket", "saat", "gün", "iş"];
+export const VAT_RATES = [0, 1, 10, 20];
+
+export type ImportRowResult = {
+    rowNumber: number;
+    /** "create" | "update" | "error" */
+    action: string;
+    code: string | null;
+    name: string | null;
+    errors: string[];
+};
+
+export type ImportPreview = {
+    batchId: string;
+    total: number;
+    creates: number;
+    updates: number;
+    errors: number;
+    rows: ImportRowResult[];
+};
+
+export type ImportCommitResult = { created: number; updated: number };
+
+export type CommitOutcome = { kind: "done"; result: ImportCommitResult } | { kind: "conflict"; preview: ImportPreview };
+
 export type ExportQuery = { kind?: ProductKind; includeInactive?: boolean };
 
 const base = "/api/erp/catalog";
@@ -125,6 +272,44 @@ export const catalog = {
                 pageSize: q.pageSize,
             })}`,
         ),
+    nextProductCode: () => get<{ code: string }>("/products/next-code"),
+    getProduct: (id: string) => get<ProductDto>(`/products/${id}`),
+    createProduct: (body: ProductInput) => send<ProductDto>("POST", "/products", body),
+    updateProduct: (id: string, body: ProductInput) => send<ProductDto>("PUT", `/products/${id}`, body),
+    setProductActive: (id: string, active: boolean) => send("POST", `/products/${id}/${active ? "activate" : "deactivate"}`),
+    deleteProduct: (id: string) => send("DELETE", `/products/${id}`),
+    generateBarcode: (id: string) => send<{ barcode: string }>("POST", `/products/${id}/barcode/generate`),
+    setAttributes: (id: string, attributes: { name: string; values: string[] }[]) =>
+        send<ProductDto>("PUT", `/products/${id}/attributes`, { attributes }),
+    updateVariant: (id: string, variantId: string, body: UpdateVariantInput) =>
+        send<ProductDto>("PUT", `/products/${id}/variants/${variantId}`, body),
+    setVariantActive: (id: string, variantId: string, active: boolean) =>
+        send("POST", `/products/${id}/variants/${variantId}/${active ? "activate" : "deactivate"}`),
+
+    customFields: () => get<CustomFieldDto[]>("/custom-fields"),
+    createCustomField: (body: CustomFieldInput) => send<CustomFieldDto>("POST", "/custom-fields", body),
+    updateCustomField: (id: string, body: CustomFieldInput) => send<CustomFieldDto>("PUT", `/custom-fields/${id}`, body),
+    deleteCustomField: (id: string) => send("DELETE", `/custom-fields/${id}`),
+
+    importTemplate: () => download(`${base}/products/import-template.xlsx`, "urun-sablonu.xlsx"),
+    previewImport: (file: File, autoCode: boolean) => {
+        const form = new FormData();
+        form.append("file", file);
+        form.append("autoCode", String(autoCode));
+        return apiFetch<ImportPreview>(`${base}/products/import/preview`, { method: "POST", body: form });
+    },
+    /** 409 import_conflict hata olarak değil, taze önizlemeyle birlikte sonuç olarak döner; diğer hatalar fırlatılır. */
+    commitImport: async (batchId: string): Promise<CommitOutcome> => {
+        try {
+            return { kind: "done", result: await apiFetch<ImportCommitResult>(`${base}/products/import/${batchId}/commit`, { method: "POST" }) };
+        } catch (e) {
+            const preview = e instanceof ApiError && e.code === "import_conflict" ? e.problem?.preview : undefined;
+            if (preview) {
+                return { kind: "conflict", preview: preview as ImportPreview };
+            }
+            throw e;
+        }
+    },
     exportProducts: (q: ExportQuery = {}) =>
         download(`${base}/products/export.xlsx${queryString({ kind: q.kind, includeInactive: q.includeInactive })}`, "urunler.xlsx"),
 };

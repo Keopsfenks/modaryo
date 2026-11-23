@@ -8,6 +8,8 @@ export type ProblemBody = {
     title?: string;
     code?: string;
     errors?: Record<string, string[]>;
+    /** import_conflict yanıtındaki taze Excel önizlemesi. */
+    preview?: unknown;
 };
 
 const GENERIC_ERROR = "Beklenmeyen bir hata oluştu.";
@@ -22,6 +24,8 @@ export class ApiError extends Error {
     readonly status: number;
     readonly code?: string;
     readonly fieldErrors: Record<string, string>;
+    /** Sunucunun ham ProblemDetails gövdesi (ek alanlar için). */
+    problem: ProblemBody | null = null;
 
     constructor(status: number, message: string, code?: string, fieldErrors: Record<string, string> = {}) {
         super(message);
@@ -39,7 +43,9 @@ export class ApiError extends Error {
         );
         const hasFieldErrors = Object.keys(fieldErrors).length > 0;
         const message = hasFieldErrors ? VALIDATION_ERROR : problem?.title || GENERIC_ERROR;
-        return new ApiError(status, message, problem?.code, fieldErrors);
+        const error = new ApiError(status, message, problem?.code, fieldErrors);
+        error.problem = problem;
+        return error;
     }
 }
 
