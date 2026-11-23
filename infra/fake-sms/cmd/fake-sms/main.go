@@ -11,6 +11,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -22,7 +23,7 @@ import (
 
 const (
 	storeCapacity = 5000
-	healthURL     = "http://127.0.0.1:8026/health"
+	defaultUIAddr = ":8026"
 )
 
 func main() {
@@ -30,14 +31,14 @@ func main() {
 	flag.Parse()
 
 	if *healthcheck {
-		os.Exit(runHealthcheck())
+		os.Exit(runHealthcheck(envOr("FAKE_SMS_UI_ADDR", defaultUIAddr)))
 	}
 
 	creds, err := provider.ParseCredentials(os.Getenv("FAKE_SMS_CREDENTIALS"))
 	if err != nil {
 		log.Fatalf("FAKE_SMS_CREDENTIALS: %v", err)
 	}
-	uiAddr := envOr("FAKE_SMS_UI_ADDR", ":8026")
+	uiAddr := envOr("FAKE_SMS_UI_ADDR", defaultUIAddr)
 	apiAddr := envOr("FAKE_SMS_API_ADDR", ":8027")
 
 	st := store.New(storeCapacity, time.Now)
@@ -56,9 +57,15 @@ func newServer(addr string, h http.Handler) *http.Server {
 	return &http.Server{Addr: addr, Handler: h, ReadHeaderTimeout: 5 * time.Second}
 }
 
-func runHealthcheck() int {
+// runHealthcheck arayüz adresinin port kısmından yerel sağlık uç noktasını yoklar.
+func runHealthcheck(uiAddr string) int {
+	_, port, err := net.SplitHostPort(uiAddr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "FAKE_SMS_UI_ADDR geçersiz:", err)
+		return 1
+	}
 	client := http.Client{Timeout: 3 * time.Second}
-	res, err := client.Get(healthURL)
+	res, err := client.Get("http://127.0.0.1:" + port + "/health")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "sağlık kontrolü başarısız:", err)
 		return 1

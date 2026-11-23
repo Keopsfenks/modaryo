@@ -31,7 +31,9 @@ type reportRequest struct {
 	Request struct {
 		Authentication authentication `json:"authentication"`
 		Order          struct {
-			ID string `json:"id"`
+			ID       string `json:"id"`
+			Page     string `json:"page,omitempty"`
+			RowCount string `json:"rowCount,omitempty"`
 		} `json:"order"`
 	} `json:"request"`
 }
@@ -80,7 +82,7 @@ type reportResponse struct {
 			SubmitAt    string       `json:"submitAt"`
 			SendAt      string       `json:"sendAt"`
 			Sender      string       `json:"sender"`
-			Price       float64      `json:"price"`
+			Price       int          `json:"price"`
 			Message     []reportItem `json:"message"`
 		} `json:"order"`
 	} `json:"response"`

@@ -35,6 +35,9 @@ Docker, WSL (Ubuntu) içinde çalışır. Container'lar Windows'tan `localhost` 
 
 > Dosya deposu yalnızca S3 API'sini kullanır; üretimde herhangi bir S3 uyumlu depo kullanılabilir.
 
+> Sahte SMS sağlayıcısı zamanlanmış gönderimleri (ileri tarihli `sendDateTime`) emüle etmez; mesaj hemen kaydedilir ve 1 s sonra iletildi olur.
+> Sağlayıcı iş hatalarını HTTP 200 ile döner; adaptör yalnızca `response.status.code` değerine göre dallanmalıdır. Ayrıntılar `infra/fake-sms/testdata/README.md` dosyasında.
+
 > **Not:** WSL boşta kalınca kapanabiliyor ve container'lar onunla iner. Servisleri veya testleri çalıştırmadan önce
 > `infra/up.sh` (Git Bash) altyapıyı başlatır ve hazır olana kadar bekler; tekrar çağırmak güvenlidir.
 

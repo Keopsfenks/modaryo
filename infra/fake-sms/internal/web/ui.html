@@ -187,6 +187,7 @@ td.time, td.sender, td.to { white-space: nowrap; }
     fetch("/api/messages", { method: "DELETE" }).then(refresh).catch(function () {});
   });
 
+  refresh();
   setInterval(refresh, 2000);
 })();
 </script>

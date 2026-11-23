@@ -37,20 +37,25 @@ type Filter struct {
 
 // Store, en fazla capacity mesaj tutan iş parçacığı güvenli bir depodur.
 type Store struct {
-	mu       sync.Mutex
-	capacity int
-	now      func() time.Time
-	seq      int64
-	messages []Message // en eski başta
+	mu   sync.Mutex
+	now  func() time.Time
+	seq  int64
+	buf  []Message // halka tampon; uzunluğu kapasitedir
+	head int       // en eski mesajın buf içindeki indeksi
+	n    int       // tampondaki mesaj sayısı
 }
 
 // New, verilen kapasite ve saat kaynağıyla boş bir depo döner.
+// Kapasite en az 1 kabul edilir.
 func New(capacity int, now func() time.Time) *Store {
-	return &Store{capacity: capacity, now: now}
+	if capacity < 1 {
+		capacity = 1
+	}
+	return &Store{now: now, buf: make([]Message, capacity)}
 }
 
 // Add mesajı ekler, ID atar ve teslim durumu çözülmüş bir kopya döner.
-// Kapasite aşılırsa en eski mesajlar düşürülür.
+// Kapasite doluysa en eski mesaj üzerine yazılır (O(1), kopyalama yok).
 func (s *Store) Add(m Message) Message {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -59,11 +64,12 @@ func (s *Store) Add(m Message) Message {
 	m.Status = copyStatus(m.Status)
 	m.Stuck = copyStuck(m.Stuck)
 	m.To = append([]string(nil), m.To...)
-	s.messages = append(s.messages, m)
-	if over := len(s.messages) - s.capacity; over > 0 {
-		kept := make([]Message, s.capacity)
-		copy(kept, s.messages[over:])
-		s.messages = kept
+	if s.n < len(s.buf) {
+		s.buf[(s.head+s.n)%len(s.buf)] = m
+		s.n++
+	} else {
+		s.buf[s.head] = m
+		s.head = (s.head + 1) % len(s.buf)
 	}
 	return s.resolve(m)
 }
@@ -74,8 +80,8 @@ func (s *Store) List(f Filter) []Message {
 	defer s.mu.Unlock()
 	now := s.now()
 	out := []Message{}
-	for i := len(s.messages) - 1; i >= 0; i-- {
-		m := s.messages[i]
+	for i := s.n - 1; i >= 0; i-- {
+		m := s.at(i)
 		if !matches(m, f) {
 			continue
 		}
@@ -86,33 +92,37 @@ func (s *Store) List(f Filter) []Message {
 
 // Get verilen ID'li mesajı döner.
 func (s *Store) Get(id string) (Message, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, m := range s.messages {
-		if m.ID == id {
-			return s.resolve(m), true
-		}
-	}
-	return Message{}, false
+	return s.find(func(m Message) bool { return m.ID == id })
 }
 
 // ByOrderID verilen sipariş numaralı mesajı döner.
 func (s *Store) ByOrderID(orderID string) (Message, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, m := range s.messages {
-		if m.OrderID == orderID {
-			return s.resolve(m), true
-		}
-	}
-	return Message{}, false
+	return s.find(func(m Message) bool { return m.OrderID == orderID })
 }
 
 // Clear tüm mesajları siler.
 func (s *Store) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.messages = nil
+	s.buf = make([]Message, len(s.buf))
+	s.head, s.n = 0, 0
+}
+
+// at, i. en eski mesajı döner (0 en eski, n-1 en yeni). Kilit tutulmalıdır.
+func (s *Store) at(i int) Message {
+	return s.buf[(s.head+i)%len(s.buf)]
+}
+
+// find en yeniden eskiye arar. Kilit alır.
+func (s *Store) find(pred func(Message) bool) (Message, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := s.n - 1; i >= 0; i-- {
+		if m := s.at(i); pred(m) {
+			return s.resolve(m), true
+		}
+	}
+	return Message{}, false
 }
 
 func (s *Store) resolve(m Message) Message {

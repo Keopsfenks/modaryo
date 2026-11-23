@@ -154,7 +154,7 @@ func TestFixtures_RoundTrip(t *testing.T) {
 	insuf := readFixture(t, "send-request.json")
 	setRecipient(insuf, "905321239999")
 	code, body = h.post(t, "/v1/send-sms/json", insuf)
-	if code != 402 || !reflect.DeepEqual(decodeMap(t, body), readFixture(t, "insufficient-balance-response.json")) {
+	if code != 200 || !reflect.DeepEqual(decodeMap(t, body), readFixture(t, "insufficient-balance-response.json")) {
 		t.Fatalf("bakiye hatası fixture ile uyuşmuyor: %d %s", code, body)
 	}
 }
@@ -194,10 +194,11 @@ func TestFailureInjection_ByNumberSuffix(t *testing.T) {
 		req := readFixture(t, "send-request.json")
 		setRecipient(req, num)
 		code, body := h.post(t, "/v1/send-sms/json", req)
-		if code != 200 {
+		order, ok := decodeMap(t, body)["response"].(map[string]any)["order"].(map[string]any)
+		if !ok {
 			return code, ""
 		}
-		return code, decodeMap(t, body)["response"].(map[string]any)["order"].(map[string]any)["id"].(string)
+		return code, order["id"].(string)
 	}
 	reportStatus := func(orderID, num string) float64 {
 		t.Helper()
@@ -219,8 +220,8 @@ func TestFailureInjection_ByNumberSuffix(t *testing.T) {
 	if got := reportStatus(failedID, "+905321230000"); got != 112 {
 		t.Fatalf("0000 için rapor kodu %v", got)
 	}
-	if code, _ := sendTo("905321239999"); code != 402 {
-		t.Fatalf("9999 için HTTP %d", code)
+	if _, id := sendTo("905321239999"); id != "" {
+		t.Fatal("9999 için sipariş oluştu, bakiye hatası bekleniyordu")
 	}
 	_, stuckID := sendTo("905321235555")
 	h.clk.Advance(time.Hour)
@@ -267,7 +268,7 @@ func TestReport_UnknownOrder(t *testing.T) {
 	r := readFixture(t, "report-request.json")
 	setOrderID(r, "999")
 	code, body := h.post(t, "/v1/get-report/json", r)
-	if code == 200 || !strings.Contains(string(body), "455") {
+	if code != 200 || !strings.Contains(string(body), "455") {
 		t.Fatalf("bilinmeyen sipariş için 455 bekleniyordu: %d %s", code, body)
 	}
 }
@@ -292,5 +293,26 @@ func TestParseCredentials(t *testing.T) {
 		if _, err := ParseCredentials(bad); err == nil {
 			t.Fatalf("%q için hata bekleniyordu", bad)
 		}
+	}
+}
+
+func TestDecode_RejectsUnknownFields(t *testing.T) {
+	h := newHarness(t)
+	req := readFixture(t, "send-request.json")
+	req["request"].(map[string]any)["order"].(map[string]any)["bilinmeyen"] = "x"
+	code, _ := h.post(t, "/v1/send-sms/json", req)
+	if code != 400 {
+		t.Fatalf("bilinmeyen alan için HTTP %d, 400 bekleniyordu", code)
+	}
+}
+
+func TestReport_AcceptsOptionalPageAndRowCount(t *testing.T) {
+	h := newHarness(t)
+	_, body := h.post(t, "/v1/send-sms/json", readFixture(t, "send-request.json"))
+	orderID := decodeMap(t, body)["response"].(map[string]any)["order"].(map[string]any)["id"].(string)
+	r := readFixture(t, "report-request.json")
+	setOrderID(r, orderID)
+	if code, body := h.post(t, "/v1/get-report/json", r); code != 200 {
+		t.Fatalf("page/rowCount ile rapor reddedildi: %d %s", code, body)
 	}
 }

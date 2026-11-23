@@ -131,7 +131,7 @@ func (p *provider) send(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !p.authenticated(req.Request.Authentication) {
-		writeError(w, codeAuthFailed, msgAuthFailed)
+		writeAuthError(w)
 		return
 	}
 	order := req.Request.Order
@@ -218,7 +218,7 @@ func (p *provider) report(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !p.authenticated(req.Request.Authentication) {
-		writeError(w, codeAuthFailed, msgAuthFailed)
+		writeAuthError(w)
 		return
 	}
 	id := req.Request.Order.ID
@@ -238,7 +238,7 @@ func (p *provider) report(w http.ResponseWriter, r *http.Request) {
 	o.ID = m.OrderID
 	o.Total = len(m.To)
 	o.Sender = m.Sender
-	o.Price = float64(len(m.To))
+	o.Price = len(m.To)
 	o.SubmitAt = m.At.In(istanbul).Format(dateLayout)
 	o.SendAt = o.SubmitAt
 	for _, n := range m.To {
@@ -274,7 +274,7 @@ func (p *provider) balance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !p.authenticated(req.Request.Authentication) {
-		writeError(w, codeAuthFailed, msgAuthFailed)
+		writeAuthError(w)
 		return
 	}
 	var resp balanceResponse
@@ -293,24 +293,34 @@ func isTurkishLetter(r rune) bool {
 	return strings.ContainsRune("çğıöşüÇĞİÖŞÜ", r)
 }
 
+// decode isteği katı çözer: dokümanda olmayan alanlar 400 hatası verir.
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
-	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
-		writeError(w, codeBadRequest, msgBadRequest)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		// Çözümlenemeyen istek bir taşıma hatasıdır: HTTP 400 ile yazılır.
+		var resp errorResponse
+		resp.Response.Status = status{Code: codeBadRequest, Message: msgBadRequest}
+		writeJSON(w, http.StatusBadRequest, resp)
 		return false
 	}
 	return true
 }
 
-// writeError hata zarfını yazar. HTTP durumu, kod 400-599 aralığındaysa kodla aynıdır;
-// değilse 400 kullanılır.
+// writeError iş hatası zarfını HTTP 200 ile yazar. Dokümantasyon iş hatalarında
+// HTTP durumunu belirtmez; adaptör yalnızca response.status.code değerine göre dallanmalıdır.
 func writeError(w http.ResponseWriter, code int, message string) {
 	var resp errorResponse
 	resp.Response.Status = status{Code: code, Message: message}
-	httpCode := http.StatusBadRequest
-	if code >= 400 && code <= 599 {
-		httpCode = code
-	}
-	writeJSON(w, httpCode, resp)
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// writeAuthError kimlik doğrulama hatasını HTTP 401 ile yazar. Dokümantasyon bu hatayı
+// "401: Üyelik bilgileri hatalı" olarak etiketler (HTTP durumu doğrulanmadı, bkz. testdata/README.md).
+func writeAuthError(w http.ResponseWriter) {
+	var resp errorResponse
+	resp.Response.Status = status{Code: codeAuthFailed, Message: msgAuthFailed}
+	writeJSON(w, http.StatusUnauthorized, resp)
 }
 
 func writeJSON(w http.ResponseWriter, httpCode int, v any) {
