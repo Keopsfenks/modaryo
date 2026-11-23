@@ -47,7 +47,7 @@ describe("InvitationLanding", () => {
 
         await user.click(await screen.findByRole("button", { name: /akdeniz tekstil firmasına katıl/i }));
 
-        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/panel"));
         expect(accepted).toBe(true);
     });
 
@@ -98,7 +98,7 @@ describe("InvitationLanding", () => {
         await user.type(screen.getByLabelText("Şifre", { selector: "input" }), "guvenli-sifre-123");
         await user.click(screen.getByRole("button", { name: /hesabı oluştur ve katıl/i }));
 
-        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/panel"));
         expect(body).toEqual({ email: "veli@ornek.com", fullName: "Veli Kaya", password: "guvenli-sifre-123", inviteToken: TOKEN });
     });
 

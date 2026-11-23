@@ -46,7 +46,7 @@ describe("LoginForm", () => {
 
         await fillAndSubmit(user);
 
-        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/panel"));
     });
 
     it("Login_InvalidCredentials_ShowsServerTitle", async () => {

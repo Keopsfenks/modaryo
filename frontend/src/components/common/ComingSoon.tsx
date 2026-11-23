@@ -21,7 +21,7 @@ export default function ComingSoon({ title }: { title: string }) {
                         <Typography color="text.secondary" sx={{ mb: 3 }}>
                             Bu ekran henüz geliştirilmedi. ERP servisine bağlandığında burada listeler ve formlar yer alacak.
                         </Typography>
-                        <Button variant="contained" component={Link} href="/">
+                        <Button variant="contained" component={Link} href="/panel">
                             Genel Bakış&apos;a dön
                         </Button>
                     </Box>

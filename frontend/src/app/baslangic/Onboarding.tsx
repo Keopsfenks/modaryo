@@ -35,7 +35,7 @@ export default function Onboarding() {
         setError(null);
         try {
             await identity.acceptMyInvitation(id);
-            router.replace("/");
+            router.replace("/panel");
         } catch (e) {
             setBusy(false);
             if (!(e instanceof ApiError)) throw e;
@@ -53,7 +53,7 @@ export default function Onboarding() {
                     Modaryo&apos;yu kullanmaya başlamak için bir firmaya katıl ya da kendi firmanı oluştur.
                 </Typography>
                 {session.activeCompany && (
-                    <Button component={Link} href="/" sx={{ mt: 1, px: 0 }}>
+                    <Button component={Link} href="/panel" sx={{ mt: 1, px: 0 }}>
                         Panele dön
                     </Button>
                 )}
@@ -94,7 +94,7 @@ export default function Onboarding() {
                 </Card>
             )}
 
-            <CreateCompanyCard onCreated={() => router.replace("/")} />
+            <CreateCompanyCard onCreated={() => router.replace("/panel")} />
 
             <Box sx={{ textAlign: "center" }}>
                 <Button color="inherit" onClick={() => void logout()}>

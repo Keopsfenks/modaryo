@@ -22,6 +22,11 @@ function Probe() {
     );
 }
 
+function AccessProbe() {
+    const s = useSession();
+    return <p>{[s.hasModule("pos"), s.hasModule("cek-senet"), s.canAccessBranch("b1"), s.canAccessBranch("b2")].join(",")}</p>;
+}
+
 describe("SessionProvider", () => {
     beforeEach(() => {
         resetNavigation("/hesap", "x=1");
@@ -89,5 +94,19 @@ describe("SessionProvider", () => {
         renderWithTheme(<SessionProvider><Probe /></SessionProvider>);
 
         expect(await screen.findByText("yonet: false")).toBeInTheDocument();
+    });
+
+    it("Session_HasModuleAndCanAccessBranch", async () => {
+        server.use(http.get(SESSION, () => HttpResponse.json(sessionInfo({ modules: ["pos"], branchIds: ["b1"] }))));
+        renderWithTheme(<SessionProvider><AccessProbe /></SessionProvider>);
+
+        expect(await screen.findByText("true,false,true,false")).toBeInTheDocument();
+    });
+
+    it("Session_NullBranchIds_AllowsEveryBranch", async () => {
+        server.use(http.get(SESSION, () => HttpResponse.json(sessionInfo({ branchIds: null }))));
+        renderWithTheme(<SessionProvider><AccessProbe /></SessionProvider>);
+
+        expect(await screen.findByText("false,false,true,true")).toBeInTheDocument();
     });
 });

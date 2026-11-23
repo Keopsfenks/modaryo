@@ -64,7 +64,7 @@ export default function CompanyCard() {
             const other = session.companies.find((c) => c.id !== session.activeCompany?.id);
             if (other) {
                 await identity.switchTenant(other.id);
-                router.replace("/");
+                router.replace("/panel");
             } else {
                 router.replace("/baslangic");
             }

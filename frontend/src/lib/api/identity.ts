@@ -10,6 +10,11 @@ export type SessionInfo = {
     activeCompany: CompanyRef | null;
     permissions: string[];
     companies: CompanyRef[];
+    modules: string[];
+    /** null → tüm şubeler; boş dizi → hiçbir şube. */
+    branchIds: string[] | null;
+    maxDiscountPercent: number;
+    userType: "employee" | "dealer" | "self_service";
 };
 
 export type SessionListItem = {

@@ -9,7 +9,7 @@ export const dynamicParams = false;
 
 export function generateStaticParams() {
     return allNavItems
-        .filter((item) => item.href !== "/" && !item.implemented)
+        .filter((item) => item.href !== "/panel" && !item.implemented)
         .map((item) => ({ slug: item.href.split("/").filter(Boolean) }));
 }
 

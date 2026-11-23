@@ -41,7 +41,7 @@ describe("Onboarding", () => {
         expect(screen.getByText(/Sahip Kişi/)).toBeInTheDocument();
         await user.click(screen.getByRole("button", { name: /katıl/i }));
 
-        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/panel"));
         expect(acceptedId).toBe("inv-1");
     });
 
@@ -79,7 +79,7 @@ describe("Onboarding", () => {
         await user.type(name, "Yeni Firma");
         await user.click(screen.getByRole("button", { name: /^oluştur$/i }));
 
-        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/panel"));
         expect(createdName).toEqual({ name: "Yeni Firma" });
     });
 
@@ -91,7 +91,7 @@ describe("Onboarding", () => {
 
         renderOnboarding();
 
-        expect(await screen.findByRole("link", { name: /panele dön/i })).toHaveAttribute("href", "/");
+        expect(await screen.findByRole("link", { name: /panele dön/i })).toHaveAttribute("href", "/panel");
     });
 
     it("Onboarding_GreetsUserAndOffersLogout", async () => {

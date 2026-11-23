@@ -29,6 +29,8 @@ export type NavItem = {
     badge?: string;
     /** Bu izni olmayan kullanıcı öğeyi menüde görmez ("*" her izni karşılar). */
     permission?: string;
+    /** Bu modül firmada kapalıysa öğe menüde görünmez. */
+    module?: string;
     /** Gerçek sayfası olan öğe; "Yakında" sayfası üretilmez. */
     implemented?: boolean;
 };
@@ -43,7 +45,7 @@ export type NavSection = {
 export const navigation: NavSection[] = [
     {
         title: "Ana Sayfa",
-        items: [{ title: "Genel Bakış", href: "/", icon: IconLayoutDashboard }],
+        items: [{ title: "Genel Bakış", href: "/panel", icon: IconLayoutDashboard }],
     },
     {
         title: "Satış",
@@ -91,7 +93,7 @@ export const navigation: NavSection[] = [
         items: [
             { title: "Firma Üyeleri", href: "/firma/uyeler", icon: IconUsersGroup, permission: "members.read", implemented: true },
             { title: "Görevler", href: "/sistem/gorevler", icon: IconClipboardList },
-            { title: "Ayarlar", href: "/sistem/ayarlar", icon: IconSettings },
+            { title: "Ayarlar", href: "/ayarlar", icon: IconSettings, implemented: true },
         ],
     },
 ];

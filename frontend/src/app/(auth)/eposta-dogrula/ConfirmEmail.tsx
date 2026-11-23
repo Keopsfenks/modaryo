@@ -36,7 +36,7 @@ export default function ConfirmEmail() {
 
         identity
             .confirmEmail({ userId, token })
-            .then((session) => router.replace(afterSignInPath(session, "/")))
+            .then((session) => router.replace(afterSignInPath(session, null)))
             .catch(() => setRequestFailed(true));
     }, [router, userId, token]);
 

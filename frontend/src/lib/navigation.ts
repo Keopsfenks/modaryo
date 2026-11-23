@@ -7,11 +7,11 @@ export function isPublicPath(pathname: string): boolean {
 
 /**
  * Girişten sonra gidilecek adres. Yalnızca site içi göreli yollar kabul edilir; dış adresler
- * ("https://…", "//…", "/\…") açık yönlendirmeye karşı "/" olur.
+ * ("https://…", "//…", "/\…") açık yönlendirmeye karşı "/panel" olur.
  */
 export function safeNext(value: string | null | undefined): string {
     if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) {
-        return "/";
+        return "/panel";
     }
 
     return value;

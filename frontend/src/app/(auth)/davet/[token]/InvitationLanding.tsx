@@ -113,7 +113,7 @@ function AcceptCard({ token, preview, subtitle }: { token: string; preview: Invi
         setError(null);
         try {
             await identity.acceptInvitation(token);
-            router.replace("/");
+            router.replace("/panel");
         } catch (e) {
             setBusy(false);
             if (!(e instanceof ApiError)) throw e;
@@ -148,7 +148,7 @@ function WrongAccountCard({ preview, subtitle, loginHref }: { preview: Invitatio
                 <Button variant="contained" onClick={switchAccount} disabled={busy}>
                     Çıkış yap ve o hesapla gir
                 </Button>
-                <Button component={Link} href="/">
+                <Button component={Link} href="/panel">
                     Panele dön
                 </Button>
             </Stack>
@@ -186,7 +186,7 @@ function RegisterWithInvitation({
         setBusy(true);
         try {
             await identity.register({ email: preview.email, fullName: fullName.trim(), password, inviteToken: token });
-            router.replace("/");
+            router.replace("/panel");
         } catch (e) {
             setBusy(false);
             if (!(e instanceof ApiError)) throw e;

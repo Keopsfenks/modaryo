@@ -13,6 +13,9 @@ export type SessionState = {
     refresh(): Promise<void>;
     setSession(session: SessionInfo): void;
     hasPermission(permission: string): boolean;
+    hasModule(key: string): boolean;
+    /** branchIds === null → tüm şubeler. */
+    canAccessBranch(branchId: string): boolean;
     switchTenant(tenantId: string): Promise<void>;
     logout(): Promise<void>;
 };
@@ -83,6 +86,8 @@ export function SessionProvider({ children, requireCompany = true }: { children:
             setSession,
             refresh: load,
             hasPermission: (permission) => session.permissions.includes("*") || session.permissions.includes(permission),
+            hasModule: (key) => session.modules.includes(key),
+            canAccessBranch: (branchId) => session.branchIds === null || session.branchIds.includes(branchId),
             switchTenant: async (tenantId) => {
                 setSession(await identity.switchTenant(tenantId));
                 router.refresh();

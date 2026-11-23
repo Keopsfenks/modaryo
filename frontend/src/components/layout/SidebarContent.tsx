@@ -15,6 +15,7 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { IconPower } from "@tabler/icons-react";
 import { navigation } from "@/config/navigation";
+import { visibleCategories } from "@/config/settings";
 import { useSession } from "@/session/SessionProvider";
 import { initials } from "./Header";
 import Logo from "./Logo";
@@ -25,9 +26,15 @@ type SidebarContentProps = {
 
 export default function SidebarContent({ onNavigate }: SidebarContentProps) {
     const pathname = usePathname();
-    const { session, logout, hasPermission } = useSession();
+    const { session, logout, hasPermission, hasModule } = useSession();
+    const canSeeSettings = visibleCategories({ hasPermission, hasModule }).length > 0;
     const visibleNavigation = navigation
-        .map((section) => ({ ...section, items: section.items.filter((item) => !item.permission || hasPermission(item.permission)) }))
+        .map((section) => ({ ...section, items: section.items.filter(
+                (item) =>
+                    (!item.permission || hasPermission(item.permission)) &&
+                    (!item.module || hasModule(item.module)) &&
+                    (item.href !== "/ayarlar" || canSeeSettings),
+            ) }))
         .filter((section) => section.items.length > 0);
 
     return (

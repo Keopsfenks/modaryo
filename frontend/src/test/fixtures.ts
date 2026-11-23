@@ -8,6 +8,10 @@ export function sessionInfo(overrides: Partial<SessionInfo> = {}): SessionInfo {
         activeCompany: demoCompany,
         permissions: ["*"],
         companies: [demoCompany],
+        modules: [],
+        branchIds: null,
+        maxDiscountPercent: 0,
+        userType: "employee",
         ...overrides,
     };
 }

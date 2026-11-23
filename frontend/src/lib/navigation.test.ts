@@ -5,15 +5,25 @@ describe("safeNext", () => {
     it.each([
         ["/hesap", "/hesap"],
         ["/firma/uyeler?x=1", "/firma/uyeler?x=1"],
-        ["https://kotu.site", "/"],
-        ["//kotu.site", "/"],
-        ["/\\kotu.site", "/"],
-        ["javascript:alert(1)", "/"],
-        ["", "/"],
-        [null, "/"],
-        [undefined, "/"],
+        ["https://kotu.site", "/panel"],
+        ["//kotu.site", "/panel"],
+        ["/\\kotu.site", "/panel"],
+        ["javascript:alert(1)", "/panel"],
+        ["", "/panel"],
+        [null, "/panel"],
+        [undefined, "/panel"],
     ])("safeNext(%s) → %s", (input, expected) => {
         expect(safeNext(input)).toBe(expected);
+    });
+});
+
+describe("defaults", () => {
+    it("SafeNext_Empty_ReturnsPanel", () => {
+        expect(safeNext("")).toBe("/panel");
+    });
+
+    it("AfterSignIn_DefaultsToPanel", () => {
+        expect(afterSignInPath({ activeCompany: { id: "x" } }, undefined)).toBe("/panel");
     });
 });
 
@@ -46,7 +56,7 @@ describe("afterSignInPath", () => {
 
     it("with company uses safe next", () => {
         expect(afterSignInPath(withCompany, "/hesap")).toBe("/hesap");
-        expect(afterSignInPath(withCompany, "https://kotu.site")).toBe("/");
+        expect(afterSignInPath(withCompany, "https://kotu.site")).toBe("/panel");
     });
 
     it("without company goes to onboarding", () => {

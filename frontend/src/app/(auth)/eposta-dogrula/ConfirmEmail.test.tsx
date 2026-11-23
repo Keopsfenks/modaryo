@@ -38,7 +38,7 @@ describe("ConfirmEmail", () => {
 
         renderWithTheme(<StrictMode><ConfirmEmail /></StrictMode>);
 
-        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/"));
+        await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/panel"));
         expect(calls).toBe(1);
     });
 

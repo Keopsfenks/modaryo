@@ -8,7 +8,7 @@ export default function Logo() {
     return (
         <Box
             component={Link}
-            href="/"
+            href="/panel"
             aria-label="Modaryo ERP ana sayfa"
             sx={{ display: "flex", alignItems: "center", gap: 1.25, textDecoration: "none", color: "text.primary" }}
         >
