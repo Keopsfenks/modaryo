@@ -94,3 +94,54 @@ Geliştirme sırları yalnızca `appsettings.Development.json` içindedir; kodda
 ### Kimlik
 
 İç istekte kimlik yalnızca `service` ve `tenant_id` claim'leridir: kullanıcı, izin ve modül yoktur; ERP'de denetim kaydının aktörü `sistem:{servis}` olur.
+
+## Olaylar (event v1)
+
+ERP, iş değişikliğiyle aynı veritabanı işleminde bir outbox tablosuna olay yazar (transactional outbox); arka plan rölesi bunları Valkey akışına iletir.
+Go/Python servisleri (bildirim, e-fatura) bu akışı okur. Örnek zarf: `event-v1.example.json`.
+
+### Akış ve girdi alanları
+
+- Akış anahtarı: `erp.events` (Valkey DB'si ERP'nin kullandığı bağlantıdaki DB'dir; üretimde 0).
+- Her olay `XADD erp.events MAXLEN ~ 100000 * ...` ile eklenir (yaklaşık kırpma; ~100 bin girdi tutulur).
+- Her akış girdisinin üç alanı vardır:
+
+| Alan | Anlam |
+|---|---|
+| `type` | Olay türü (zarftaki `type` ile aynı); tüketici JSON ayrıştırmadan süzebilir |
+| `tenant_id` | Firma UUID (zarftaki ile aynı) |
+| `event` | Tam zarf (aşağıdaki JSON), UTF-8 metin |
+
+### Zarf (`event` alanı)
+
+| Alan | Anlam |
+|---|---|
+| `v` | Sözleşme sürümü, şimdilik `1` |
+| `id` | Olay kimliği (UUIDv7); outbox kaydının kimliğidir ve yeniden iletimde değişmez |
+| `type` | `kebab.case` olay türü, örn. `current-account.entry-added` |
+| `tenant_id` | Olayın ait olduğu firma (UUID) |
+| `occurred_at` | Olayın oluştuğu an, ISO-8601 UTC (`2026-11-22T21:30:15.123Z`) |
+| `actor` | Olayı tetikleyen: kullanıcının adı ya da iç API çağrısında `sistem:{servis}` |
+| `data` | Olaya özgü gövde; anahtarlar `snake_case` |
+
+### İletim güvencesi: en az bir kez (at-least-once)
+
+Röle, bekleyen kayıtları `Id` sırasıyla (en çok 100'lük partiler) iletir ve ardından kaydı "iletildi" olarak işaretler.
+XADD ile işaretleme arasında süreç ölürse aynı olay akışa **yeniden** yazılabilir. Tüketiciler zarf `id` alanıyla tekilleştirmelidir.
+Sıra tek röle örneğinde korunur; birden çok röle örneği aynı kaydı aynı anda iletmez (`FOR UPDATE SKIP LOCKED`), ancak örnekler arasında sıra garantisi yoktur.
+Valkey erişilemezken olaylar bekler; röle 1 sn, 2 sn, 4 sn ... en çok 60 sn aralıkla yeniden dener.
+
+### `current-account.entry-added`
+
+Cari hesaba her hareket eklendiğinde (hareket girişi ve kart açılışındaki açılış bakiyesi dahil; hareket başına bir olay) yayılır.
+
+| `data` alanı | Tür | Anlam |
+|---|---|---|
+| `current_account_id` | UUID | Cari |
+| `entry_id` | UUID | Hareket |
+| `kind` | string (`debit` veya `credit`) | Hareketin yönü (açılış bakiyesi de borç/alacak olarak) |
+| `amount` | string | Tutar, her zaman 2 ondalıklı ve nokta ayraçlı (`"250.50"`); kayan nokta kaybı olmasın diye metindir |
+| `currency` | string | Para birimi (`TRY`, `USD`, `EUR`, `GBP`) |
+| `date` | string | Hareket tarihi, `yyyy-MM-dd` |
+| `due_date` | string veya `null` | Vade tarihi, `yyyy-MM-dd` |
+| `description` | string veya `null` | Açıklama |

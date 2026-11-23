@@ -63,6 +63,7 @@ public sealed class CreateCurrentAccountCommandValidator : AbstractValidator<Cre
 
 public sealed class CreateCurrentAccountCommandHandler(
     IApplicationDbContext db,
+    IOutbox               outbox,
     TimeProvider          time
 )
     : IRequestHandler<CreateCurrentAccountCommand, CurrentAccountDto> {
@@ -86,9 +87,12 @@ public sealed class CreateCurrentAccountCommandHandler(
             db.CurrentAccountAddresses.Add(address);
         }
 
-        if (request.OpeningBalance is { } opening)
-            db.LedgerEntries.Add(EntryRules.NewEntry(account, LedgerEntryType.Opening, opening.Date, null, null, null,
-                                                     opening.Amount, opening.Direction == "debit"));
+        if (request.OpeningBalance is { } opening) {
+            var entry = EntryRules.NewEntry(account, LedgerEntryType.Opening, opening.Date, null, null, null,
+                                            opening.Amount, opening.Direction == "debit");
+            db.LedgerEntries.Add(entry);
+            outbox.EnqueueEntryAdded(entry);
+        }
 
         try {
             await db.SaveChangesAsync(ct);

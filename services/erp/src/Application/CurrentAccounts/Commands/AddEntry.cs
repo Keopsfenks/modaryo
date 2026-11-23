@@ -50,7 +50,8 @@ public sealed class AddEntryCommandValidator : AbstractValidator<AddEntryCommand
 }
 
 public sealed class AddEntryCommandHandler(
-    IApplicationDbContext db
+    IApplicationDbContext db,
+    IOutbox               outbox
 ) : IRequestHandler<AddEntryCommand, AddEntryResult> {
     public async Task<AddEntryResult> Handle(AddEntryCommand request, CancellationToken ct) {
         var account = await db.CurrentAccounts.FirstOrDefaultAsync(a => a.Id == request.AccountId, ct)
@@ -80,6 +81,7 @@ public sealed class AddEntryCommandHandler(
         var entry = EntryRules.NewEntry(account, type, request.Date, dueDate, request.DocumentNo, request.Description,
                                         request.Amount, debit);
         db.LedgerEntries.Add(entry);
+        outbox.EnqueueEntryAdded(entry);
 
         try {
             await db.SaveChangesAsync(ct);

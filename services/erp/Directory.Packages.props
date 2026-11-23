@@ -24,6 +24,7 @@
         <PackageVersion Include="Respawn" Version="7.0.0"/>
         <PackageVersion Include="Scalar.AspNetCore" Version="2.21.0"/>
         <PackageVersion Include="Shouldly" Version="4.3.0"/>
+        <PackageVersion Include="StackExchange.Redis" Version="3.4.35"/>
         <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0"/>
         <PackageVersion Include="CommunityToolkit.Aspire.Hosting.SQLite" Version="13.6.1"/>
         <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.6.5"/>

@@ -17,6 +17,7 @@ public class ErpApiFactory(
         builder.UseEnvironment("Development");
         builder.UseSetting($"ConnectionStrings:{Shared.Services.Database}", connectionString);
         builder.UseSetting("ConnectionStrings:Valkey",                      ValkeyConnectionString);
+        builder.UseSetting("Outbox:RelayEnabled", "false"); // testler PublishPendingAsync'i kendileri çağırır
         Platform.InternalProbes.Configure(builder);
         builder.ConfigureTestServices(services => {
                                           services.AddSingleton<IStartupFilter, LoopbackClientStartupFilter>();

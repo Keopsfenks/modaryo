@@ -1,0 +1,18 @@
+{
+    "v": 1,
+    "id": "019a9d0c-3f5e-7a41-8c2b-6d1e9f4a7b20",
+    "type": "current-account.entry-added",
+    "tenant_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "occurred_at": "2026-11-22T21:30:15.123Z",
+    "actor": "Ali Veli",
+    "data": {
+        "current_account_id": "019a9d0b-8c11-7e02-9a53-2b7c4d5e6f01",
+        "entry_id": "019a9d0c-3f5a-7b94-a0c3-1e2d3c4b5a69",
+        "kind": "debit",
+        "amount": "250.50",
+        "currency": "TRY",
+        "date": "2026-11-01",
+        "due_date": "2026-12-01",
+        "description": "Satış"
+    }
+}
