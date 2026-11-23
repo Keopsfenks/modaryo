@@ -21,6 +21,9 @@ public class ErpApiFactory(
     /// <summary>Kimlik servisinin şube dizininin yerine geçen, testin doldurduğu sahte dizin.</summary>
     public FakeBranchDirectory Branches { get; } = new();
 
+    /// <summary>Başka modüllerin kalem kullanımını taklit eden sahte sağlayıcı.</summary>
+    public FakeItemUsageProvider ItemUsage { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
         builder.UseEnvironment("Development");
         builder.UseSetting($"ConnectionStrings:{Shared.Services.Database}", connectionString);
@@ -34,6 +37,7 @@ public class ErpApiFactory(
                                           Platform.InternalProbes.Register(services);
                                           services.RemoveAll<IBranchDirectory>();
                                           services.AddSingleton<IBranchDirectory>(Branches);
+                                          services.AddSingleton<IItemUsageProvider>(ItemUsage);
                                       });
     }
 

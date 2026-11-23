@@ -81,6 +81,26 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
         return locked.Count > 0;
     }
 
+    public async Task<int> ReserveCatalogSequenceAsync(string            field,
+                                                       int               atLeast,
+                                                       string            seedJson,
+                                                       CancellationToken cancellationToken
+    ) {
+        var tenantId = CurrentTenantId ?? throw new InvalidOperationException("Aktif firma yok.");
+        var path     = new[] { field };
+        var rows = await Database.SqlQuery<int>($"""
+                                                 INSERT INTO tenant_settings ("TenantId", "Category", "Json", "Version", "UpdatedAt", "UpdatedBy")
+                                                 VALUES ({tenantId}, 'katalog', {seedJson}::jsonb, 1, now(), 'sistem')
+                                                 ON CONFLICT ("TenantId", "Category") DO UPDATE
+                                                 SET "Json" = jsonb_set(tenant_settings."Json", {path},
+                                                         to_jsonb(GREATEST(COALESCE((tenant_settings."Json" ->> {field}::text)::int, 1), {atLeast}) + 1)),
+                                                     "Version" = tenant_settings."Version" + 1,
+                                                     "UpdatedAt" = now()
+                                                 RETURNING ((tenant_settings."Json" ->> {field}::text)::int - 1) AS "Value"
+                                                 """).ToListAsync(cancellationToken);
+        return rows.Single();
+    }
+
     protected override void OnModelCreating(ModelBuilder builder) {
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());

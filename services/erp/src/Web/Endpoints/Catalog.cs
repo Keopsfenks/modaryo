@@ -1,5 +1,11 @@
 using ERP.Application.Catalog.Brands;
 using ERP.Application.Catalog.Categories;
+using ERP.Application.Catalog.CustomFields;
+using ERP.Application.Catalog.Products;
+using ERP.Application.Catalog.Products.Commands;
+using ERP.Application.Catalog.Products.Queries;
+using ERP.Application.CurrentAccounts;
+using ERP.Domain.Catalog;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace ERP.Web.Endpoints;
@@ -16,6 +22,110 @@ public class Catalog : IEndpointGroup {
         groupBuilder.MapPost(CreateBrand, "brands");
         groupBuilder.MapPut(UpdateBrand, "brands/{id:guid}");
         groupBuilder.MapDelete(DeleteBrand, "brands/{id:guid}");
+        groupBuilder.MapGet(ListProducts, "products");
+        groupBuilder.MapGet(NextProductCode, "products/next-code");
+        groupBuilder.MapGet(GetProduct, "products/{id:guid}");
+        groupBuilder.MapPost(CreateProduct, "products");
+        groupBuilder.MapPut(UpdateProduct, "products/{id:guid}");
+        groupBuilder.MapPost(ActivateProduct, "products/{id:guid}/activate");
+        groupBuilder.MapPost(DeactivateProduct, "products/{id:guid}/deactivate");
+        groupBuilder.MapDelete(DeleteProduct, "products/{id:guid}");
+        groupBuilder.MapPost(GenerateBarcode, "products/{id:guid}/barcode/generate");
+        groupBuilder.MapGet(ListCustomFields, "custom-fields");
+        groupBuilder.MapPost(CreateCustomField, "custom-fields");
+        groupBuilder.MapPut(UpdateCustomField, "custom-fields/{id:guid}");
+        groupBuilder.MapDelete(DeleteCustomField, "custom-fields/{id:guid}");
+    }
+
+    [EndpointSummary("Ürün ve hizmet listesi")]
+    [EndpointDescription("search: ad, kod, barkod veya tedarikçi kodu (Türkçe harf katlamalı). kind: product | service. categoryId alt kategorileri de kapsar. Pasifler yalnızca includeInactive=true ile gelir. pageSize varsayılan 25, en fazla 100.")]
+    public static async Task<Ok<PagedResult<ProductListItem>>> ListProducts(
+        ISender      sender,
+        string?      search,
+        string?      kind,
+        Guid?        categoryId,
+        Guid?        brandId,
+        string?      tag,
+        bool         includeInactive = false,
+        int          page            = 1,
+        int          pageSize        = 25
+    ) {
+        return TypedResults.Ok(await sender.Send(new ListProductsQuery(search, kind, categoryId, brandId, tag,
+                                                                        includeInactive, page, pageSize)));
+    }
+
+    [EndpointSummary("Sonraki ürün kodu")]
+    [EndpointDescription("Ayarlardaki şablona göre önerilen kod; sayacı tüketmez.")]
+    public static async Task<Ok<NextCodeResult>> NextProductCode(ISender sender) {
+        return TypedResults.Ok(await sender.Send(new NextProductCodeQuery()));
+    }
+
+    [EndpointSummary("Ürün veya hizmet kartı")]
+    public static async Task<Ok<ProductDto>> GetProduct(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetProductQuery(id)));
+    }
+
+    [EndpointSummary("Ürün veya hizmet oluştur")]
+    [EndpointDescription("code boşsa şablondan verilir. Kod çakışırsa 409 code_taken, barkod çakışırsa 409 barcode_taken, geçersiz birim çevrimi 400 invalid_conversion. Hizmette varyant, seri/lot ve ölçüyle satış olamaz. Seri/lot için seri-lot modülü gerekir (403 module_disabled). attributes ve variants yalnızca oluştururken kullanılır; sonra ayrı uçlarla yönetilir.")]
+    public static async Task<Created<ProductDto>> CreateProduct(ISender sender, CreateProductCommand command) {
+        var product = await sender.Send(command);
+        return TypedResults.Created($"/api/erp/catalog/products/{product.Id}", product);
+    }
+
+    [EndpointSummary("Ürün veya hizmeti güncelle")]
+    [EndpointDescription("Kart alanları, birimler, tedarikçiler, görseller ve özel alanlar bütün olarak değiştirilir. Varyantlara dokunulmaz. Kart türü değişmez.")]
+    public static async Task<Ok<ProductDto>> UpdateProduct(ISender sender, Guid id, UpdateProductCommand command) {
+        return TypedResults.Ok(await sender.Send(command with { Id = id }));
+    }
+
+    [EndpointSummary("Ürünü aktifleştir")]
+    public static async Task<NoContent> ActivateProduct(ISender sender, Guid id) {
+        await sender.Send(new SetProductActiveCommand(id, true));
+        return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("Ürünü pasifleştir")]
+    public static async Task<NoContent> DeactivateProduct(ISender sender, Guid id) {
+        await sender.Send(new SetProductActiveCommand(id, false));
+        return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("Ürünü sil")]
+    [EndpointDescription("Başka bir modülde kullanımdaysa 409 product_in_use; bunun yerine pasifleştirin.")]
+    public static async Task<NoContent> DeleteProduct(ISender sender, Guid id) {
+        await sender.Send(new DeleteProductCommand(id));
+        return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("EAN-13 barkod üret")]
+    [EndpointDescription("Ayarlardaki önek ve sıra sayacından kullanılmayan bir barkod döndürür; karta yazmaz.")]
+    public static async Task<Ok<BarcodeResult>> GenerateBarcode(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GenerateBarcodeCommand(id)));
+    }
+
+    [EndpointSummary("Özel alan tanımları")]
+    [EndpointDescription("katalog.read veya ayarlar.katalog ile okunur.")]
+    public static async Task<Ok<IReadOnlyList<CustomFieldDto>>> ListCustomFields(ISender sender) {
+        return TypedResults.Ok(await sender.Send(new ListCustomFieldsQuery()));
+    }
+
+    [EndpointSummary("Özel alan tanımla")]
+    [EndpointDescription("type: text | number | date | select | bool. Anahtar küçük harf/rakam/alt çizgi; aynı anahtar 409 key_taken; en fazla 30 tanım.")]
+    public static async Task<Created<CustomFieldDto>> CreateCustomField(ISender sender, CreateCustomFieldCommand command) {
+        var field = await sender.Send(command);
+        return TypedResults.Created($"/api/erp/catalog/custom-fields/{field.Id}", field);
+    }
+
+    [EndpointSummary("Özel alanı güncelle")]
+    [EndpointDescription("Anahtar ve tür değişmez.")]
+    public static async Task<Ok<CustomFieldDto>> UpdateCustomField(ISender sender, Guid id, UpdateCustomFieldCommand command) {
+        return TypedResults.Ok(await sender.Send(command with { Id = id }));
+    }
+
+    [EndpointSummary("Özel alanı sil")]
+    public static async Task<NoContent> DeleteCustomField(ISender sender, Guid id) {
+        await sender.Send(new DeleteCustomFieldCommand(id));
+        return TypedResults.NoContent();
     }
 
     [EndpointSummary("Kategori ağacı")]

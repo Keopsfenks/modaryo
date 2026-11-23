@@ -13,6 +13,10 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.CurrentAccounts.Allocation.AutoAllocator>();
         builder.Services.AddScoped<ERP.Application.CurrentAccounts.Allocation.OpenItemsReader>();
 
+        builder.Services.AddScoped<ERP.Application.Catalog.Products.BarcodeRegistry>();
+        builder.Services.AddScoped<ERP.Application.Catalog.Products.ProductWriter>();
+        builder.Services.AddScoped<ERP.Application.Common.Interfaces.ItemUsage>();
+
         builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 
         builder.Services.AddMediatR(cfg => {

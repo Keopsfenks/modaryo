@@ -50,4 +50,11 @@ public interface IApplicationDbContext {
     ///     Açık bir işlem gerekir. Cari bu firmada yoksa false döner.
     /// </summary>
     Task<bool> LockCurrentAccountAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    ///     Katalog ayarlarındaki sıra sayacından tek SQL ifadesiyle (UPDATE ... RETURNING) sayı ayırır:
+    ///     verilen sayı = max(sayaç, atLeast), sayaç = verilen + 1. Ayar satırı yoksa varsayılanlarla oluşturulur.
+    ///     field: "nextCodeSequence" | "nextBarcodeSequence". Etkin firma gerekir.
+    /// </summary>
+    Task<int> ReserveCatalogSequenceAsync(string field, int atLeast, string seedJson, CancellationToken cancellationToken);
 }
