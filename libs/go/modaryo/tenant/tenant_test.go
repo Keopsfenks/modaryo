@@ -34,7 +34,7 @@ func TestTenant_NoTenantInSession_403(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 	assert.False(t, ok)
-	assert.JSONEq(t, `{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.4","title":"Bu işlem için yetkiniz yok.","status":403,"code":"forbidden"}`, rr.Body.String())
+	assert.JSONEq(t, `{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.4","title":"Önce bir firma seçin.","status":403,"code":"tenant_required"}`, rr.Body.String())
 }
 
 func TestTenant_NoSession_401(t *testing.T) {

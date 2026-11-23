@@ -188,10 +188,13 @@ Tüm servisler (.NET ve Go) hataları aynı gövdeyle döndürür. İçerik tür
 | 400 | `bad_request` | İstek okunamadı. Gönderilen verinin biçimini kontrol edin. | 15.5.1 |
 | 401 | `unauthorized` | Oturum açmanız gerekiyor. | 15.5.2 |
 | 403 | `forbidden` | Bu işlem için yetkiniz yok. | 15.5.4 |
-| 403 | `csrf_header_missing` | İstek reddedildi. | yok |
+| 403 | `tenant_required` | Önce bir firma seçin. | 15.5.4 |
+| 403 | `csrf_header_missing` | İstek reddedildi. | 15.5.4 |
 | 404 | `not_found` | Kayıt bulunamadı. | 15.5.5 |
 | 503 | `session_store_unavailable` | Oturum servisine şu anda ulaşılamıyor. | yok |
 
+`tenant_required`: oturumda aktif firma yoksa Go servisleri bunu döndürür; ERP şimdilik aynı durumda 403 `forbidden` döner ve ileride bu koda geçecektir. `csrf_header_missing` gövdesi `fixtures/problem-csrf.json` ile aynıdır.
+
 İş kuralı hataları (`AppException`) `type` taşımaz: `{ title, status, code }` (örn. 403 `module_disabled`, 409 `period_locked`).
 
-Gerçek ERP yanıtlarından alınmış örnekler: `fixtures/problem-validation.json`, `problem-unauthorized.json`, `problem-forbidden.json`, `problem-not-found.json`, `problem-app.json`. ERP testi (`ProblemFixtureTests`) yanıtları bu dosyalarla, Go testi (`Problem_JsonShapeMatchesDotnetFixture`) kendi gövdelerini bu dosyalarla karşılaştırır. Yeniden üretmek için ERP işlevsel testlerini `MODARYO_WRITE_FIXTURES=1` ile çalıştırın.
+Gerçek ERP yanıtlarından alınmış örnekler: `fixtures/problem-validation.json`, `problem-unauthorized.json`, `problem-forbidden.json`, `problem-not-found.json`, `problem-app.json`, `problem-csrf.json`. ERP testi (`ProblemFixtureTests`) yanıtları bu dosyalarla, Go testi (`Problem_JsonShapeMatchesDotnetFixture`) kendi gövdelerini bu dosyalarla karşılaştırır. Yeniden üretmek için ERP işlevsel testlerini `MODARYO_WRITE_FIXTURES=1` ile çalıştırın.

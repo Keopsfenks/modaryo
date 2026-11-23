@@ -3,9 +3,12 @@ package csrf_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/keopsfenks/modaryo/libs/go/modaryo/csrf"
 )
@@ -26,7 +29,7 @@ func TestCsrf_PostWithoutHeader_403(t *testing.T) {
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 	assert.Equal(t, "application/problem+json", rr.Header().Get("Content-Type"))
-	assert.JSONEq(t, `{"title":"İstek reddedildi.","status":403,"detail":"Bu istek için 'X-Modaryo-Csrf: 1' başlığı gereklidir.","code":"csrf_header_missing"}`, rr.Body.String())
+	assert.JSONEq(t, `{"type":"https://tools.ietf.org/html/rfc9110#section-15.5.4","title":"İstek reddedildi.","status":403,"detail":"Bu istek için 'X-Modaryo-Csrf: 1' başlığı gereklidir.","code":"csrf_header_missing"}`, rr.Body.String())
 }
 
 func TestCsrf_WrongHeaderValue_403(t *testing.T) {
@@ -43,6 +46,8 @@ func TestCsrf_SafeMethodsPass(t *testing.T) {
 	}
 }
 
-func TestCsrf_GetPasses(t *testing.T) {
-	assert.Equal(t, http.StatusNoContent, serve(http.MethodGet, "").Code)
+func TestCsrf_BodyMatchesDotnetFixture(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "contracts", "fixtures", "problem-csrf.json"))
+	require.NoError(t, err)
+	assert.JSONEq(t, string(raw), serve(http.MethodPost, "").Body.String())
 }

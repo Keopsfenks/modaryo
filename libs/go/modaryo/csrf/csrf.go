@@ -23,7 +23,9 @@ func Middleware(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		d := problem.App(http.StatusForbidden, ErrorCode, "İstek reddedildi.")
+		d := problem.Forbidden()
+		d.Title = "İstek reddedildi."
+		d.Code = ErrorCode
 		d.Detail = "Bu istek için '" + Header + ": 1' başlığı gereklidir."
 		problem.Write(w, d)
 	})

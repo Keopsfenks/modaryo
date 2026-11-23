@@ -25,8 +25,9 @@ func FromContext(ctx context.Context) (uuid.UUID, bool) {
 }
 
 // FromSession copies the tenant of the session record (put there by session.Middleware) into the
-// context. Like ERP, no session yields 401 "unauthorized" and a session without an active
-// company yields 403 "forbidden".
+// context. No session record yields 401 "unauthorized"; a session without an active company
+// yields 403 "tenant_required" ("Önce bir firma seçin."). ERP still answers 403 "forbidden" in
+// that case and will adopt the code later.
 func FromSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		rec, ok := session.FromContext(r.Context())
@@ -35,7 +36,10 @@ func FromSession(next http.Handler) http.Handler {
 			return
 		}
 		if rec.TenantID == nil {
-			problem.Write(w, problem.Forbidden())
+			d := problem.Forbidden()
+			d.Title = "Önce bir firma seçin."
+			d.Code = "tenant_required"
+			problem.Write(w, d)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(WithTenant(r.Context(), *rec.TenantID)))

@@ -33,7 +33,8 @@ public class ProblemFixtureTests : TestBase {
                                                  string              fixture
     ) {
         response.StatusCode.ShouldBe(status);
-        response.Content.Headers.ContentType?.MediaType.ShouldBe("application/problem+json");
+        response.Content.Headers.ContentType.ShouldNotBeNull();
+        response.Content.Headers.ContentType.MediaType.ShouldBe("application/problem+json");
 
         var body = JsonNode.Parse(await response.Content.ReadAsStringAsync())!.AsObject();
         body.Remove("traceId");
@@ -67,6 +68,16 @@ public class ProblemFixtureTests : TestBase {
         using var response = await client.GetAsync("/api/erp/current-accounts");
 
         await AssertFixtureAsync(response, HttpStatusCode.Unauthorized, "problem-unauthorized.json");
+    }
+
+    [Test]
+    public async Task Csrf_MatchesFixture() {
+        using var client = await Factory.ClientAsync(Tenant, "cari.read", "cari.manage");
+        client.DefaultRequestHeaders.Remove("X-Modaryo-Csrf");
+
+        using var response = await client.PostAsJsonAsync("/api/erp/current-accounts", new { code = "C0001" });
+
+        await AssertFixtureAsync(response, HttpStatusCode.Forbidden, "problem-csrf.json");
     }
 
     [Test]
