@@ -66,3 +66,39 @@ public class LedgerEntryConfiguration : IEntityTypeConfiguration<LedgerEntry> {
             .HasDatabaseName("IX_ledger_entries_CurrentAccountId_Opening");
     }
 }
+
+public class LedgerDueLineConfiguration : IEntityTypeConfiguration<LedgerDueLine> {
+    public void Configure(EntityTypeBuilder<LedgerDueLine> builder) {
+        builder.ToTable("ledger_due_lines");
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.Amount).HasPrecision(18, 2);
+        builder.Property(e => e.Direction).HasConversion<string>().HasMaxLength(20);
+
+        builder.HasOne<LedgerEntry>().WithMany().HasForeignKey(e => e.EntryId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<CurrentAccount>().WithMany().HasForeignKey(e => e.CurrentAccountId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(e => e.CurrentAccountId);
+        builder.HasIndex(e => new { e.EntryId, e.Sequence }).IsUnique();
+    }
+}
+
+public class LedgerAllocationConfiguration : IEntityTypeConfiguration<LedgerAllocation> {
+    public void Configure(EntityTypeBuilder<LedgerAllocation> builder) {
+        builder.ToTable("ledger_allocations",
+                        t => t.HasCheckConstraint("CK_ledger_allocations_Amount_Positive", "\"Amount\" > 0"));
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.Amount).HasPrecision(18, 2);
+        builder.Property(e => e.Kind).HasConversion<string>().HasMaxLength(20);
+
+        builder.HasOne<CurrentAccount>().WithMany().HasForeignKey(e => e.CurrentAccountId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<LedgerDueLine>().WithMany().HasForeignKey(e => e.DebitLineId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<LedgerDueLine>().WithMany().HasForeignKey(e => e.CreditLineId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(e => e.CurrentAccountId);
+        builder.HasIndex(e => e.DebitLineId);
+        builder.HasIndex(e => e.CreditLineId);
+    }
+}

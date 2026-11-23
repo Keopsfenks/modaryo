@@ -1,3 +1,4 @@
+using ERP.Application.Common.Interfaces;
 using ERP.Domain.CurrentAccounts;
 
 namespace ERP.Application.CurrentAccounts;
@@ -28,6 +29,12 @@ public static class EntryRules {
                                    Credit   = debit ? 0 : amount,
                                    Currency = account.Currency
                                };
+    }
+
+    /// <summary>Hareketi tek vade satırıyla birlikte bağlama ekler (tutar borç ya da alacak, vade DueDate ?? Date).</summary>
+    public static void Add(IApplicationDbContext db, LedgerEntry entry) {
+        db.LedgerEntries.Add(entry);
+        db.LedgerDueLines.Add(LedgerDueLine.ForEntry(entry));
     }
 
     public static StatementRow ToRow(LedgerEntry e, decimal runningBalance) {

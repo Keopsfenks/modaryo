@@ -15,12 +15,14 @@ public static class InitialiserExtensions {
 
 public class ApplicationDbContextInitialiser(
     ILogger<ApplicationDbContextInitialiser> logger,
-    ApplicationDbContext                     context
+    ApplicationDbContext                     context,
+    StoredAllocationsBackfill                storedAllocations
 ) {
-    /// <summary>Bekleyen migration'ları uygular (veritabanını asla silmez).</summary>
+    /// <summary>Bekleyen migration'ları uygular (veritabanını asla silmez), ardından tek seferlik veri adımlarını çalıştırır.</summary>
     public async Task InitialiseAsync() {
         try {
             await context.Database.MigrateAsync();
+            await storedAllocations.RunAsync(CancellationToken.None);
         }
         catch (Exception ex) {
             logger.LogError(ex, "An error occurred while migrating the database.");

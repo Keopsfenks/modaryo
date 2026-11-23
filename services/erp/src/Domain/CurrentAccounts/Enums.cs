@@ -19,3 +19,8 @@ public enum DueDirection {
     Receivable,
     Payable
 }
+
+public enum AllocationKind {
+    Auto,
+    Manual
+}

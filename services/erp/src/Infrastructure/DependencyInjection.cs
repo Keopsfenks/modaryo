@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using Modaryo.Internal;
 
@@ -44,6 +45,10 @@ public static class DependencyInjection {
         builder.Services.AddSingleton<IEventStreamPublisher>(sp => new ValkeyEventStreamPublisher(
                                                                  sp.GetRequiredService<IConnectionMultiplexer>()));
         builder.Services.AddSingleton<OutboxRelay>();
+        builder.Services.AddSingleton(sp => new StoredAllocationsBackfill(
+                                          sp.GetRequiredService<RelayDatabase>(),
+                                          sp.GetRequiredService<TimeProvider>(),
+                                          sp.GetRequiredService<ILogger<StoredAllocationsBackfill>>()));
         if (builder.Configuration.GetValue(OutboxOptions.Section + ":RelayEnabled", true))
             builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxRelay>());
     }

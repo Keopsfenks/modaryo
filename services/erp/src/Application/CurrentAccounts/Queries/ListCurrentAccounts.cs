@@ -1,5 +1,6 @@
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
+using ERP.Application.CurrentAccounts.Allocation;
 using ERP.Domain.CurrentAccounts;
 
 namespace ERP.Application.CurrentAccounts.Queries;
@@ -25,6 +26,7 @@ public sealed class ListCurrentAccountsQueryValidator : AbstractValidator<ListCu
 
 public sealed class ListCurrentAccountsQueryHandler(
     IApplicationDbContext db,
+    OpenItemsReader       reader,
     TimeProvider          time
 )
     : IRequestHandler<ListCurrentAccountsQuery, PagedResult<CurrentAccountListItem>> {
@@ -54,7 +56,8 @@ public sealed class ListCurrentAccountsQueryHandler(
         var entries = (await db.LedgerEntries.AsNoTracking().Where(e => ids.Contains(e.CurrentAccountId))
                            .ToListAsync(ct))
             .ToLookup(e => e.CurrentAccountId);
-        var today = CurrentAccountClock.Today(time);
+        var today     = CurrentAccountClock.Today(time);
+        var openItems = await reader.ForAccountsAsync(ids, today, ct);
 
         var items = page.Select(a => {
                                     var own     = entries[a.Id].ToList();
@@ -63,7 +66,7 @@ public sealed class ListCurrentAccountsQueryHandler(
                                                                       a.Currency, balance,
                                                                       a.CreditLimit is not null &&
                                                                       balance > a.CreditLimit,
-                                                                      CurrentAccountReader.Overdue(own, today),
+                                                                      CurrentAccountReader.Overdue(openItems[a.Id]),
                                                                       a.IsActive);
                                 }).ToList();
 

@@ -1,5 +1,6 @@
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
+using ERP.Application.CurrentAccounts.Allocation;
 using ERP.Domain.CurrentAccounts;
 
 namespace ERP.Application.CurrentAccounts.Commands;
@@ -21,10 +22,15 @@ public sealed class CancelEntryCommandValidator : AbstractValidator<CancelEntryC
 public sealed class CancelEntryCommandHandler(
     IApplicationDbContext db,
     ICurrentSession       session,
-    TimeProvider          time
+    TimeProvider          time,
+    AutoAllocator         allocator
 )
     : IRequestHandler<CancelEntryCommand> {
     public async Task Handle(CancelEntryCommand request, CancellationToken ct) {
+        await using var transaction = await db.BeginTransactionAsync(ct);
+        if (!await db.LockCurrentAccountAsync(request.AccountId, ct))
+            throw new NotFoundException(request.EntryId.ToString(), "LedgerEntry");
+
         var entry = await db.LedgerEntries.FirstOrDefaultAsync(e => e.Id               == request.EntryId &&
                                                                     e.CurrentAccountId == request.AccountId, ct)
                     ?? throw new NotFoundException(request.EntryId.ToString(), "LedgerEntry");
@@ -37,5 +43,10 @@ public sealed class CancelEntryCommandHandler(
         entry.CancelledBy  = session.UserId?.ToString();
         entry.CancelReason = request.Reason.Trim();
         await db.SaveChangesAsync(ct);
+
+        // İptal edilen satırın eşleştirmeleri sonraki satırlara kayar.
+        await allocator.RebuildAsync(request.AccountId, ct);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
     }
 }

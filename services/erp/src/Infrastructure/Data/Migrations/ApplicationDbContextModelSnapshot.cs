@@ -174,6 +174,92 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.ToTable("current_account_addresses", (string)null);
                 });
 
+            modelBuilder.Entity("ERP.Domain.CurrentAccounts.LedgerAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreditLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CurrentAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("DebitLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreditLineId");
+
+                    b.HasIndex("CurrentAccountId");
+
+                    b.HasIndex("DebitLineId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("ledger_allocations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ledger_allocations_Amount_Positive", "\"Amount\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ERP.Domain.CurrentAccounts.LedgerDueLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("CurrentAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("EntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrentAccountId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("EntryId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("ledger_due_lines", (string)null);
+                });
+
             modelBuilder.Entity("ERP.Domain.CurrentAccounts.LedgerEntry", b =>
                 {
                     b.Property<Guid>("Id")
@@ -434,6 +520,42 @@ namespace ERP.Infrastructure.Data.Migrations
                         .WithMany("Addresses")
                         .HasForeignKey("CurrentAccountId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Domain.CurrentAccounts.LedgerAllocation", b =>
+                {
+                    b.HasOne("ERP.Domain.CurrentAccounts.LedgerDueLine", null)
+                        .WithMany()
+                        .HasForeignKey("CreditLineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Domain.CurrentAccounts.CurrentAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CurrentAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Domain.CurrentAccounts.LedgerDueLine", null)
+                        .WithMany()
+                        .HasForeignKey("DebitLineId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Domain.CurrentAccounts.LedgerDueLine", b =>
+                {
+                    b.HasOne("ERP.Domain.CurrentAccounts.CurrentAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CurrentAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Domain.CurrentAccounts.LedgerEntry", null)
+                        .WithMany()
+                        .HasForeignKey("EntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

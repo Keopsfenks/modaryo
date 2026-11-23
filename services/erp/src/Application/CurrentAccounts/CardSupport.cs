@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
+using ERP.Application.CurrentAccounts.Allocation;
 using ERP.Domain.CurrentAccounts;
 
 namespace ERP.Application.CurrentAccounts;
@@ -163,8 +164,9 @@ public static class NextCodeCalculator {
 }
 
 public static class CurrentAccountReader {
-    public static decimal Overdue(IEnumerable<LedgerEntry> entries, DateOnly today) {
-        return DueMatching.OpenItems(entries, today)
+    /// <summary>Vadesi geçmiş tahsil edilecek açık kalemlerin toplamı.</summary>
+    public static decimal Overdue(IEnumerable<OpenItem> openItems) {
+        return openItems
             .Where(i => i.Direction == DueDirection.Receivable && i.DaysOverdue > 0)
             .Sum(i => i.Remaining);
     }
@@ -177,7 +179,8 @@ public static class CurrentAccountReader {
         var account = await db.CurrentAccounts.AsNoTracking().Include(a => a.Addresses)
                           .FirstOrDefaultAsync(a => a.Id == id, ct)
                       ?? throw new NotFoundException(id.ToString(), "CurrentAccount");
-        var entries = await db.LedgerEntries.AsNoTracking().Where(e => e.CurrentAccountId == id).ToListAsync(ct);
+        var entries   = await db.LedgerEntries.AsNoTracking().Where(e => e.CurrentAccountId == id).ToListAsync(ct);
+        var openItems = await new OpenItemsReader(db).ForAccountAsync(id, today, ct);
 
         return new CurrentAccountDto(
                                      account.Id, account.Code, account.Name, account.Kind, account.TaxNumber,
@@ -185,7 +188,7 @@ public static class CurrentAccountReader {
                                      account.IsEInvoiceTaxpayer, account.IsCustomer, account.IsSupplier, account.Phone,
                                      account.Email, account.Notes,
                                      account.Currency, account.DefaultDueDays, account.CreditLimit, account.IsActive,
-                                     Statement.Balance(entries), Overdue(entries, today), entries.Count > 0,
+                                     Statement.Balance(entries), Overdue(openItems), entries.Count > 0,
                                      account.Addresses.OrderBy(a => a.Title).ThenBy(a => a.Id).Select(ToDto).ToList());
     }
 

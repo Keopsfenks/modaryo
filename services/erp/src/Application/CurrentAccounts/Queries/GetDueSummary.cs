@@ -1,5 +1,6 @@
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
+using ERP.Application.CurrentAccounts.Allocation;
 using ERP.Domain.CurrentAccounts;
 
 namespace ERP.Application.CurrentAccounts.Queries;
@@ -35,6 +36,7 @@ public sealed record GetDueSummaryQuery : IRequest<DueSummary>;
 
 public sealed class GetDueSummaryQueryHandler(
     IApplicationDbContext db,
+    OpenItemsReader       reader,
     TimeProvider          time
 )
     : IRequestHandler<GetDueSummaryQuery, DueSummary> {
@@ -45,12 +47,11 @@ public sealed class GetDueSummaryQueryHandler(
         var limit = today.AddDays(30);
 
         // Pasif kartlar dahil; tenant filtresi kart ve hareketlere uygulanır.
-        var accounts = await db.CurrentAccounts.AsNoTracking().ToListAsync(ct);
-        var entries = (await db.LedgerEntries.AsNoTracking().Where(e => e.CancelledAt == null).ToListAsync(ct))
-            .ToLookup(e => e.CurrentAccountId);
+        var accounts  = await db.CurrentAccounts.AsNoTracking().ToListAsync(ct);
+        var openItems = await reader.ForAccountsAsync(accounts.Select(a => a.Id).ToList(), today, ct);
 
         var perAccount = accounts
-            .Select(a => (Account: a, Items: DueMatching.OpenItems(entries[a.Id], today)))
+            .Select(a => (Account: a, Items: openItems[a.Id]))
             .ToList();
 
         DueBucket Bucket(IEnumerable<OpenItem> items) {

@@ -13,6 +13,7 @@ namespace ERP.Infrastructure.Outbox;
 
 /// <summary>
 ///     Röle firma bağlamı olmadan çalışır: kendi DbContext'ini firma denetleyicisi (interceptor) olmadan kurar.
+///     Geri doldurma gibi firmalar arası arka plan işleri de bu bağlamları kullanır.
 /// </summary>
 internal sealed class RelayDatabase(
     DbContextOptions<ApplicationDbContext> options
@@ -22,6 +23,33 @@ internal sealed class RelayDatabase(
 
     public ApplicationDbContext Create() {
         return new ApplicationDbContext(options, NoTenant.Instance);
+    }
+
+    /// <summary>Sorguları tek firmaya filtrelenen bağlam. Denetleyici yoktur: yeni satırlara TenantId açıkça yazılmalıdır.</summary>
+    public ApplicationDbContext CreateForTenant(Guid tenantId) {
+        return new ApplicationDbContext(options, new SingleTenant(tenantId));
+    }
+
+    private sealed class SingleTenant(
+        Guid tenantId
+    ) : ICurrentTenant {
+        public Guid? TenantId => tenantId;
+
+        public Guid? UserId => null;
+
+        public string? UserFullName => null;
+
+        public IReadOnlyList<Guid>? BranchIds => [];
+
+        public decimal MaxDiscountPercent => 0;
+
+        public bool HasModule(string key) {
+            return false;
+        }
+
+        public bool CanAccessBranch(Guid branchId) {
+            return false;
+        }
     }
 
     private sealed class NoTenant : ICurrentTenant {

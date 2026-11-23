@@ -1,5 +1,6 @@
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
+using ERP.Application.CurrentAccounts.Allocation;
 using ERP.Domain.CurrentAccounts;
 
 namespace ERP.Application.CurrentAccounts.Commands;
@@ -64,7 +65,8 @@ public sealed class CreateCurrentAccountCommandValidator : AbstractValidator<Cre
 public sealed class CreateCurrentAccountCommandHandler(
     IApplicationDbContext db,
     IOutbox               outbox,
-    TimeProvider          time
+    TimeProvider          time,
+    AutoAllocator         allocator
 )
     : IRequestHandler<CreateCurrentAccountCommand, CurrentAccountDto> {
     public async Task<CurrentAccountDto> Handle(CreateCurrentAccountCommand request, CancellationToken ct) {
@@ -75,6 +77,8 @@ public sealed class CreateCurrentAccountCommandHandler(
 
         if (taxNumber is not null && await db.CurrentAccounts.AnyAsync(a => a.TaxNumber == taxNumber, ct))
             throw CariErrors.TaxNumberTaken();
+
+        await using var transaction = await db.BeginTransactionAsync(ct);
 
         var account = new CurrentAccount();
         CardRules.Apply(account, request);
@@ -90,7 +94,7 @@ public sealed class CreateCurrentAccountCommandHandler(
         if (request.OpeningBalance is { } opening) {
             var entry = EntryRules.NewEntry(account, LedgerEntryType.Opening, opening.Date, null, null, null,
                                             opening.Amount, opening.Direction == "debit");
-            db.LedgerEntries.Add(entry);
+            EntryRules.Add(db, entry);
             outbox.EnqueueEntryAdded(entry);
         }
 
@@ -100,6 +104,10 @@ public sealed class CreateCurrentAccountCommandHandler(
         catch (DbUpdateException ex) when (CariErrors.FromUniqueViolation(ex) is { } conflict) {
             throw conflict;
         }
+
+        await allocator.RebuildAsync(account.Id, ct);
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return await CurrentAccountReader.GetDtoAsync(db, account.Id, CurrentAccountClock.Today(time), ct);
     }

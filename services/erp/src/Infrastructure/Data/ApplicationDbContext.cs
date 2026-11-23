@@ -6,6 +6,7 @@ using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Platform;
 using ERP.Domain.Settings;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ERP.Infrastructure.Data;
 
@@ -31,6 +32,10 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
 
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
 
+    public DbSet<LedgerDueLine> LedgerDueLines => Set<LedgerDueLine>();
+
+    public DbSet<LedgerAllocation> LedgerAllocations => Set<LedgerAllocation>();
+
     public DbSet<TenantSetting> TenantSettings => Set<TenantSetting>();
 
     public DbSet<ErpAuditEntry> AuditEntries => Set<ErpAuditEntry>();
@@ -38,6 +43,21 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken) {
+        return Database.BeginTransactionAsync(cancellationToken);
+    }
+
+    public async Task<bool> LockCurrentAccountAsync(Guid id, CancellationToken cancellationToken) {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Cari kilidi yalnızca açık bir işlem içinde alınabilir.");
+
+        var tenantId = CurrentTenantId;
+        var locked = await Database
+                         .SqlQuery<Guid>($"SELECT \"Id\" AS \"Value\" FROM current_accounts WHERE \"Id\" = {id} AND \"TenantId\" = {tenantId} FOR UPDATE")
+                         .ToListAsync(cancellationToken);
+        return locked.Count > 0;
+    }
 
     protected override void OnModelCreating(ModelBuilder builder) {
         base.OnModelCreating(builder);

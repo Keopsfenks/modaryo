@@ -10,6 +10,8 @@ public static class DependencyInjection {
                                            cfg.AddMaps(Assembly.GetExecutingAssembly()));
 
         builder.Services.AddScoped<ERP.Application.Settings.ITenantSettings, ERP.Application.Settings.TenantSettingsService>();
+        builder.Services.AddScoped<ERP.Application.CurrentAccounts.Allocation.AutoAllocator>();
+        builder.Services.AddScoped<ERP.Application.CurrentAccounts.Allocation.OpenItemsReader>();
 
         builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 

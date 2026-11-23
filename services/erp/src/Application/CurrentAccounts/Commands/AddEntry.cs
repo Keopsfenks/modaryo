@@ -1,5 +1,6 @@
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
+using ERP.Application.CurrentAccounts.Allocation;
 using ERP.Domain.CurrentAccounts;
 
 namespace ERP.Application.CurrentAccounts.Commands;
@@ -51,9 +52,16 @@ public sealed class AddEntryCommandValidator : AbstractValidator<AddEntryCommand
 
 public sealed class AddEntryCommandHandler(
     IApplicationDbContext db,
-    IOutbox               outbox
+    IOutbox               outbox,
+    AutoAllocator         allocator
 ) : IRequestHandler<AddEntryCommand, AddEntryResult> {
     public async Task<AddEntryResult> Handle(AddEntryCommand request, CancellationToken ct) {
+        // Aynı carideki yazımlar kart satırı kilidiyle sıraya girer; hareket, vade satırı, eşleştirmeler ve olay
+        // tek işlemde kaydedilir.
+        await using var transaction = await db.BeginTransactionAsync(ct);
+        if (!await db.LockCurrentAccountAsync(request.AccountId, ct))
+            throw new NotFoundException(request.AccountId.ToString(), "CurrentAccount");
+
         var account = await db.CurrentAccounts.FirstOrDefaultAsync(a => a.Id == request.AccountId, ct)
                       ?? throw new NotFoundException(request.AccountId.ToString(), "CurrentAccount");
         if (!account.IsActive) throw CariErrors.AccountInactive();
@@ -80,7 +88,7 @@ public sealed class AddEntryCommandHandler(
 
         var entry = EntryRules.NewEntry(account, type, request.Date, dueDate, request.DocumentNo, request.Description,
                                         request.Amount, debit);
-        db.LedgerEntries.Add(entry);
+        EntryRules.Add(db, entry);
         outbox.EnqueueEntryAdded(entry);
 
         try {
@@ -90,9 +98,13 @@ public sealed class AddEntryCommandHandler(
             throw conflict;
         }
 
+        await allocator.RebuildAsync(account.Id, ct);
+        await db.SaveChangesAsync(ct);
+
         var balance = await db.LedgerEntries.Where(e => e.CurrentAccountId == account.Id && e.CancelledAt == null)
                           .SumAsync(e => e.Debit - e.Credit, ct);
         var exceeded = entry.Debit > 0 && account.CreditLimit is { } limit && balance > limit;
+        await transaction.CommitAsync(ct);
 
         return new AddEntryResult(EntryRules.ToRow(entry, balance), balance, exceeded);
     }
