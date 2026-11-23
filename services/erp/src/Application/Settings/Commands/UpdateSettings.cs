@@ -2,6 +2,8 @@
 using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
+using ERP.Application.Files.Commands;
+using ERP.Application.Settings.Categories;
 using ERP.Domain.Settings;
 using FluentValidation.Results;
 
@@ -45,7 +47,14 @@ public sealed class UpdateSettingsCommandHandler(
         var failures = info.Validate(value).ToList();
         if (failures.Count > 0) throw new Common.Exceptions.ValidationException(failures);
 
-        var row    = await db.TenantSettings.FirstOrDefaultAsync(s => s.Category == info.Key, ct);
+        // Logo, aynı firmaya ait bir "logo" dosyası olmalı (başka firmanın dosyası sorgu filtresiyle görünmez).
+        if (value is CompanyProfileSettings { LogoFileId: { } logoId }
+            && !await db.StoredFiles.AnyAsync(f => f.Id == logoId && f.Kind == FileKinds.Logo, ct))
+            throw new Common.Exceptions.ValidationException([
+                new ValidationFailure("LogoFileId", "Logo dosyası bulunamadı. Önce logoyu yükleyip dosyayı seçin.")
+            ]);
+
+        var row   = await db.TenantSettings.FirstOrDefaultAsync(s => s.Category == info.Key, ct);
         var stored = row?.Version ?? 0;
         if (request.Version != stored) throw VersionConflict();
 

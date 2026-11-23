@@ -1,0 +1,14 @@
+{
+    "sts": {
+        "signingKey": "ZGV2LW9ubHktc3RzLXNpZ25pbmcta2V5LTMyLWJ5dGVz"
+    },
+    "identities": [
+        {
+            "name": "modaryo",
+            "credentials": [
+                { "accessKey": "modaryo", "secretKey": "modaryo_dev" }
+            ],
+            "actions": [ "Admin", "Read", "Write", "List", "Tagging" ]
+        }
+    ]
+}

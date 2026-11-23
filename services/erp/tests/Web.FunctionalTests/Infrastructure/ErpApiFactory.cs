@@ -13,10 +13,14 @@ public class ErpApiFactory(
     /// <summary>ERP testleri Valkey'in 3 numaralı veritabanını kullanır (üretim 0, kütüphane 1, kimlik 2).</summary>
     public const string ValkeyConnectionString = "localhost:6379,defaultDatabase=3";
 
+    /// <summary>Bu test çalıştırmasının nesne deposu öneki; teardown'da altındaki her şey silinir.</summary>
+    public static readonly string FileKeyPrefix = $"test/{Guid.NewGuid():N}/";
+
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
         builder.UseEnvironment("Development");
         builder.UseSetting($"ConnectionStrings:{Shared.Services.Database}", connectionString);
         builder.UseSetting("ConnectionStrings:Valkey",                      ValkeyConnectionString);
+        builder.UseSetting("Files:S3:KeyPrefix", FileKeyPrefix);
         builder.UseSetting("Outbox:RelayEnabled", "false"); // testler PublishPendingAsync'i kendileri çağırır
         Platform.InternalProbes.Configure(builder);
         builder.ConfigureTestServices(services => {

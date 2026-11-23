@@ -4,6 +4,7 @@ using ERP.Application.Common.Interfaces;
 using ERP.Domain.Common;
 using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Platform;
+using ERP.Domain.Files;
 using ERP.Domain.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -39,6 +40,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<TenantSetting> TenantSettings => Set<TenantSetting>();
 
     public DbSet<ErpAuditEntry> AuditEntries => Set<ErpAuditEntry>();
+
+    public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 

@@ -1,4 +1,5 @@
 using ERP.Domain.CurrentAccounts;
+using ERP.Domain.Files;
 using ERP.Domain.Settings;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -18,6 +19,8 @@ public interface IApplicationDbContext {
     DbSet<TenantSetting> TenantSettings { get; }
 
     DbSet<ErpAuditEntry> AuditEntries { get; }
+
+    DbSet<StoredFile> StoredFiles { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 

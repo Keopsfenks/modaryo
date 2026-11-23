@@ -21,6 +21,9 @@ Docker, WSL (Ubuntu) içinde çalışır. Container'lar Windows'tan `localhost` 
 | Valkey | `localhost:6379` | oturum deposu |
 | Mailpit SMTP | `localhost:1025` | gönderilen tüm e-postaları yakalar |
 | Mailpit arayüzü | http://localhost:8025 | yakalanan e-postaları görmek için |
+| S3 uyumlu dosya deposu (SeaweedFS) | `localhost:8333` | erişim anahtarı `modaryo`, gizli anahtar `modaryo_dev`, bucket `modaryo` (`infra/up.sh` oluşturur) |
+
+> Dosya deposu yalnızca S3 API'sini kullanır; üretimde herhangi bir S3 uyumlu depo kullanılabilir.
 
 > **Not:** WSL boşta kalınca kapanabiliyor ve container'lar onunla iner. Servisleri veya testleri çalıştırmadan önce
 > `infra/up.sh` (Git Bash) altyapıyı başlatır ve hazır olana kadar bekler; tekrar çağırmak güvenlidir.

@@ -1,3 +1,8 @@
+using Amazon.S3;
+using Amazon.S3.Model;
+using ERP.Infrastructure.Files;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using StackExchange.Redis;
 
@@ -31,10 +36,28 @@ public class TestEnvironment {
 
     [OneTimeTearDown]
     public async Task DropEnvironment() {
+        await DeleteTestFilesAsync();
         await _resetter.DisposeAsync();
         await Factory.DisposeAsync();
         NpgsqlConnection.ClearAllPools();
         await ExecuteOnServerAsync($"DROP DATABASE IF EXISTS \"{_databaseName}\" WITH (FORCE)");
+    }
+
+    /// <summary>Bu çalıştırmanın öneki altındaki tüm nesneleri siler.</summary>
+    private static async Task DeleteTestFilesAsync() {
+        var s3      = Factory.Services.GetRequiredService<IAmazonS3>();
+        var options = Factory.Services.GetRequiredService<IOptions<FileStorageOptions>>().Value;
+        string? token = null;
+        do {
+            var page = await s3.ListObjectsV2Async(new ListObjectsV2Request {
+                                                                                BucketName        = options.Bucket,
+                                                                                Prefix            = ErpApiFactory.FileKeyPrefix,
+                                                                                ContinuationToken = token
+                                                                            });
+            foreach (var item in page.S3Objects ?? []) await s3.DeleteObjectAsync(options.Bucket, item.Key);
+
+            token = page.IsTruncated == true ? page.NextContinuationToken : null;
+        } while (token is not null);
     }
 
     public static async Task ResetAsync() {

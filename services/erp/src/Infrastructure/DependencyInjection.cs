@@ -39,6 +39,13 @@ public static class DependencyInjection {
         builder.Services.AddScoped<IInternalIdempotencyStore>(sp => sp.GetRequiredService<IdempotencyStore>());
         builder.Services.AddHostedService<IdempotencyPurgeService>();
 
+        builder.Services.AddOptions<ERP.Infrastructure.Files.FileStorageOptions>()
+            .Bind(builder.Configuration.GetSection(ERP.Infrastructure.Files.FileStorageOptions.Section));
+        builder.Services.AddSingleton(sp => ERP.Infrastructure.Files.S3FileStorage.CreateClient(
+                                          sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ERP.Infrastructure.Files.FileStorageOptions>>().Value));
+        builder.Services.AddSingleton<IFileStorage, ERP.Infrastructure.Files.S3FileStorage>();
+        builder.Services.AddSingleton<IFileSniffer, ERP.Infrastructure.Files.FileSniffer>();
+
         builder.Services.AddScoped<IOutbox, Outbox>();
         builder.Services.AddScoped<IPeriodLock, ERP.Infrastructure.Settings.PeriodLock>();
         builder.Services.AddOptions<OutboxOptions>().Bind(builder.Configuration.GetSection(OutboxOptions.Section));

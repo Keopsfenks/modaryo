@@ -48,6 +48,43 @@ services:
       timeout: 3s
       retries: 20
 
+  # S3 uyumlu dosya deposu (geliştirme/test). Uygulama yalnızca S3 API'sini bilir; üretimde herhangi bir S3 uyumlu depo kullanılabilir.
+  s3:
+    image: chrislusf/seaweedfs:4.54
+    container_name: modaryo-s3
+    restart: unless-stopped
+    command: ["server", "-dir=/data", "-s3", "-s3.config=/etc/seaweedfs/s3.json", "-master.volumeSizeLimitMB=256", "-volume.max=50"]
+    ports:
+      - "8333:8333"
+    volumes:
+      - modaryo-s3-data:/data
+      - ./seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8333 && wget -q -O /dev/null http://127.0.0.1:9333/cluster/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # Tek seferlik: "modaryo" bucket'ını (yoksa) oluşturur; varsa hiçbir şey yapmaz.
+  s3-init:
+    image: chrislusf/seaweedfs:4.54
+    container_name: modaryo-s3-init
+    restart: "no"
+    depends_on:
+      s3:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        for i in $$(seq 1 30); do
+          out=$$(printf 's3.bucket.list\n' | weed shell -master=s3:9333 2>&1)
+          echo "$$out" | grep -qw 'modaryo' && exit 0
+          printf 's3.bucket.create -name modaryo\n' | weed shell -master=s3:9333 >/dev/null 2>&1
+          sleep 1
+        done
+        exit 1
+
 volumes:
   modaryo-pg-data:
   modaryo-valkey-data:
+  modaryo-s3-data:
