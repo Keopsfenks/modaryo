@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/keopsfenks/modaryo/libs/go/modaryo/logx"
 	"github.com/keopsfenks/modaryo/libs/go/modaryo/problem"
 	"github.com/keopsfenks/modaryo/libs/go/modaryo/session"
 )
@@ -15,6 +16,7 @@ type ctxKey struct{}
 
 // WithTenant puts the tenant id into the context.
 func WithTenant(ctx context.Context, id uuid.UUID) context.Context {
+	logx.SetTenant(ctx, id) // lets the outer request-log middleware report tenant_id
 	return context.WithValue(ctx, ctxKey{}, id)
 }
 
