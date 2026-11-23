@@ -17,6 +17,9 @@ public class CurrentAccount : BaseAuditableEntity, ITenantOwned {
     public decimal?    CreditLimit        { get; set; }
     public bool        IsActive           { get; set; } = true;
 
+    /// <summary>Müşteri grubu (fiyat listesi önceliği için); aktif firmanın grubu olmalı.</summary>
+    public Guid?       CustomerGroupId    { get; set; }
+
     public ICollection<CurrentAccountAddress> Addresses { get; set; } = new List<CurrentAccountAddress>();
     public Guid                               TenantId  { get; set; }
 }

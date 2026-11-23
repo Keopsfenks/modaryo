@@ -35,7 +35,8 @@ public class SystemRolesTests
             ["company.update", "members.read", "members.invite", "members.manage", "cari.read", "cari.manage", "cari.movements",
              "roller.read", "roller.manage", "ayarlar.moduller", "ayarlar.subeler", "denetim.read",
              "ayarlar.firma", "ayarlar.genel", "ayarlar.finans",
-             "katalog.read", "katalog.manage", "ayarlar.katalog"],
+             "katalog.read", "katalog.manage", "ayarlar.katalog",
+             "fiyat.read", "fiyat.manage", "fiyat.alis", "ayarlar.fiyat"],
             ignoreOrder: true);
     }
 
@@ -44,7 +45,7 @@ public class SystemRolesTests
     {
         var member = SystemRoles.CreateDefaults(TenantId).Single(r => r.SystemKey == SystemRoles.Member);
 
-        member.Permissions.Select(p => p.Permission).ShouldBe(["members.read", "cari.read", "katalog.read"], ignoreOrder: true);
+        member.Permissions.Select(p => p.Permission).ShouldBe(["members.read", "cari.read", "katalog.read", "fiyat.read"], ignoreOrder: true);
     }
 
     [Test]

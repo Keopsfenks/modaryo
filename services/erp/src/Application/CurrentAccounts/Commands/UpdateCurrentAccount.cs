@@ -35,6 +35,8 @@ public sealed record UpdateCurrentAccountCommand : IRequest<CurrentAccountDto>, 
     public int DefaultDueDays { get; init; } = 30;
 
     public decimal? CreditLimit { get; init; }
+
+    public Guid? CustomerGroupId { get; init; }
 }
 
 public sealed class UpdateCurrentAccountCommandValidator : AbstractValidator<UpdateCurrentAccountCommand> {
@@ -65,6 +67,8 @@ public sealed class UpdateCurrentAccountCommandHandler(
         if (request.Currency != account.Currency &&
             await db.LedgerEntries.AnyAsync(e => e.CurrentAccountId == account.Id, ct))
             throw CariErrors.CurrencyLocked();
+
+        await CardRules.EnsureCustomerGroupAsync(db, request.CustomerGroupId, ct);
 
         CardRules.Apply(account, request);
 

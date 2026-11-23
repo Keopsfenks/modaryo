@@ -4,6 +4,7 @@ using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.Files.Commands;
 using ERP.Application.Settings.Categories;
+using ERP.Domain.Pricing;
 using ERP.Domain.Settings;
 using FluentValidation.Results;
 
@@ -54,6 +55,17 @@ public sealed class UpdateSettingsCommandHandler(
                 new ValidationFailure("LogoFileId", "Logo dosyası bulunamadı. Önce logoyu yükleyip dosyayı seçin.")
             ]);
 
+        // Varsayılan listeler aktif firmanın, doğru türdeki listeleri olmalı (başka firmanın listesi görünmez).
+        if (value is PricingSettings pricing) {
+            if (pricing.DefaultSaleListId is { } saleId
+                && !await db.PriceLists.AnyAsync(l => l.Id == saleId && l.Kind == PriceListKind.Sale, ct))
+                throw DefaultListKind("Varsayılan satış listesi bir satış fiyat listesi olmalıdır.");
+
+            if (pricing.DefaultPurchaseListId is { } purchaseId
+                && !await db.PriceLists.AnyAsync(l => l.Id == purchaseId && l.Kind == PriceListKind.Purchase, ct))
+                throw DefaultListKind("Varsayılan alış listesi bir alış fiyat listesi olmalıdır.");
+        }
+
         var row   = await db.TenantSettings.FirstOrDefaultAsync(s => s.Category == info.Key, ct);
         var stored = row?.Version ?? 0;
         if (request.Version != stored) throw VersionConflict();
@@ -94,6 +106,10 @@ public sealed class UpdateSettingsCommandHandler(
         }
 
         return new SettingsDto(row.Version, value);
+    }
+
+    private static AppException DefaultListKind(string message) {
+        return new AppException(400, "default_list_required_kind", message);
     }
 
     private static AppException VersionConflict() {

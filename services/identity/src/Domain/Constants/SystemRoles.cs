@@ -33,6 +33,9 @@ public static class SystemRoles
         new(4,
             [Permissions.CatalogRead, Permissions.CatalogManage, Permissions.SettingsCatalog],
             [Permissions.CatalogRead]),
+        new(5,
+            [Permissions.PricingRead, Permissions.PricingManage, Permissions.PricingPurchase, Permissions.SettingsPricing],
+            [Permissions.PricingRead]),
     ];
 
     public static int LatestPermissionSetVersion { get; } = PermissionSetVersions.Max(v => v.Version);

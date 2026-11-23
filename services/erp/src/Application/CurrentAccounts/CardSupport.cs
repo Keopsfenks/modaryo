@@ -86,6 +86,13 @@ public static class CardRules {
         account.Currency           = f.Currency;
         account.DefaultDueDays     = f.DefaultDueDays;
         account.CreditLimit        = f.CreditLimit;
+        account.CustomerGroupId    = f.CustomerGroupId;
+    }
+
+    /// <summary>Müşteri grubu verilmişse aktif firmaya ait olmalı (başka firmanın grubu sorgu filtresiyle görünmez).</summary>
+    public static async Task EnsureCustomerGroupAsync(IApplicationDbContext db, Guid? groupId, CancellationToken ct) {
+        if (groupId is { } id && !await db.CustomerGroups.AnyAsync(g => g.Id == id, ct))
+            throw new AppException(400, "invalid_customer_group", "Müşteri grubu bulunamadı.");
     }
 }
 
@@ -188,7 +195,8 @@ public static class CurrentAccountReader {
                                      account.TaxOffice,
                                      account.IsEInvoiceTaxpayer, account.IsCustomer, account.IsSupplier, account.Phone,
                                      account.Email, account.Notes,
-                                     account.Currency, account.DefaultDueDays, account.CreditLimit, account.IsActive,
+                                     account.Currency, account.DefaultDueDays, account.CreditLimit, account.CustomerGroupId,
+                                     account.IsActive,
                                      Statement.Balance(entries), Overdue(openItems), entries.Count > 0,
                                      account.Addresses.OrderBy(a => a.Title).ThenBy(a => a.Id).Select(ToDto).ToList());
     }

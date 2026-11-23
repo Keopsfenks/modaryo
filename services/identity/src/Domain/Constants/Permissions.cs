@@ -31,5 +31,10 @@ public static class Permissions
     public const string CatalogRead = "katalog.read";
     public const string CatalogManage = "katalog.manage";
 
+    public const string PricingRead = "fiyat.read";
+    public const string PricingManage = "fiyat.manage";
+    public const string PricingPurchase = "fiyat.alis";
+    public const string SettingsPricing = "ayarlar.fiyat";
+
     public const string AuditRead = "denetim.read";
 }

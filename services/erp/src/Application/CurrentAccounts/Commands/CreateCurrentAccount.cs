@@ -37,6 +37,8 @@ public sealed record CreateCurrentAccountCommand : IRequest<CurrentAccountDto>, 
     public int DefaultDueDays { get; init; } = 30;
 
     public decimal? CreditLimit { get; init; }
+
+    public Guid? CustomerGroupId { get; init; }
 }
 
 public sealed class CreateCurrentAccountCommandValidator : AbstractValidator<CreateCurrentAccountCommand> {
@@ -80,6 +82,8 @@ public sealed class CreateCurrentAccountCommandHandler(
 
         if (taxNumber is not null && await db.CurrentAccounts.AnyAsync(a => a.TaxNumber == taxNumber, ct))
             throw CariErrors.TaxNumberTaken();
+
+        await CardRules.EnsureCustomerGroupAsync(db, request.CustomerGroupId, ct);
 
         await using var transaction = await db.BeginTransactionAsync(ct);
 

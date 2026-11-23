@@ -1,4 +1,5 @@
 using ERP.Domain.CurrentAccounts;
+using ERP.Domain.Pricing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -21,6 +22,10 @@ public class CurrentAccountConfiguration : IEntityTypeConfiguration<CurrentAccou
 
         builder.HasIndex(e => new { e.TenantId, e.Code }).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.TaxNumber }).IsUnique().HasFilter("\"TaxNumber\" IS NOT NULL");
+
+        builder.HasIndex(e => e.CustomerGroupId);
+
+        builder.HasOne<CustomerGroup>().WithMany().HasForeignKey(e => e.CustomerGroupId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(e => e.Addresses).WithOne().HasForeignKey(a => a.CurrentAccountId)
             .OnDelete(DeleteBehavior.Cascade);

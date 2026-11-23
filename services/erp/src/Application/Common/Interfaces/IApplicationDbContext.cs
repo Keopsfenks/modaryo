@@ -1,6 +1,7 @@
 using ERP.Domain.Catalog;
 using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Files;
+using ERP.Domain.Pricing;
 using ERP.Domain.Settings;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -42,6 +43,18 @@ public interface IApplicationDbContext {
     DbSet<CustomFieldDefinition> CustomFieldDefinitions { get; }
 
     DbSet<ImportBatch> ImportBatches { get; }
+
+    DbSet<PriceList> PriceLists { get; }
+
+    DbSet<PriceListItem> PriceListItems { get; }
+
+    DbSet<CustomerGroup> CustomerGroups { get; }
+
+    DbSet<CustomerPrice> CustomerPrices { get; }
+
+    DbSet<PriceHistoryEntry> PriceHistory { get; }
+
+    DbSet<Campaign> Campaigns { get; }
 
     /// <summary>İzlenen tüm varlıkları bırakır (geri alınan bir işlemden sonra bağlamı temizlemek için).</summary>
     void ClearTracking();

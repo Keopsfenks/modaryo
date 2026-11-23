@@ -6,6 +6,7 @@ using ERP.Domain.Common;
 using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Platform;
 using ERP.Domain.Files;
+using ERP.Domain.Pricing;
 using ERP.Domain.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -63,6 +64,18 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<CustomFieldDefinition> CustomFieldDefinitions => Set<CustomFieldDefinition>();
 
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+
+    public DbSet<PriceList> PriceLists => Set<PriceList>();
+
+    public DbSet<PriceListItem> PriceListItems => Set<PriceListItem>();
+
+    public DbSet<CustomerGroup> CustomerGroups => Set<CustomerGroup>();
+
+    public DbSet<CustomerPrice> CustomerPrices => Set<CustomerPrice>();
+
+    public DbSet<PriceHistoryEntry> PriceHistory => Set<PriceHistoryEntry>();
+
+    public DbSet<Campaign> Campaigns => Set<Campaign>();
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 

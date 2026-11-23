@@ -45,6 +45,11 @@ public static class PermissionCatalog
             new(Permissions.CatalogManage, null, "Katalog", "Ürün ve hizmetleri yönet", "Ürün, hizmet, kategori ve marka oluşturabilir, düzenleyebilir, içe aktarabilir."),
             new(Permissions.SettingsCatalog, null, "Katalog", "Katalog ayarlarını yönet", "Ürün kodu şablonu, birimler, KDV oranı, barkod öneki ve özel alanları düzenleyebilir."),
 
+            new(Permissions.PricingRead, null, "Fiyatlandırma", "Satış fiyatlarını görüntüle", "Satış fiyat listelerini ve fiyatları görüntüleyebilir."),
+            new(Permissions.PricingManage, null, "Fiyatlandırma", "Fiyatları yönet", "Fiyat listelerini, müşteriye özel fiyatları ve kampanyaları düzenleyebilir."),
+            new(Permissions.PricingPurchase, null, "Fiyatlandırma", "Alış fiyatlarını gör", "Alış fiyatlarını ve alış fiyat listelerini her yerde görüntüleyebilir."),
+            new(Permissions.SettingsPricing, null, "Fiyatlandırma", "Fiyatlandırma ayarlarını yönet", "Varsayılan fiyat listeleri, KDV gösterimi ve yuvarlama kuralını düzenleyebilir."),
+
             new(Permissions.AuditRead, null, "Denetim", "Denetim kaydını görüntüle", "Firmadaki işlem geçmişini ve denetim kayıtlarını görüntüleyebilir."));
         CoreCount = Entries.Count;
     }

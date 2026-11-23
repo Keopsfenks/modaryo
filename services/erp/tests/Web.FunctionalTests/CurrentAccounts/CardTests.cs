@@ -23,7 +23,8 @@ public class CardTests : TestBase {
                                                     string  kind      = "corporate",
                                                     string  currency  = "TRY",
                                                     object? address   = null,
-                                                    object? opening   = null
+                                                    object? opening   = null,
+                                                    Guid?   customerGroupId = null
     ) {
         return new Dictionary<string, object?> {
                                                    ["code"]               = code,
@@ -40,6 +41,7 @@ public class CardTests : TestBase {
                                                    ["currency"]           = currency,
                                                    ["defaultDueDays"]     = 30,
                                                    ["creditLimit"]        = null,
+                                                   ["customerGroupId"]    = customerGroupId,
                                                    ["address"]            = address,
                                                    ["openingBalance"]     = opening
                                                };
@@ -370,6 +372,40 @@ public class CardTests : TestBase {
 
         (await client.DeleteAsync($"{Url}/{id}")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await client.GetAsync($"{Url}/{id}")).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Test]
+    public async Task Card_SetCustomerGroupOfOtherTenant_Returns400() {
+        var foreignGroup = await ERP.Web.FunctionalTests.Pricing.PricingTestSupport.AddGroupAsync(Guid.CreateVersion7());
+        using var client = await Manager();
+
+        using var create = await client.PostAsJsonAsync(Url, Card(customerGroupId: foreignGroup));
+        create.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await create.ErrorCodeAsync()).ShouldBe("invalid_customer_group");
+
+        var id = await CreateAsync(client, Card());
+        using var update = await client.PutAsJsonAsync($"{Url}/{id}", Card(customerGroupId: foreignGroup));
+        update.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await update.ErrorCodeAsync()).ShouldBe("invalid_customer_group");
+
+        using var unknown = await client.PostAsJsonAsync(Url, Card("C0002", customerGroupId: Guid.NewGuid()));
+        unknown.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task Card_CustomerGroupReturnedInDto() {
+        var group = await ERP.Web.FunctionalTests.Pricing.PricingTestSupport.AddGroupAsync(Tenant);
+        using var client = await Manager();
+
+        var id = await CreateAsync(client, Card(customerGroupId: group));
+        (await GetAsync(client, id)).GetProperty("customerGroupId").GetGuid().ShouldBe(group);
+
+        using var cleared = await client.PutAsJsonAsync($"{Url}/{id}", Card());
+        cleared.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await cleared.JsonAsync()).GetProperty("customerGroupId").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        var other = await CreateAsync(client, Card("C0002"));
+        (await GetAsync(client, other)).GetProperty("customerGroupId").ValueKind.ShouldBe(JsonValueKind.Null);
     }
 
     [Test]
