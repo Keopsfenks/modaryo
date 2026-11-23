@@ -1,11 +1,13 @@
 import {
     IconArrowsExchange,
+    IconBriefcase,
     IconBuildingBank,
     IconBuildingStore,
     IconBuildingWarehouse,
     IconCalendarDue,
     IconCalendarEvent,
     IconCash,
+    IconCategory,
     IconChartBar,
     IconClipboardList,
     IconFileInvoice,
@@ -66,7 +68,9 @@ export const navigation: NavSection[] = [
     {
         title: "Stok",
         items: [
-            { title: "Ürünler", href: "/stok/urunler", icon: IconPackage },
+            { title: "Ürünler", href: "/stok/urunler", icon: IconPackage, permission: "katalog.read", implemented: true },
+            { title: "Hizmetler", href: "/stok/hizmetler", icon: IconBriefcase, permission: "katalog.read", implemented: true },
+            { title: "Kategoriler ve markalar", href: "/stok/kategoriler", icon: IconCategory, permission: "katalog.read", implemented: true },
             { title: "Depolar", href: "/stok/depolar", icon: IconBuildingWarehouse },
             { title: "Stok Hareketleri", href: "/stok/hareketler", icon: IconArrowsExchange },
         ],
