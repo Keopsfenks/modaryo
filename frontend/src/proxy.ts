@@ -17,5 +17,5 @@ export function proxy(request: NextRequest) {
 
 export const config = {
     // API (Next.js rewrites ile servislere gider), Next.js iç dosyaları ve statik dosyalar hariç her şey.
-    matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp)$).*)"],
+    matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|ico|webp|xml|txt)$).*)"],
 };

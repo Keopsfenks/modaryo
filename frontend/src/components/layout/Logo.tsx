@@ -4,11 +4,11 @@ import Link from "next/link";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
-export default function Logo() {
+export default function Logo({ href = "/panel" }: { href?: string }) {
     return (
         <Box
             component={Link}
-            href="/panel"
+            href={href}
             aria-label="Modaryo ERP ana sayfa"
             sx={{ display: "flex", alignItems: "center", gap: 1.25, textDecoration: "none", color: "text.primary" }}
         >

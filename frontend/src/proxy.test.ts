@@ -38,3 +38,23 @@ describe("proxy", () => {
         expect(response.status).toBe(307);
     });
 });
+
+describe("proxy / herkese açık site", () => {
+    it.each(["/", "/ozellikler/satis", "/ozellikler", "/cozumler/hali-ev-tekstili", "/fiyatlar", "/demo", "/iletisim", "/kvkk", "/blog/ilk-yazi", "/yardim", "/sitemap.xml", "/robots.txt"])(
+        "Proxy_PublicSiteRoutesAllowed %s",
+        (path) => {
+            const response = proxy(request(path));
+
+            expect(response.headers.get("location")).toBeNull();
+            expect(response.headers.get("x-middleware-next")).toBe("1");
+        },
+    );
+
+    it.each(["/panel", "/ayarlar", "/cari", "/ozellikleri-gizle"])("Proxy_PanelStillProtected %s", (path) => {
+        const response = proxy(request(path));
+
+        expect(response.status).toBe(307);
+        expect(new URL(response.headers.get("location")!).pathname).toBe("/giris");
+        expect(new URL(response.headers.get("location")!).searchParams.get("next")).toBe(path);
+    });
+});

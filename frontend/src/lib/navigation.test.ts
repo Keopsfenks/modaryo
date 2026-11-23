@@ -28,6 +28,11 @@ describe("defaults", () => {
 });
 
 describe("isPublicPath", () => {
+    it("IsPublicPath_RootExactOnly", () => {
+        expect(isPublicPath("/")).toBe(true);
+        expect(isPublicPath("/panel")).toBe(false);
+    });
+
     it.each([
         ["/giris", true],
         ["/kayit", true],
@@ -36,7 +41,16 @@ describe("isPublicPath", () => {
         ["/eposta-dogrula", true],
         ["/davet/abc", true],
         ["/hesap", false],
-        ["/", false],
+        ["/", true],
+        ["/panel", false],
+        ["/ozellikler", true],
+        ["/ozellikler/satis", true],
+        ["/cozumler/uretim", true],
+        ["/kvkk", true],
+        ["/cerez-politikasi", true],
+        ["/robots.txt", true],
+        ["/ayarlar", false],
+        ["/fiyatlarx", false],
         ["/baslangic", false],
         ["/girisx", false],
     ])("isPublicPath(%s) → %s", (path, expected) => {

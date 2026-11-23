@@ -1,8 +1,30 @@
 /** Oturum gerektirmeyen sayfalar (önek eşleşmesi: "/davet" → "/davet/<token>"). */
-export const PUBLIC_PATHS = ["/giris", "/kayit", "/sifremi-unuttum", "/sifre-sifirla", "/eposta-dogrula", "/davet"];
+export const PUBLIC_PATHS = [
+    "/giris",
+    "/kayit",
+    "/sifremi-unuttum",
+    "/sifre-sifirla",
+    "/eposta-dogrula",
+    "/davet",
+    // Tanıtım sitesi
+    "/ozellikler",
+    "/cozumler",
+    "/fiyatlar",
+    "/demo",
+    "/iletisim",
+    "/kvkk",
+    "/gizlilik",
+    "/cerez-politikasi",
+    "/kullanim-sartlari",
+    "/blog",
+    "/yardim",
+    "/sitemap.xml",
+    "/robots.txt",
+];
 
+/** "/" (tanıtım ana sayfası) yalnızca tam eşleşmeyle herkese açıktır; diğerleri önek eşleşmesidir. */
 export function isPublicPath(pathname: string): boolean {
-    return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    return pathname === "/" || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 /**
