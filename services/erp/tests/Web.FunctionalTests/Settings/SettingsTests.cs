@@ -119,6 +119,25 @@ public class SettingsTests : TestBase {
     }
 
     [Test]
+    public async Task SetupCategory_RoundTrips() {
+        using var client = await Admin();
+        const string url = "/api/erp/settings/kurulum";
+
+        var initial = await (await client.GetAsync(url)).JsonAsync();
+        initial.GetProperty("version").GetInt32().ShouldBe(0);
+        initial.GetProperty("value").GetProperty("completedAt").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        using var put = await Put(client, 0, new { sector = "perakende", completedAt = "2026-11-22T10:00:00+00:00" }, url);
+        put.StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        var body = await (await client.GetAsync(url)).JsonAsync();
+        body.GetProperty("version").GetInt32().ShouldBe(1);
+        body.GetProperty("value").GetProperty("sector").GetString().ShouldBe("perakende");
+        body.GetProperty("value").GetProperty("completedAt").GetString().ShouldNotBeNull();
+        body.GetProperty("value").GetProperty("dismissedAt").ValueKind.ShouldBe(JsonValueKind.Null);
+    }
+
+    [Test]
     public async Task Put_StaleVersion_Returns409VersionConflict() {
         using var client = await Admin();
         (await Put(client, 0, Profile())).StatusCode.ShouldBe(HttpStatusCode.OK);

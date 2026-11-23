@@ -11,10 +11,11 @@ type SettingsFormShellProps = {
     saved: boolean;
     onSubmit: () => void;
     children: React.ReactNode;
+    submitLabel?: string;
 };
 
 /** Ayar formlarının ortak çerçevesi: yükleniyor, hata/çakışma uyarısı, kaydet düğmesi. */
-export default function SettingsFormShell({ form, saved, onSubmit, children }: SettingsFormShellProps) {
+export default function SettingsFormShell({ form, saved, onSubmit, children, submitLabel = "Kaydet" }: SettingsFormShellProps) {
     if (form.loading) {
         return <CircularProgress aria-label="Yükleniyor" />;
     }
@@ -46,7 +47,7 @@ export default function SettingsFormShell({ form, saved, onSubmit, children }: S
                 {children}
                 <div>
                     <Button type="submit" variant="contained" disabled={form.saving}>
-                        {form.saving ? "Kaydediliyor..." : "Kaydet"}
+                        {form.saving ? "Kaydediliyor..." : submitLabel}
                     </Button>
                 </div>
             </Stack>

@@ -49,8 +49,15 @@ function validate(v: CompanyProfileSettings): Errors {
     return errors;
 }
 
+type CompanyProfileFormProps = {
+    /** Verilirse yalnızca bu metin alanları gösterilir; logo ve banka hesapları gizlenir (kurulum sihirbazı). */
+    fields?: TextKey[];
+    submitLabel?: string;
+    onSaved?: () => void;
+};
+
 /** Firma bilgileri: unvan, vergi, iletişim, logo ve banka hesapları (IBAN). */
-export default function CompanyProfileForm() {
+export default function CompanyProfileForm({ fields, submitLabel, onSaved }: CompanyProfileFormProps = {}) {
     const form = useSettingsForm<CompanyProfileSettings>("firma");
     const [errors, setErrors] = useState<Errors>({});
     const [saved, setSaved] = useState(false);
@@ -67,15 +74,21 @@ export default function CompanyProfileForm() {
         if (Object.keys(found).length > 0) {
             return;
         }
-        setSaved(await form.save());
+        const ok = await form.save();
+        setSaved(ok);
+        if (ok) {
+            onSaved?.();
+        }
     };
 
+    const visibleFields = fields ? TEXT_FIELDS.filter((f) => fields.includes(f.key)) : TEXT_FIELDS;
+
     return (
-        <SettingsFormShell form={form} saved={saved} onSubmit={submit}>
+        <SettingsFormShell form={form} saved={saved && !onSaved} onSubmit={submit} submitLabel={submitLabel}>
             {value && (
                 <>
                     <Grid container spacing={2}>
-                        {TEXT_FIELDS.map((f) => (
+                        {visibleFields.map((f) => (
                             <Grid key={f.key} size={{ xs: 12, md: f.size ?? 6 }}>
                                 <TextField
                                     fullWidth
@@ -89,59 +102,61 @@ export default function CompanyProfileForm() {
                             </Grid>
                         ))}
                     </Grid>
-                    <LogoUpload fileId={value.logoFileId} onChange={(id) => set({ logoFileId: id })} />
-                    <Stack spacing={2}>
-                        <Typography variant="h6">Banka hesapları</Typography>
-                        {value.ibans.map((row, i) => (
-                            <Grid container spacing={2} key={i} sx={{ alignItems: "flex-start" }}>
-                                <Grid size={{ xs: 12, md: 3 }}>
-                                    <TextField
-                                        fullWidth
-                                        label="Banka adı"
-                                        value={row.bankName}
-                                        onChange={(e) => setIban(i, { bankName: e.target.value })}
-                                        error={!!errors[`ibans.${i}.bankName`]}
-                                        helperText={errors[`ibans.${i}.bankName`]}
-                                    />
+                    {!fields && <LogoUpload fileId={value.logoFileId} onChange={(id) => set({ logoFileId: id })} />}
+                    {!fields && (
+                        <Stack spacing={2}>
+                            <Typography variant="h6">Banka hesapları</Typography>
+                            {value.ibans.map((row, i) => (
+                                <Grid container spacing={2} key={i} sx={{ alignItems: "flex-start" }}>
+                                    <Grid size={{ xs: 12, md: 3 }}>
+                                        <TextField
+                                            fullWidth
+                                            label="Banka adı"
+                                            value={row.bankName}
+                                            onChange={(e) => setIban(i, { bankName: e.target.value })}
+                                            error={!!errors[`ibans.${i}.bankName`]}
+                                            helperText={errors[`ibans.${i}.bankName`]}
+                                        />
+                                    </Grid>
+                                    <Grid size={{ xs: 12, md: 5 }}>
+                                        <TextField
+                                            fullWidth
+                                            label="IBAN"
+                                            value={row.iban}
+                                            onChange={(e) => setIban(i, { iban: e.target.value })}
+                                            error={!!errors[`ibans.${i}.iban`]}
+                                            helperText={errors[`ibans.${i}.iban`]}
+                                        />
+                                    </Grid>
+                                    <Grid size={{ xs: 6, md: 2 }}>
+                                        <TextField
+                                            select
+                                            fullWidth
+                                            label="Para birimi"
+                                            value={row.currency}
+                                            onChange={(e) => setIban(i, { currency: e.target.value as IbanEntry["currency"] })}
+                                        >
+                                            {CURRENCIES.map((c) => (
+                                                <MenuItem key={c} value={c}>
+                                                    {c}
+                                                </MenuItem>
+                                            ))}
+                                        </TextField>
+                                    </Grid>
+                                    <Grid size={{ xs: 6, md: 2 }}>
+                                        <Button color="error" onClick={() => set({ ibans: value.ibans.filter((_, idx) => idx !== i) })}>
+                                            Kaldır
+                                        </Button>
+                                    </Grid>
                                 </Grid>
-                                <Grid size={{ xs: 12, md: 5 }}>
-                                    <TextField
-                                        fullWidth
-                                        label="IBAN"
-                                        value={row.iban}
-                                        onChange={(e) => setIban(i, { iban: e.target.value })}
-                                        error={!!errors[`ibans.${i}.iban`]}
-                                        helperText={errors[`ibans.${i}.iban`]}
-                                    />
-                                </Grid>
-                                <Grid size={{ xs: 6, md: 2 }}>
-                                    <TextField
-                                        select
-                                        fullWidth
-                                        label="Para birimi"
-                                        value={row.currency}
-                                        onChange={(e) => setIban(i, { currency: e.target.value as IbanEntry["currency"] })}
-                                    >
-                                        {CURRENCIES.map((c) => (
-                                            <MenuItem key={c} value={c}>
-                                                {c}
-                                            </MenuItem>
-                                        ))}
-                                    </TextField>
-                                </Grid>
-                                <Grid size={{ xs: 6, md: 2 }}>
-                                    <Button color="error" onClick={() => set({ ibans: value.ibans.filter((_, idx) => idx !== i) })}>
-                                        Kaldır
-                                    </Button>
-                                </Grid>
-                            </Grid>
-                        ))}
-                        <div>
-                            <Button variant="outlined" onClick={() => set({ ibans: [...value.ibans, { bankName: "", iban: "", currency: "TRY" }] })}>
-                                Hesap ekle
-                            </Button>
-                        </div>
-                    </Stack>
+                            ))}
+                            <div>
+                                <Button variant="outlined" onClick={() => set({ ibans: [...value.ibans, { bankName: "", iban: "", currency: "TRY" }] })}>
+                                    Hesap ekle
+                                </Button>
+                            </div>
+                        </Stack>
+                    )}
                 </>
             )}
         </SettingsFormShell>

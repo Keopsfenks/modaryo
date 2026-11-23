@@ -57,7 +57,8 @@ public static class SettingsRegistry {
         [CompanyProfileSettings.Key] = Create<CompanyProfileSettings>(CompanyProfileSettings.Normalize,
                                                                        new CompanyProfileSettingsValidator()),
         [GeneralSettings.Key] = Create<GeneralSettings>(GeneralSettings.Normalize, new GeneralSettingsValidator()),
-        [FinanceSettings.Key] = Create<FinanceSettings>(s => s, new FinanceSettingsValidator())
+        [FinanceSettings.Key] = Create<FinanceSettings>(s => s, new FinanceSettingsValidator()),
+        [SetupSettings.Key]   = Create<SetupSettings>(s => s, new SetupSettingsValidator())
     };
 
     public static SettingsCategoryInfo? Find(string key) {
