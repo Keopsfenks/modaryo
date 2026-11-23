@@ -10,6 +10,11 @@
 //
 // Connection settings come from MODARYO_TEST_PG_DSN (admin DSN to the "postgres" database) and
 // MODARYO_TEST_VALKEY_ADDR; both default to the local dev infrastructure.
+//
+// If a test process is killed, temporary databases can be left behind. List and drop them with:
+//
+//	SELECT datname FROM pg_database WHERE datname LIKE 'modaryo_go_test_%';
+//	DROP DATABASE modaryo_go_test_<suffix> WITH (FORCE);
 package testinfra
 
 import (

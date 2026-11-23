@@ -32,7 +32,7 @@ func Valkey(tb testing.TB, db int) *redis.Client {
 
 // FlushDB empties the client's database. Only use it for a DB index your package owns
 // exclusively: packages run in parallel and DB 4 is shared by several of them.
-func FlushDB(tb testing.TB, rdb *redis.Client) {
+func FlushDB(tb testing.TB, rdb redis.UniversalClient) {
 	tb.Helper()
 	if err := rdb.FlushDB(context.Background()).Err(); err != nil {
 		tb.Fatalf("testinfra: flushdb: %v", err)

@@ -2,6 +2,8 @@ package testinfra_test
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"testing"
 	"time"
 
@@ -77,6 +79,10 @@ func TestWriteSession_ReadableBySessionReader(t *testing.T) {
 
 	got, err := session.NewReader(rdb, nil).Read(context.Background(), sid)
 	require.NoError(t, err)
+	assert.Equal(t, rec.ID, got.ID)
+	assert.Equal(t, rec.CreatedAt, got.CreatedAt)
+	assert.Equal(t, rec.IdleTimeoutS, got.IdleTimeoutS)
+	assert.Equal(t, rec.RememberMe, got.RememberMe)
 	assert.Equal(t, rec.UserID, got.UserID)
 	assert.Equal(t, rec.Email, got.Email)
 	assert.Equal(t, rec.FullName, got.FullName)
@@ -112,4 +118,38 @@ func TestFlushDB_ClearsOwnedDatabase(t *testing.T) {
 	n, err := rdb.DBSize(context.Background()).Result()
 	require.NoError(t, err)
 	assert.EqualValues(t, 0, n)
+}
+
+func TestWriteSession_MaxDiscountIsBareNumber(t *testing.T) {
+	rdb := testinfra.Valkey(t, 5)
+	rec := session.Record{AbsoluteExpiresAt: time.Now().Add(time.Hour).Unix(), IdleTimeoutS: 60,
+		MaxDiscountPct: decimal.RequireFromString("12.5")}
+	sid := testinfra.WriteSession(t, rdb, rec, time.Minute)
+	raw, err := rdb.Get(context.Background(), session.Key(sid)).Result()
+	require.NoError(t, err)
+	assert.Contains(t, raw, `"max_discount_pct":12.5`)
+	assert.NotContains(t, raw, `"max_discount_pct":"`)
+}
+
+func TestWriteSession_KeySetMatchesContractExample(t *testing.T) {
+	example, err := os.ReadFile("../../../../contracts/session-v1.example.json")
+	require.NoError(t, err)
+	var want map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(example, &want))
+
+	rdb := testinfra.Valkey(t, 5)
+	sid := testinfra.WriteSession(t, rdb, session.Record{AbsoluteExpiresAt: time.Now().Add(time.Hour).Unix(), IdleTimeoutS: 60}, time.Minute)
+	raw, err := rdb.Get(context.Background(), session.Key(sid)).Result()
+	require.NoError(t, err)
+	var got map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(raw), &got))
+
+	keys := func(m map[string]json.RawMessage) []string {
+		out := make([]string, 0, len(m))
+		for k := range m {
+			out = append(out, k)
+		}
+		return out
+	}
+	assert.ElementsMatch(t, keys(want), keys(got))
 }
