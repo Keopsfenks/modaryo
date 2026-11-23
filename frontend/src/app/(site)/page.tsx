@@ -7,8 +7,10 @@ import Integrations from "@/components/site/home/Integrations";
 import ModuleHighlights from "@/components/site/home/ModuleHighlights";
 import SectorPicker from "@/components/site/home/SectorPicker";
 import Security from "@/components/site/home/Security";
+import JsonLd, { softwareApplicationJsonLd } from "@/components/site/JsonLd";
 import Testimonials from "@/components/site/home/Testimonials";
 import { homeFaq } from "@/content/site/faq";
+import { siteUrl } from "@/content/site/seo";
 
 export const metadata: Metadata = {
     title: { absolute: "Modaryo ERP: cari, stok, satış ve muhasebe tek yerde" },
@@ -18,6 +20,7 @@ export const metadata: Metadata = {
 export default function HomePage() {
     return (
         <>
+            <JsonLd data={softwareApplicationJsonLd(siteUrl())} />
             <Hero />
             <ModuleHighlights />
             <SectorPicker />

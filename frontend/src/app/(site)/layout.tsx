@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import Box from "@mui/material/Box";
+import CookieNotice from "@/components/site/CookieNotice";
 import SiteFooter from "@/components/site/SiteFooter";
 import SiteHeader from "@/components/site/SiteHeader";
 
@@ -35,6 +36,7 @@ export default async function SiteLayout({ children }: LayoutProps<"/">) {
                 {children}
             </Box>
             <SiteFooter />
+            <CookieNotice />
         </Box>
     );
 }

@@ -6,6 +6,8 @@ import { getModule, type SiteModule } from "@/content/site/modules";
 import type { SiteSector } from "@/content/site/sectors";
 import ClosingCta from "./home/ClosingCta";
 import Section from "./home/Section";
+import JsonLd, { breadcrumbJsonLd } from "./JsonLd";
+import { siteUrl } from "@/content/site/seo";
 import ComingSoonChip from "./ComingSoonChip";
 import CtaButtons from "./CtaButtons";
 import { Shot } from "./shots/registry";
@@ -16,6 +18,7 @@ export default function SectorTemplate({ sector }: { sector: SiteSector }) {
 
     return (
         <>
+            <JsonLd data={breadcrumbJsonLd(siteUrl(), [{ name: "Ana sayfa", path: "" }, { name: sector.name, path: `/cozumler/${sector.slug}` }])} />
             <Box component="section" aria-labelledby="sektor-baslik" sx={{ py: { xs: 6, md: 10 } }}>
                 <Container maxWidth="lg">
                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) minmax(0, 1.1fr)" }, gap: { xs: 5, md: 8 }, alignItems: "center" }}>

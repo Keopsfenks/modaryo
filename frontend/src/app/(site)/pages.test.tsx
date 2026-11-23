@@ -6,6 +6,7 @@ import { renderWithTheme } from "@/test/render";
 import ModulePage, { generateMetadata as moduleMetadata, generateStaticParams as moduleParams } from "./ozellikler/[modul]/page";
 import SectorPage, { generateMetadata as sectorMetadata, generateStaticParams as sectorParams } from "./cozumler/[sektor]/page";
 import PricingPage from "./fiyatlar/page";
+import sitemap from "../sitemap";
 
 const moduleProps = (modul: string) => ({ params: Promise.resolve({ modul }) }) as unknown as Parameters<typeof ModulePage>[0];
 const sectorProps = (sektor: string) => ({ params: Promise.resolve({ sektor }) }) as unknown as Parameters<typeof SectorPage>[0];
@@ -29,7 +30,14 @@ describe("site pages", () => {
             expect(meta.description).toBe(s.summary);
             expect(s.story.length).toBeGreaterThanOrEqual(3);
         }
-        // TODO(Görev 7): sitemap() içinde /ozellikler/{slug} ve /cozumler/{slug} girdilerini doğrula.
+
+        const urls = sitemap().map((e) => e.url);
+        for (const m of siteModules) {
+            expect(urls).toContain(`http://localhost:3000/ozellikler/${m.slug}`);
+        }
+        for (const s of siteSectors) {
+            expect(urls).toContain(`http://localhost:3000/cozumler/${s.slug}`);
+        }
     });
 
     it("ComingModule_ShowsYakindaAndHaberVerLink", async () => {

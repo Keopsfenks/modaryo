@@ -5,6 +5,8 @@ import type { SiteModule } from "@/content/site/modules";
 import ClosingCta from "./home/ClosingCta";
 import Faq from "./home/Faq";
 import Section from "./home/Section";
+import JsonLd, { breadcrumbJsonLd } from "./JsonLd";
+import { siteUrl } from "@/content/site/seo";
 import ComingSoonChip from "./ComingSoonChip";
 import { PrimaryCta, SecondaryCta } from "./CtaButtons";
 import { Shot } from "./shots/registry";
@@ -16,6 +18,7 @@ export default function FeatureTemplate({ module: m }: { module: SiteModule }) {
 
     return (
         <>
+            <JsonLd data={breadcrumbJsonLd(siteUrl(), [{ name: "Ana sayfa", path: "" }, { name: "Özellikler", path: "/ozellikler" }, { name: m.name, path: `/ozellikler/${m.slug}` }])} />
             <Box component="section" aria-labelledby="modul-baslik" sx={{ py: { xs: 6, md: 10 } }}>
                 <Container maxWidth="lg">
                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) minmax(0, 1.1fr)" }, gap: { xs: 5, md: 8 }, alignItems: "center" }}>

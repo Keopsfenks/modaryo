@@ -51,10 +51,9 @@ describe("home page", () => {
     it("Home_FaqHasJsonLd", () => {
         const { container } = renderWithTheme(<HomePage />);
 
-        const script = container.querySelector('script[type="application/ld+json"]');
-        expect(script).not.toBeNull();
-        const data = JSON.parse(script!.textContent ?? "{}");
-        expect(data["@type"]).toBe("FAQPage");
+        const types = [...container.querySelectorAll('script[type="application/ld+json"]')].map((s) => JSON.parse(s.textContent ?? "{}"));
+        expect(types.map((d) => d["@type"])).toEqual(["SoftwareApplication", "FAQPage"]);
+        const data = types[1];
         expect(data.mainEntity.length).toBeGreaterThan(3);
         expect(data.mainEntity[0].acceptedAnswer.text).toMatch(/ücretsiz/);
     });
