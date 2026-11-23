@@ -1,4 +1,6 @@
 using IdentityService.Application.Common.Interfaces;
+using IdentityService.Application.Auth;
+using IdentityService.Application.Companies;
 using IdentityService.Domain.Constants;
 using IdentityService.Domain.Entities;
 using IdentityService.Infrastructure.Data;
@@ -162,5 +164,69 @@ public class PermissionSyncTests : TestBase
         await SyncAsync();
 
         (await RecordAsync(admin.Id)).Permissions.ShouldContain("roller.read");
+    }
+
+    [Test]
+    public async Task Sync_SessionStoreDown_StillCommitsAndDoesNotThrow()
+    {
+        using var owner = await Factory.SignedInClientAsync("sahip@ornek.com");
+        var tenantId = await owner.CreateCompanyAsync();
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            (await db.Tenants.SingleAsync(t => t.Id == tenantId)).AppliedPermissionSetVersion = 1;
+            var role = await db.TenantRoles.Include(r => r.Permissions).SingleAsync(r => r.TenantId == tenantId && r.SystemKey == "admin");
+            role.Permissions.RemoveAll(p => NewCodes.Contains(p.Permission));
+            await db.SaveChangesAsync();
+        }
+
+        var logger = new CapturingLogger();
+        int added;
+        using (var scope = Factory.Services.CreateScope())
+        {
+            var sp = scope.ServiceProvider;
+            var changes = new MembershipChanges(new ThrowingSessionStore(), sp.GetRequiredService<ActiveTenantResolver>(),
+                sp.GetRequiredService<IUserAccounts>(), sp.GetRequiredService<IApplicationDbContext>(), TimeProvider.System);
+            var sync = new SystemRolePermissionSync(sp.GetRequiredService<ApplicationDbContext>(), changes, logger);
+
+            added = await sync.RunAsync(CancellationToken.None);
+        }
+
+        added.ShouldBeGreaterThan(0);
+        (await PermissionsOfAsync(tenantId, "admin")).ShouldContain("roller.read");
+        logger.Warnings.ShouldBe(1);
+    }
+
+    private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger<SystemRolePermissionSync>
+    {
+        public int Warnings { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == Microsoft.Extensions.Logging.LogLevel.Warning) Warnings++;
+        }
+    }
+
+    private sealed class ThrowingSessionStore : ISessionStore
+    {
+        private static Exception Down() => new InvalidOperationException("Valkey kapalı.");
+
+        public Task<CreatedSession> CreateAsync(NewSession session, CancellationToken ct) => throw Down();
+
+        public Task<bool> UpdateGrantAsync(string sidHash, IdentityService.Application.Auth.SessionGrant grant, CancellationToken ct) => throw Down();
+
+        public Task UpdateGrantForUserAsync(Guid userId, Guid tenantId, IdentityService.Application.Auth.SessionGrant grant, CancellationToken ct) => throw Down();
+
+        public Task<IReadOnlyList<StoredSession>> ListForUserAsync(Guid userId, CancellationToken ct) => throw Down();
+
+        public Task DeleteAsync(string sidHash, CancellationToken ct) => throw Down();
+
+        public Task<bool> DeleteByPublicIdAsync(Guid userId, string publicId, CancellationToken ct) => throw Down();
+
+        public Task DeleteAllForUserAsync(Guid userId, string? exceptSidHash, CancellationToken ct) => throw Down();
     }
 }

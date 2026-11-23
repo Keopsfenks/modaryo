@@ -22,6 +22,9 @@ public class IdentityApiFactory(
     /// <summary>Uygulamanın gönderdiği tüm e-postalar.</summary>
     public FakeEmailSender Emails { get; } = new();
 
+    /// <summary>ERP şube kullanım ucunun yerine geçen sahte işleyici (varsayılan: kullanımda değil).</summary>
+    public FakeErpUsageHandler Erp { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -43,6 +46,8 @@ public class IdentityApiFactory(
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(Emails);
             services.AddSingleton<IStartupFilter, LoopbackClientStartupFilter>();
+            services.AddHttpClient<IErpBranchUsageClient, IdentityService.Infrastructure.Erp.ErpBranchUsageClient>()
+                .ConfigurePrimaryHttpMessageHandler(() => Erp);
             configureServices?.Invoke(services);
         });
     }

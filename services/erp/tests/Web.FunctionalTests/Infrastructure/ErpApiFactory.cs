@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using ERP.Application.Common.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace ERP.Web.FunctionalTests.Infrastructure;
 
@@ -16,6 +18,9 @@ public class ErpApiFactory(
     /// <summary>Bu test çalıştırmasının nesne deposu öneki; teardown'da altındaki her şey silinir.</summary>
     public static readonly string FileKeyPrefix = $"test/{Guid.NewGuid():N}/";
 
+    /// <summary>Kimlik servisinin şube dizininin yerine geçen, testin doldurduğu sahte dizin.</summary>
+    public FakeBranchDirectory Branches { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
         builder.UseEnvironment("Development");
         builder.UseSetting($"ConnectionStrings:{Shared.Services.Database}", connectionString);
@@ -27,6 +32,8 @@ public class ErpApiFactory(
                                           services.AddSingleton<IStartupFilter, LoopbackClientStartupFilter>();
                                           Platform.GuardProbes.Register(services);
                                           Platform.InternalProbes.Register(services);
+                                          services.RemoveAll<IBranchDirectory>();
+                                          services.AddSingleton<IBranchDirectory>(Branches);
                                       });
     }
 

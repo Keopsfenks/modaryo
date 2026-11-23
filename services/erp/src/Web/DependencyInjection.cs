@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Azure.Identity;
 using ERP.Application.Common.Interfaces;
+using ERP.Infrastructure.Identity;
 using ERP.Web.Services;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
@@ -23,6 +24,19 @@ public static class DependencyInjection {
         builder.Services.AddModaryoSessions(valkeyConnectionString);
         builder.Services.AddAuthorization();
         builder.Services.AddModaryoInternal(builder.Configuration);
+
+        // Şubeler kimlik servisinde yaşar: imzalı iç API istemcisi (Internal:Outbound:Identity:{BaseUrl,ServiceName,Secret}).
+        builder.Services.AddMemoryCache();
+        builder.Services.AddHttpClient<IBranchDirectory, IdentityBranchClient>((sp, client) => {
+                                                                                   var section = sp.GetRequiredService<IConfiguration>().GetSection("Internal:Outbound:Identity");
+                                                                                   var baseUrl = section["BaseUrl"];
+                                                                                   if (!string.IsNullOrWhiteSpace(baseUrl)) client.BaseAddress = new Uri(baseUrl);
+                                                                                   client.Timeout = TimeSpan.FromSeconds(5);
+                                                                               })
+            .AddHttpMessageHandler(sp => {
+                                       var section = sp.GetRequiredService<IConfiguration>().GetSection("Internal:Outbound:Identity");
+                                       return new InternalHttpClientHandler(section["ServiceName"] ?? "erp", section["Secret"] ?? "");
+                                   });
 
         builder.Services.Configure<ForwardedHeadersOptions>(options => {
                                                                 // Varsayılan KnownProxies yalnızca loopback: geliştirmede Next.js proxy aynı makinede çalışır.

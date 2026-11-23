@@ -1,4 +1,5 @@
 using IdentityService.Infrastructure.Data;
+using Modaryo.Internal;
 using Modaryo.Sessions;
 using Scalar.AspNetCore;
 
@@ -38,9 +39,12 @@ await app.SyncSystemRolePermissionsAsync();
 app.UseFileServer();
 
 // GET dışındaki her istekte "X-Modaryo-Csrf: 1" zorunlu (spec 6.8). CORS bilerek kapalı.
-app.UseModaryoCsrf();
+// İç API (/internal/*) oturum ve CSRF kuralından muaftır; HMAC imzasıyla doğrulanır (Modaryo.Internal).
+app.UseWhen(context => !InternalAuthMiddleware.IsInternalPath(context.Request.Path),
+            branch => branch.UseModaryoCsrf());
 app.UseRateLimiter();
 app.UseAuthentication();
+app.UseModaryoInternal();
 app.UseAuthorization();
 
 app.MapOpenApi();

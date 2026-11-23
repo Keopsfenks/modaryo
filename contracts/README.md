@@ -91,6 +91,19 @@ Geliştirme sırları yalnızca `appsettings.Development.json` içindedir; kodda
 | 413 | `internal_body_too_large` | Gövde `MaxBodyBytes` sınırını aşıyor (Content-Length veya okunan bayt) |
 | 409 | `idempotency_conflict` | Anahtar başka bir istekle kullanılmış veya istek hâlâ işleniyor |
 
+### Kimlik servisi ↔ ERP uçları (şubeler)
+
+Şubeler kimlik servisinde yaşar. Servisler birbirini imzalı iç API ile çağırır; her yön için ayrı sır kullanılır
+(giden istemci: `Internal:Outbound:{Hedef}:{BaseUrl,ServiceName,Secret}`; gelen çağıran: `Internal:Callers:{ad}`).
+
+| Çağıran → Hedef | Uç | Yanıt |
+|---|---|---|
+| `erp` → kimlik | `GET /internal/tenants/{tenantId}/branches` | `[{id, code, name, isActive, isDefault}]`, aktif ve pasif tüm şubeler. Yoldaki `tenantId` imzalı `X-Modaryo-Tenant` ile aynı olmalıdır; değilse `403 internal_forbidden`. ERP sonucu firma başına 60 sn önbelleğe alır |
+| `identity` → ERP | `GET /internal/branches/{branchId}/usage` | `{inUse: bool}`; firma `X-Modaryo-Tenant` başlığından gelir. Kayıtlı herhangi bir `IBranchUsageProvider` true derse `inUse` true; sağlayıcı yoksa false |
+
+Kimlik servisi şubeyi silmeden önce ERP'ye sorar (5 sn zaman aşımı): `inUse` true ise `409 branch_in_use`; ERP'ye ulaşılamaz, zaman aşımına uğrar,
+2xx dışı veya bozuk yanıt dönerse `503 erp_unavailable` (güvenli tarafta kalır, şube silinmez).
+
 ### Kimlik
 
 İç istekte kimlik yalnızca `service` ve `tenant_id` claim'leridir: kullanıcı, izin ve modül yoktur; ERP'de denetim kaydının aktörü `sistem:{servis}` olur.

@@ -2,6 +2,7 @@ using IdentityService.Application.Companies;
 using IdentityService.Domain.Constants;
 using IdentityService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace IdentityService.Infrastructure.Data;
 
@@ -10,7 +11,7 @@ namespace IdentityService.Infrastructure.Data;
 /// Uygulanan sürüm firmada tutulur; işlem bitince dokunulan firmaların açık oturumları yenilenir; yöneticinin kaldırdığı izin bir sonraki açılışta geri eklenmez.
 /// SystemKey'i olmayan özel rollere dokunmaz. İki örnek aynı anda açılırsa PostgreSQL advisory kilidi ile sıraya girer.
 /// </summary>
-public sealed class SystemRolePermissionSync(ApplicationDbContext db, MembershipChanges changes)
+public sealed class SystemRolePermissionSync(ApplicationDbContext db, MembershipChanges changes, ILogger<SystemRolePermissionSync> logger)
 {
     private const long AdvisoryLockKey = 727001;
 
@@ -65,9 +66,17 @@ public sealed class SystemRolePermissionSync(ApplicationDbContext db, Membership
         await transaction.CommitAsync(ct);
 
         // Kilit ve işlem dışında: dokunulan firmaların açık oturumları yeni izin setiyle yenilenir (en iyi çaba).
+        // Valkey kapalıysa açılış başarısız olmasın: DB'deki işlem geçerlidir, oturumlar sonraki girişte ya da rol değişikliğinde yenilenir.
         foreach (var tenant in tenants)
         {
-            await changes.RefreshTenantAsync(tenant.Id, ct);
+            try
+            {
+                await changes.RefreshTenantAsync(tenant.Id, ct);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                logger.LogWarning(e, "Firma {TenantId} için açık oturumlar yenilenemedi; sonraki girişte ya da rol değişikliğinde yenilenecek.", tenant.Id);
+            }
         }
 
         return added;

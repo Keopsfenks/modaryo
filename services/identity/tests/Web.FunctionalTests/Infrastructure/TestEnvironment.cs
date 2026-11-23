@@ -56,6 +56,7 @@ public class TestEnvironment
         await admin.GetServers().First().FlushDatabaseAsync(2);
 
         Factory.Emails.Clear();
+        Factory.Erp.Reset();
     }
 
     private static async Task ExecuteOnServerAsync(string sql)

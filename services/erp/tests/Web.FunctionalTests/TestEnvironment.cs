@@ -65,6 +65,7 @@ public class TestEnvironment {
         await using var admin
             = await ConnectionMultiplexer.ConnectAsync($"{ErpApiFactory.ValkeyConnectionString},allowAdmin=true");
         await admin.GetServers().First().FlushDatabaseAsync(3);
+        Factory.Branches.Clear();
     }
 
     public static async Task ExecuteOnServerAsync(string sql) {

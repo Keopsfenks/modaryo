@@ -175,6 +175,79 @@ public partial class BranchTests : TestBase
     }
 
     [Test]
+    public async Task DeleteBranch_UsedInErp_Returns409BranchInUse()
+    {
+        var (owner, tenantId) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        var b1 = await CreateBranchAsync(owner, "S1");
+        Factory.Erp.InUse = true;
+
+        using var response = await owner.DeleteAsync($"{Url}/{b1}");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await response.ErrorCodeAsync()).ShouldBe("branch_in_use");
+        var call = Factory.Erp.Calls.Single();
+        call.PathAndQuery.ShouldBe($"/internal/branches/{b1}/usage");
+        call.Tenant.ShouldBe(tenantId.ToString("D"));
+        call.Service.ShouldBe("identity");
+        call.HasSignature.ShouldBeTrue();
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+        (await db.Branches.AnyAsync(b => b.Id == b1)).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task DeleteBranch_ErpUnreachable_Returns503()
+    {
+        var (owner, _) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        var b1 = await CreateBranchAsync(owner, "S1");
+        Factory.Erp.Unreachable = true;
+
+        using var response = await owner.DeleteAsync($"{Url}/{b1}");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        (await response.ErrorCodeAsync()).ShouldBe("erp_unavailable");
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+        (await db.Branches.AnyAsync(b => b.Id == b1)).ShouldBeTrue();
+    }
+
+    [Test]
+    public async Task DeleteBranch_ErpErrorOrMalformedBody_Returns503()
+    {
+        var (owner, _) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        var b1 = await CreateBranchAsync(owner, "S1");
+
+        Factory.Erp.Status = HttpStatusCode.InternalServerError;
+        using var serverError = await owner.DeleteAsync($"{Url}/{b1}");
+        Factory.Erp.Status = HttpStatusCode.OK;
+        Factory.Erp.RawBody = "{\"sonuc\":1}";
+        using var malformed = await owner.DeleteAsync($"{Url}/{b1}");
+        Factory.Erp.RawBody = "yok";
+        using var notJson = await owner.DeleteAsync($"{Url}/{b1}");
+
+        serverError.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        malformed.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        notJson.StatusCode.ShouldBe(HttpStatusCode.ServiceUnavailable);
+        (await malformed.ErrorCodeAsync()).ShouldBe("erp_unavailable");
+    }
+
+    [Test]
+    public async Task DeleteDefault_DoesNotCallErp()
+    {
+        var (owner, _) = await OwnerWithCompanyAsync();
+        using var _o = owner;
+        var defaultId = await DefaultBranchIdAsync(owner);
+
+        using var response = await owner.DeleteAsync($"{Url}/{defaultId}");
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        Factory.Erp.Calls.ShouldBeEmpty();
+    }
+
+    [Test]
     public async Task RoleWithSelectedBranches_SessionHasThoseBranchIds()
     {
         var (owner, tenantId) = await OwnerWithCompanyAsync();

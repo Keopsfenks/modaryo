@@ -16,6 +16,11 @@ public static class InternalProbes {
     public const string TestCaller    = "test";
     public const string LimitedCaller = "limited";
 
+    /// <summary>Kimlik servisinin ERP'ye çağıran olarak tanımı (şube kullanım ucu).</summary>
+    public const string IdentityCaller = "identity";
+
+    public const string IdentitySecret = "identity-secret-0123456789";
+
     private static int _counter;
     private static int _flaky;
 
@@ -37,6 +42,8 @@ public static class InternalProbes {
         builder.UseSetting($"Internal:Callers:{TestCaller}:Secret",   Secret);
         builder.UseSetting($"Internal:Callers:{TestCaller}:Routes:0", "/internal/ping");
         builder.UseSetting($"Internal:Callers:{TestCaller}:Routes:1", "/internal/test/");
+        builder.UseSetting($"Internal:Callers:{IdentityCaller}:Secret",   IdentitySecret);
+        builder.UseSetting($"Internal:Callers:{IdentityCaller}:Routes:0", "/internal/branches/");
         builder.UseSetting($"Internal:Callers:{LimitedCaller}:Secret",   OtherSecret);
         builder.UseSetting($"Internal:Callers:{LimitedCaller}:Routes:0", "/internal/ping");
     }

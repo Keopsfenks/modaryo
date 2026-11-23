@@ -1,10 +1,12 @@
 using Azure.Identity;
 using IdentityService.Application.Common.Interfaces;
+using IdentityService.Infrastructure.Erp;
 using IdentityService.Infrastructure.Data;
 using IdentityService.Web.Services;
 using IdentityService.Web.Infrastructure;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
+using Modaryo.Internal;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -28,6 +30,27 @@ public static class DependencyInjection
         });
 
         builder.Services.AddHttpContextAccessor();
+
+        // İç API (/internal/*): imzalı servis çağrıları. Kimlik yalnızca GET sunar; idempotency deposu gerekmez.
+        builder.Services.AddModaryoInternal(builder.Configuration);
+
+        // ERP'ye giden imzalı istemci: Internal:Outbound:Erp:{BaseUrl,ServiceName,Secret}. Şube silmeden önce kullanım sorulur.
+        builder.Services.AddHttpClient<IErpBranchUsageClient, ErpBranchUsageClient>((sp, client) =>
+            {
+                var section = sp.GetRequiredService<IConfiguration>().GetSection("Internal:Outbound:Erp");
+                var baseUrl = section["BaseUrl"];
+                if (!string.IsNullOrWhiteSpace(baseUrl))
+                {
+                    client.BaseAddress = new Uri(baseUrl);
+                }
+
+                client.Timeout = TimeSpan.FromSeconds(5);
+            })
+            .AddHttpMessageHandler(sp =>
+            {
+                var section = sp.GetRequiredService<IConfiguration>().GetSection("Internal:Outbound:Erp");
+                return new InternalHttpClientHandler(section["ServiceName"] ?? "identity", section["Secret"] ?? "");
+            });
 
         builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
 

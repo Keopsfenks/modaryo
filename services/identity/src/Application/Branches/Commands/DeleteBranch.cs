@@ -1,19 +1,21 @@
 using IdentityService.Application.Audit;
+using IdentityService.Application.Common.Exceptions;
 using IdentityService.Application.Common.Interfaces;
 using IdentityService.Application.Common.Security;
 using IdentityService.Application.Companies;
 using IdentityService.Domain.Constants;
+using Microsoft.AspNetCore.Http;
 
 namespace IdentityService.Application.Branches.Commands;
 
 /// <summary>
 /// Şubeyi ve rol/üye şube kayıtlarını siler, firmanın açık oturumlarını yeniler.
-/// ERP belgelerinde kullanım denetimi P0b'de eklenecek; o zamana dek silme serbesttir.
+/// Silmeden önce ERP'ye şubenin kullanımı sorulur: kullanımdaysa 409 branch_in_use; ERP'ye ulaşılamazsa 503 erp_unavailable (güvenli tarafta kalır).
 /// </summary>
 [Authorize(Permission = Permissions.SettingsBranches)]
 public record DeleteBranchCommand(Guid Id) : IRequest;
 
-public class DeleteBranchCommandHandler(IApplicationDbContext db, CompanyAccess access, BranchRules rules, MembershipChanges changes, IAuditLog audit)
+public class DeleteBranchCommandHandler(IApplicationDbContext db, CompanyAccess access, BranchRules rules, MembershipChanges changes, IAuditLog audit, IErpBranchUsageClient erp)
     : IRequestHandler<DeleteBranchCommand>
 {
     public async Task Handle(DeleteBranchCommand request, CancellationToken ct)
@@ -26,6 +28,11 @@ public class DeleteBranchCommandHandler(IApplicationDbContext db, CompanyAccess 
         }
 
         var tenantId = access.TenantId;
+        if (await erp.IsInUseAsync(tenantId, branch.Id, ct))
+        {
+            throw new AuthException(StatusCodes.Status409Conflict, AuthErrorCodes.BranchInUse, "Bu şube ERP kayıtlarında kullanılıyor; silinemez.");
+        }
+
         var roles = await db.TenantRoles.Include(r => r.Branches)
             .Where(r => r.TenantId == tenantId && r.Branches.Any(b => b.BranchId == branch.Id))
             .ToListAsync(ct);
