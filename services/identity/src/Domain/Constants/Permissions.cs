@@ -50,5 +50,15 @@ public static class Permissions
     public const string SettingsEBelge = "ayarlar.ebelge";
     public const string RateManage = "kur.manage";
 
+    public const string FinanceRead = "finans.read";
+    public const string FinanceManage = "finans.manage";
+    public const string CollectionManage = "tahsilat.manage";
+    public const string PaymentManage = "odeme.manage";
+    public const string TransferManage = "virman.manage";
+    public const string ExpenseManage = "masraf.manage";
+    public const string InstrumentManage = "ceksenet.manage";
+    public const string AccountingManage = "muhasebe.manage";
+    public const string AccountingExport = "muhasebe.export";
+
     public const string AuditRead = "denetim.read";
 }

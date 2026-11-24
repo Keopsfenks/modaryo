@@ -7,7 +7,7 @@ import type { Currency } from "../money";
 export type { Currency };
 
 export type AccountKind = "corporate" | "individual";
-export type AccountRole = "customer" | "supplier";
+export type AccountRole = "customer" | "supplier" | "employee";
 export type LedgerEntryType = "opening" | "debitNote" | "creditNote";
 export type DueDirection = "receivable" | "payable";
 export type EntryInputType = "opening" | "debit" | "credit";
@@ -21,6 +21,7 @@ export type CurrentAccountListItem = {
     name: string;
     isCustomer: boolean;
     isSupplier: boolean;
+    isEmployee?: boolean;
     currency: Currency;
     balance: number;
     overLimit: boolean;
@@ -52,6 +53,7 @@ export type CurrentAccountDto = {
     isEInvoiceTaxpayer: boolean;
     isCustomer: boolean;
     isSupplier: boolean;
+    isEmployee?: boolean;
     phone: string | null;
     email: string | null;
     notes: string | null;
@@ -91,6 +93,7 @@ export type UpdateAccountInput = {
     isEInvoiceTaxpayer: boolean;
     isCustomer: boolean;
     isSupplier: boolean;
+    isEmployee?: boolean;
     phone?: string | null;
     email?: string | null;
     notes?: string | null;

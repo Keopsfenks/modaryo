@@ -50,8 +50,8 @@ public static class CardRules {
         v.RuleFor(c => c.Kind).IsInEnum().WithMessage("Cari türü geçersiz.");
         v.RuleFor(c => c.Currency).Must(c => Currencies.Contains(c))
             .WithMessage("Para birimi TRY, USD, EUR veya GBP olmalıdır.");
-        v.RuleFor(c => c).Must(c => c.IsCustomer || c.IsSupplier)
-            .WithName("IsCustomer").WithMessage("Cari en az müşteri veya tedarikçi olarak işaretlenmelidir.");
+        v.RuleFor(c => c).Must(c => c.IsCustomer || c.IsSupplier || c.IsEmployee)
+            .WithName("IsCustomer").WithMessage("Cari en az müşteri, tedarikçi veya personel olarak işaretlenmelidir.");
         v.RuleFor(c => c.TaxNumber)
             .Must((c, t) => c.Kind == AccountKind.Corporate
                                 ? TaxNumber.IsValidVkn(t!.Trim())
@@ -80,6 +80,7 @@ public static class CardRules {
         account.IsEInvoiceTaxpayer = f.IsEInvoiceTaxpayer;
         account.IsCustomer         = f.IsCustomer;
         account.IsSupplier         = f.IsSupplier;
+        account.IsEmployee         = f.IsEmployee;
         account.Phone              = Clean(f.Phone);
         account.Email              = Clean(f.Email);
         account.Notes              = Clean(f.Notes);
@@ -198,7 +199,7 @@ public static class CurrentAccountReader {
         return new CurrentAccountDto(
                                      account.Id, account.Code, account.Name, account.Kind, account.TaxNumber,
                                      account.TaxOffice,
-                                     account.IsEInvoiceTaxpayer, account.IsCustomer, account.IsSupplier, account.Phone,
+                                     account.IsEInvoiceTaxpayer, account.IsCustomer, account.IsSupplier, account.IsEmployee, account.Phone,
                                      account.Email, account.Notes,
                                      account.Currency, account.DefaultDueDays, account.CreditLimit, account.CustomerGroupId,
                                      account.IsActive,

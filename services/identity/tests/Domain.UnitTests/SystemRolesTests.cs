@@ -38,7 +38,8 @@ public class SystemRolesTests
              "katalog.read", "katalog.manage", "ayarlar.katalog",
              "fiyat.read", "fiyat.manage", "fiyat.alis", "ayarlar.fiyat",
              "stok.read", "stok.manage", "stok.sayim", "maliyet.read", "ayarlar.stok",
-             "fatura.read", "fatura.manage", "fatura.issue", "fatura.cancel", "ayarlar.belgeler", "ayarlar.ebelge", "kur.manage"],
+             "fatura.read", "fatura.manage", "fatura.issue", "fatura.cancel", "ayarlar.belgeler", "ayarlar.ebelge", "kur.manage",
+             "finans.read", "finans.manage", "tahsilat.manage", "odeme.manage", "virman.manage", "masraf.manage", "ceksenet.manage", "muhasebe.manage", "muhasebe.export"],
             ignoreOrder: true);
     }
 
@@ -47,7 +48,7 @@ public class SystemRolesTests
     {
         var member = SystemRoles.CreateDefaults(TenantId).Single(r => r.SystemKey == SystemRoles.Member);
 
-        member.Permissions.Select(p => p.Permission).ShouldBe(["members.read", "cari.read", "katalog.read", "fiyat.read", "stok.read", "fatura.read"], ignoreOrder: true);
+        member.Permissions.Select(p => p.Permission).ShouldBe(["members.read", "cari.read", "katalog.read", "fiyat.read", "stok.read", "fatura.read", "finans.read"], ignoreOrder: true);
     }
 
     [Test]

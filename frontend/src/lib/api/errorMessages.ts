@@ -94,6 +94,8 @@ export const errorMessages: Record<string, string> = {
     measure_dimensions_required: "Ölçüyle satılan kalem için en ve boy girilmelidir.",
     return_exceeds_original: "İade miktarı asıl faturadaki kalan miktarı aşıyor.",
     mail_send_failed: "E-posta gönderilemedi. SMTP ayarlarını ve adresleri kontrol edin.",
+    account_in_use: "Hareketi olan hesap silinemez; pasifleştirebilirsiniz.",
+    currency_locked: "Hareketi olan hesabın para birimi ve türü değiştirilemez.",
     file_too_large: "Dosya çok büyük; en fazla 5 MB yüklenebilir.",
 };
 

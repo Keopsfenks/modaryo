@@ -5,6 +5,7 @@ using ERP.Domain.Inventory;
 using ERP.Domain.Invoicing;
 using ERP.Domain.Pricing;
 using ERP.Domain.Settings;
+using ERP.Domain.Treasury;
 using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ERP.Application.Common.Interfaces;
@@ -101,6 +102,22 @@ public interface IApplicationDbContext {
     DbSet<ExemptionCode> ExemptionCodes { get; }
 
     DbSet<ExchangeRate> ExchangeRates { get; }
+
+    DbSet<TreasuryAccount> TreasuryAccounts { get; }
+
+    DbSet<TreasuryMovement> TreasuryMovements { get; }
+
+    DbSet<FinanceDocument> FinanceDocuments { get; }
+
+    DbSet<Instrument> Instruments { get; }
+
+    DbSet<InstrumentEvent> InstrumentEvents { get; }
+
+    DbSet<ExpenseCategory> ExpenseCategories { get; }
+
+    DbSet<JournalVoucher> JournalVouchers { get; }
+
+    DbSet<ExchangeDifferenceSettlement> ExchangeDifferenceSettlements { get; }
 
     DbSet<TenantRateOverride> TenantRateOverrides { get; }
 

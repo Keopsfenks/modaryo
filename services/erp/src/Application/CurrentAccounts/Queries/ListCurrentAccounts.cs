@@ -17,8 +17,8 @@ public sealed record ListCurrentAccountsQuery(
 
 public sealed class ListCurrentAccountsQueryValidator : AbstractValidator<ListCurrentAccountsQuery> {
     public ListCurrentAccountsQueryValidator() {
-        RuleFor(q => q.Role).Must(r => r is "customer" or "supplier").When(q => !string.IsNullOrEmpty(q.Role))
-            .WithMessage("Rol müşteri (customer) veya tedarikçi (supplier) olmalıdır.");
+        RuleFor(q => q.Role).Must(r => r is "customer" or "supplier" or "employee").When(q => !string.IsNullOrEmpty(q.Role))
+            .WithMessage("Rol müşteri (customer), tedarikçi (supplier) veya personel (employee) olmalıdır.");
         RuleFor(q => q.Page).InclusiveBetween(1, 100000).WithMessage("Sayfa 1 ile 100000 arasında olmalıdır.");
         RuleFor(q => q.PageSize).InclusiveBetween(1, 100).WithMessage("Sayfa boyutu 1 ile 100 arasında olmalıdır.");
     }
@@ -37,9 +37,13 @@ public sealed class ListCurrentAccountsQueryHandler(
 
         if (!request.IncludeInactive) query = query.Where(a => a.IsActive);
 
+        // Personel carileri müşteri ve tedarikçi listelerinde görünmez; yalnızca personel rolüyle listelenir.
         if (request.Role == "customer")
-            query                                  = query.Where(a => a.IsCustomer);
-        else if (request.Role == "supplier") query = query.Where(a => a.IsSupplier);
+            query = query.Where(a => a.IsCustomer && !a.IsEmployee);
+        else if (request.Role == "supplier")
+            query = query.Where(a => a.IsSupplier && !a.IsEmployee);
+        else if (request.Role == "employee")
+            query = query.Where(a => a.IsEmployee);
 
         if (!string.IsNullOrWhiteSpace(request.Search)) {
             var term = CardRules.FoldSearch(request.Search);
@@ -62,7 +66,7 @@ public sealed class ListCurrentAccountsQueryHandler(
         var items = page.Select(a => {
                                     var own     = entries[a.Id].ToList();
                                     var balance = Statement.Balance(own);
-                                    return new CurrentAccountListItem(a.Id, a.Code, a.Name, a.IsCustomer, a.IsSupplier,
+                                    return new CurrentAccountListItem(a.Id, a.Code, a.Name, a.IsCustomer, a.IsSupplier, a.IsEmployee,
                                                                       a.Currency, balance,
                                                                       a.CreditLimit is not null &&
                                                                       balance > a.CreditLimit,

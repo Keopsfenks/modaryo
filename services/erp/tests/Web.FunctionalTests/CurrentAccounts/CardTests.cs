@@ -24,7 +24,8 @@ public class CardTests : TestBase {
                                                     string  currency  = "TRY",
                                                     object? address   = null,
                                                     object? opening   = null,
-                                                    Guid?   customerGroupId = null
+                                                    Guid?   customerGroupId = null,
+                                                    bool    employee  = false
     ) {
         return new Dictionary<string, object?> {
                                                    ["code"]               = code,
@@ -35,6 +36,7 @@ public class CardTests : TestBase {
                                                    ["isEInvoiceTaxpayer"] = false,
                                                    ["isCustomer"]         = customer,
                                                    ["isSupplier"]         = supplier,
+                                                   ["isEmployee"]         = employee,
                                                    ["phone"]              = "0212 000 00 00",
                                                    ["email"]              = "info@ornek.com",
                                                    ["notes"]              = null,
@@ -144,6 +146,36 @@ public class CardTests : TestBase {
         using var response = await client.PostAsJsonAsync(Url, Card(customer: false, supplier: false));
 
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task CariNeedsAtLeastOneRoleIncludingEmployee() {
+        using var client = await Manager();
+
+        using var employeeOnly = await client.PostAsJsonAsync(Url, Card("P0001", "Ayşe Personel", customer: false, supplier: false, employee: true));
+        employeeOnly.StatusCode.ShouldBe(HttpStatusCode.Created, await employeeOnly.Content.ReadAsStringAsync());
+        (await employeeOnly.JsonAsync()).GetProperty("isEmployee").GetBoolean().ShouldBeTrue();
+
+        using var none = await client.PostAsJsonAsync(Url, Card("P0002", "Rolsüz", customer: false, supplier: false, employee: false));
+        none.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
+
+    [Test]
+    public async Task EmployeeCari_HiddenFromCustomerList() {
+        using var client = await Manager();
+        await CreateAsync(client, Card("C0001", "Müşteri A", true, false));
+        await CreateAsync(client, Card("P0001", "Personel Müşteri", true, false, employee: true));
+        await CreateAsync(client, Card("P0002", "Personel Tedarikçi", false, true, employee: true));
+        await CreateAsync(client, Card("P0003", "Sadece Personel", false, false, employee: true));
+
+        async Task<string[]> Codes(string query) {
+            var body = await (await client.GetAsync($"{Url}{query}")).JsonAsync();
+            return body.GetProperty("items").EnumerateArray().Select(i => i.GetProperty("code").GetString()!).ToArray();
+        }
+
+        (await Codes("?role=customer")).ShouldBe(["C0001"]);
+        (await Codes("?role=supplier")).ShouldBeEmpty();
+        (await Codes("?role=employee")).ShouldBe(["P0001", "P0002", "P0003"]);
     }
 
     [Test]

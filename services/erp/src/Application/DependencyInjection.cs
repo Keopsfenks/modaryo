@@ -21,6 +21,7 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Common.Interfaces.ItemUsage>();
         builder.Services.AddScoped<ERP.Application.Common.Interfaces.IItemUsageProvider, ERP.Application.Inventory.Usage.InventoryItemUsageProvider>();
         builder.Services.AddScoped<ERP.Application.Common.Interfaces.IBranchUsageProvider, ERP.Application.Inventory.Usage.InventoryBranchUsageProvider>();
+        builder.Services.AddScoped<ERP.Application.Common.Interfaces.IBranchUsageProvider, ERP.Application.Treasury.TreasuryBranchUsageProvider>();
         builder.Services.AddScoped<ERP.Application.Inventory.Warehouses.DefaultWarehouseService>();
         builder.Services.AddScoped<ERP.Application.Inventory.Ledger.StockLedger>();
         builder.Services.AddScoped<ERP.Application.Inventory.IStockService, ERP.Application.Inventory.Ledger.StockService>();

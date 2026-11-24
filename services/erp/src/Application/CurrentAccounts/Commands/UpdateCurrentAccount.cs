@@ -24,6 +24,8 @@ public sealed record UpdateCurrentAccountCommand : IRequest<CurrentAccountDto>, 
 
     public bool IsSupplier { get; init; }
 
+    public bool IsEmployee { get; init; }
+
     public string? Phone { get; init; }
 
     public string? Email { get; init; }

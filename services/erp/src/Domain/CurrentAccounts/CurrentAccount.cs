@@ -9,6 +9,7 @@ public class CurrentAccount : BaseAuditableEntity, ITenantOwned {
     public bool        IsEInvoiceTaxpayer { get; set; }
     public bool        IsCustomer         { get; set; }
     public bool        IsSupplier         { get; set; }
+    public bool        IsEmployee         { get; set; }
     public string?     Phone              { get; set; }
     public string?     Email              { get; set; }
     public string?     Notes              { get; set; }

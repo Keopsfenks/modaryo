@@ -12,7 +12,7 @@
       "Cari kodu 1 ile 20 karakter arasında olmalıdır."
     ],
     "IsCustomer": [
-      "Cari en az müşteri veya tedarikçi olarak işaretlenmelidir."
+      "Cari en az müşteri, tedarikçi veya personel olarak işaretlenmelidir."
     ]
   },
   "code": "validation_failed"

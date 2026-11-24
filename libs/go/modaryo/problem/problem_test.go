@@ -50,7 +50,7 @@ func TestProblem_JsonShapeMatchesDotnetFixture(t *testing.T) {
 	validation := problem.Validation(map[string][]string{
 		"Name":       {"Ünvan / ad soyad zorunludur.", "Ünvan 2 ile 200 karakter arasında olmalıdır."},
 		"Code":       {"Cari kodu zorunludur.", "Cari kodu 1 ile 20 karakter arasında olmalıdır."},
-		"IsCustomer": {"Cari en az müşteri veya tedarikçi olarak işaretlenmelidir."},
+		"IsCustomer": {"Cari en az müşteri, tedarikçi veya personel olarak işaretlenmelidir."},
 	})
 	cases := map[string]problem.Details{
 		"problem-validation.json":   validation,

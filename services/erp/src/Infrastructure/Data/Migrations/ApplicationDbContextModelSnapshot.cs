@@ -578,6 +578,9 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.Property<bool>("IsEInvoiceTaxpayer")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsEmployee")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsSupplier")
                         .HasColumnType("boolean");
 
@@ -3634,6 +3637,555 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.ToTable("tenant_settings", (string)null);
                 });
 
+            modelBuilder.Entity("ERP.Domain.Treasury.ExchangeDifferenceSettlement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<List<Guid>>("AllocationIds")
+                        .IsRequired()
+                        .HasColumnType("uuid[]");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("CurrentAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("LastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("ResultId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResultType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrentAccountId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "CurrentAccountId");
+
+                    b.ToTable("exchange_difference_settlements", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.ExpenseCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccountCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsIncome")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSystem")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("LastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("expense_categories", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.FinanceDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CancelledBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid?>("CurrentAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("ExpenseCategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("InstrumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsAdvance")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTimeOffset>("LastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Method")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid?>("PurchaseOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Rate")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<Guid?>("SalesOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TargetAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("CurrentAccountId");
+
+                    b.HasIndex("ExpenseCategoryId");
+
+                    b.HasIndex("InstrumentId");
+
+                    b.HasIndex("TargetAccountId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "CurrentAccountId", "Date");
+
+                    b.HasIndex("TenantId", "Kind", "Date");
+
+                    b.ToTable("finance_documents", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.Instrument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccountNo")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("BankBranch")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("CollectionAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid>("CurrentAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("DrawerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("EndorsedToId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("EndorsementCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<DateTimeOffset>("LastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("ProtestFlag")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CollectionAccountId");
+
+                    b.HasIndex("CurrentAccountId");
+
+                    b.HasIndex("EndorsedToId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "CurrentAccountId");
+
+                    b.HasIndex("TenantId", "Status", "DueDate");
+
+                    b.ToTable("instruments", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.InstrumentEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("From")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("InstrumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("To")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("InstrumentId", "Date");
+
+                    b.ToTable("instrument_events", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.JournalVoucher", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ExternalCaller")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<bool>("IsCancelled")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("LastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Lines")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid?>("SourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "Date");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "SourceType", "SourceId");
+
+                    b.ToTable("journal_vouchers", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.TreasuryAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<string>("Iban")
+                        .HasMaxLength(34)
+                        .HasColumnType("character varying(34)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("LastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "BranchId");
+
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("treasury_accounts", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.TreasuryMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("LastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "AccountId", "Date");
+
+                    b.ToTable("treasury_movements", (string)null);
+                });
+
             modelBuilder.Entity("ERP.Domain.Catalog.Barcode", b =>
                 {
                     b.HasOne("ERP.Domain.Catalog.Product", null)
@@ -4132,6 +4684,91 @@ namespace ERP.Infrastructure.Data.Migrations
                         .WithMany()
                         .HasForeignKey("VariantId")
                         .OnDelete(DeleteBehavior.Cascade);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.ExchangeDifferenceSettlement", b =>
+                {
+                    b.HasOne("ERP.Domain.CurrentAccounts.CurrentAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CurrentAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.FinanceDocument", b =>
+                {
+                    b.HasOne("ERP.Domain.Treasury.TreasuryAccount", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Domain.CurrentAccounts.CurrentAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CurrentAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Domain.Treasury.ExpenseCategory", null)
+                        .WithMany()
+                        .HasForeignKey("ExpenseCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Domain.Treasury.Instrument", null)
+                        .WithMany()
+                        .HasForeignKey("InstrumentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Domain.Treasury.TreasuryAccount", null)
+                        .WithMany()
+                        .HasForeignKey("TargetAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.Instrument", b =>
+                {
+                    b.HasOne("ERP.Domain.Treasury.TreasuryAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CollectionAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Domain.CurrentAccounts.CurrentAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CurrentAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Domain.CurrentAccounts.CurrentAccount", null)
+                        .WithMany()
+                        .HasForeignKey("EndorsedToId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.InstrumentEvent", b =>
+                {
+                    b.HasOne("ERP.Domain.Treasury.FinanceDocument", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Domain.Treasury.Instrument", null)
+                        .WithMany()
+                        .HasForeignKey("InstrumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.TreasuryMovement", b =>
+                {
+                    b.HasOne("ERP.Domain.Treasury.TreasuryAccount", null)
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Domain.Treasury.FinanceDocument", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERP.Domain.Catalog.Product", b =>

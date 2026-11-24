@@ -64,6 +64,16 @@ public static class PermissionCatalog
             new(Permissions.SettingsEBelge, null, "Fatura", "e-Belge ayarlarını yönet", "e-Fatura / e-Arşiv kullanımını ve varsayılan senaryoyu düzenleyebilir."),
             new(Permissions.RateManage, null, "Fatura", "Kurları yönet", "Döviz kurlarını elle girebilir ve düzeltebilir."),
 
+            new(Permissions.FinanceRead, null, "Finans", "Kasa, banka ve finans belgelerini görüntüle", "Kasa/banka hesaplarını, hareketleri, tahsilat, ödeme ve mahsup fişlerini görüntüleyebilir."),
+            new(Permissions.FinanceManage, null, "Finans", "Kasa ve banka hesaplarını yönet", "Kasa, banka ve kart POS hesapları oluşturabilir, düzenleyebilir ve pasifleştirebilir."),
+            new(Permissions.CollectionManage, null, "Finans", "Tahsilat yap", "Tahsilat belgesi oluşturabilir, iptal edebilir ve elle kapatma yapabilir."),
+            new(Permissions.PaymentManage, null, "Finans", "Ödeme yap", "Ödeme belgesi oluşturabilir, iptal edebilir ve elle kapatma yapabilir."),
+            new(Permissions.TransferManage, null, "Finans", "Virman yap", "Hesaplar arası virman belgesi oluşturabilir ve iptal edebilir."),
+            new(Permissions.ExpenseManage, null, "Finans", "Masraf ve gelir fişi gir", "Masraf ve gelir fişi oluşturabilir ve iptal edebilir."),
+            new(Permissions.InstrumentManage, "cek-senet", "Finans", "Çek ve senetleri yönet", "Çek/senet kaydedebilir ve durumunu (ciro, tahsil, iade, ödeme) değiştirebilir."),
+            new(Permissions.AccountingManage, null, "Finans", "Mahsup fişi ve hesap eşlemesi", "Mahsup fişi girebilir ve muhasebe hesap eşlemesini düzenleyebilir."),
+            new(Permissions.AccountingExport, null, "Finans", "Muhasebe aktarımı", "Muhasebe aktarım dosyasını indirebilir."),
+
             new(Permissions.AuditRead, null, "Denetim", "Denetim kaydını görüntüle", "Firmadaki işlem geçmişini ve denetim kayıtlarını görüntüleyebilir."));
         CoreCount = Entries.Count;
     }

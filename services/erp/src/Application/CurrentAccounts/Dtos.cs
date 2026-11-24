@@ -22,6 +22,7 @@ public sealed record CurrentAccountListItem(
     string  Name,
     bool    IsCustomer,
     bool    IsSupplier,
+    bool    IsEmployee,
     string  Currency,
     decimal Balance,
     bool    OverLimit,
@@ -44,6 +45,7 @@ public sealed record CurrentAccountDto(
     bool                      IsEInvoiceTaxpayer,
     bool                      IsCustomer,
     bool                      IsSupplier,
+    bool                      IsEmployee,
     string?                   Phone,
     string?                   Email,
     string?                   Notes,
@@ -79,6 +81,8 @@ public interface ICardFields {
     bool IsCustomer { get; }
 
     bool IsSupplier { get; }
+
+    bool IsEmployee { get; }
 
     string? Phone { get; }
 

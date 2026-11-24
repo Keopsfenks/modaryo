@@ -45,6 +45,13 @@ public static class SystemRoles
                 Permissions.SettingsDocuments, Permissions.SettingsEBelge, Permissions.RateManage,
             ],
             [Permissions.InvoiceRead]),
+        new(8,
+            [
+                Permissions.FinanceRead, Permissions.FinanceManage, Permissions.CollectionManage, Permissions.PaymentManage,
+                Permissions.TransferManage, Permissions.ExpenseManage, Permissions.InstrumentManage,
+                Permissions.AccountingManage, Permissions.AccountingExport,
+            ],
+            [Permissions.FinanceRead]),
     ];
 
     public static int LatestPermissionSetVersion { get; } = PermissionSetVersions.Max(v => v.Version);

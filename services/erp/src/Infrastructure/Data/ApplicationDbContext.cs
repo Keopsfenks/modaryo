@@ -10,6 +10,7 @@ using ERP.Domain.Inventory;
 using ERP.Domain.Invoicing;
 using ERP.Domain.Pricing;
 using ERP.Domain.Settings;
+using ERP.Domain.Treasury;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
@@ -124,6 +125,22 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
 
     public DbSet<TenantRateOverride> TenantRateOverrides => Set<TenantRateOverride>();
+
+    public DbSet<TreasuryAccount> TreasuryAccounts => Set<TreasuryAccount>();
+
+    public DbSet<TreasuryMovement> TreasuryMovements => Set<TreasuryMovement>();
+
+    public DbSet<FinanceDocument> FinanceDocuments => Set<FinanceDocument>();
+
+    public DbSet<Instrument> Instruments => Set<Instrument>();
+
+    public DbSet<InstrumentEvent> InstrumentEvents => Set<InstrumentEvent>();
+
+    public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
+
+    public DbSet<JournalVoucher> JournalVouchers => Set<JournalVoucher>();
+
+    public DbSet<ExchangeDifferenceSettlement> ExchangeDifferenceSettlements => Set<ExchangeDifferenceSettlement>();
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
