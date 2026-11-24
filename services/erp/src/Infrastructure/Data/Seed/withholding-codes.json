@@ -1,0 +1,137 @@
+{
+    "_source": "https://ebelge.gib.gov.tr/dosyalar/kilavuzlar/UBL-TR_Kod_Listeleri-V_1_27.pdf",
+    "_fetchedAt": "2026-11-24",
+    "_note": "GİB UBL-TR Kod Listeleri Kılavuzu v1.27 (Kasım 2021) alınmıştır. Sonraki GİB güncellemeleri (örn. 344 eklenmesi, 650 kaldırılması) doğrulanıp işlenmelidir; yeni sürüm için bu dosya güncellenir.",
+    "items": [
+        {
+            "code": "601",
+            "name": "YAPIM İŞLERİ İLE BU İŞLERLE BİRLİKTE İFA EDİLEN MÜHENDİSLİK- MİMARLIK VE ETÜT-PROJE HİZMETLERİ [GT 117-Bölüm (3.2.1)]",
+            "tenths": 4
+        },
+        {
+            "code": "602",
+            "name": "ETÜT, PLAN-PROJE, DANIŞMANLIK, DENETİM VE BENZERİ HİZMETLER[GT 117-Bölüm (3.2.2)]",
+            "tenths": 9
+        },
+        {
+            "code": "603",
+            "name": "MAKİNE, TEÇHİZAT, DEMİRBAŞ VE TAŞITLARA AİT TADİL, BAKIM VE ONARIM HİZMETLERİ [GT 117-Bölüm (3.2.3)]",
+            "tenths": 7
+        },
+        {
+            "code": "604",
+            "name": "YEMEK SERVİS HİZMETİ [GT 117-Bölüm (3.2.4)]",
+            "tenths": 5
+        },
+        {
+            "code": "605",
+            "name": "ORGANİZASYON HİZMETİ [GT 117-Bölüm (3.2.4)]",
+            "tenths": 5
+        },
+        {
+            "code": "606",
+            "name": "İŞGÜCÜ TEMİN HİZMETLERİ [GT 117-Bölüm (3.2.5)]",
+            "tenths": 9
+        },
+        {
+            "code": "607",
+            "name": "ÖZEL GÜVENLİK HİZMETİ [GT 117-Bölüm (3.2.5)]",
+            "tenths": 9
+        },
+        {
+            "code": "608",
+            "name": "YAPI DENETİM HİZMETLERİ [GT 117-Bölüm (3.2.6)]",
+            "tenths": 9
+        },
+        {
+            "code": "609",
+            "name": "FASON OLARAK YAPTIRILAN TEKSTİL VE KONFEKSİYON İŞLERİ, ÇANTA VE AYAKKABI DİKİM İŞLERİ VE BU İŞLERE ARACILIK HİZMETLERİ [GT 117-Bölüm (3.2.7)]",
+            "tenths": 7
+        },
+        {
+            "code": "610",
+            "name": "TURİSTİK MAĞAZALARA VERİLEN MÜŞTERİ BULMA / GÖTÜRME HİZMETLERİ [GT 117-Bölüm (3.2.8)]",
+            "tenths": 9
+        },
+        {
+            "code": "611",
+            "name": "SPOR KULÜPLERİNİN YAYIN, REKLÂM VE İSİM HAKKI GELİRLERİNE KONU İŞLEMLERİ [GT 117-Bölüm (3.2.9)]",
+            "tenths": 9
+        },
+        {
+            "code": "612",
+            "name": "TEMİZLİK HİZMETİ [GT 117-Bölüm (3.2.10)]",
+            "tenths": 9
+        },
+        {
+            "code": "613",
+            "name": "ÇEVRE VE BAHÇE BAKIM HİZMETLERİ [GT 117-Bölüm (3.2.10)]",
+            "tenths": 9
+        },
+        {
+            "code": "614",
+            "name": "SERVİS TAŞIMACILIĞI HİZMETİ [GT 117-Bölüm (3.2.11)]",
+            "tenths": 5
+        },
+        {
+            "code": "615",
+            "name": "HER TÜRLÜ BASKI VE BASIM HİZMETLERİ [GT 117-Bölüm (3.2.12)]",
+            "tenths": 7
+        },
+        {
+            "code": "616",
+            "name": "Diğer Hizmetler [KDVGUT-(I/C-2.1.3.2.13)]",
+            "tenths": 5
+        },
+        {
+            "code": "617",
+            "name": "HURDA METALDEN ELDE EDİLEN KÜLÇE TESLİMLERİ [GT 117- Bölüm (3.3.1)]",
+            "tenths": 7
+        },
+        {
+            "code": "618",
+            "name": "HURDA METALDEN ELDE EDİLENLER DIŞINDAKİ BAKIR, ÇİNKO VE ALÜMİNYUM KÜLÇE TESLİMLERİ [GT 117-Bölüm (3.3.1)]",
+            "tenths": 7
+        },
+        {
+            "code": "619",
+            "name": "BAKIR, ÇİNKO VE ALÜMİNYUM ÜRÜNLERİNİN TESLİMİ [GT 117- Bölüm (3.3.2)]",
+            "tenths": 7
+        },
+        {
+            "code": "620",
+            "name": "İSTİSNADAN VAZGEÇENLERİN HURDA VE ATIK TESLİMİ [GT 117- Bölüm (3.3.3)]",
+            "tenths": 7
+        },
+        {
+            "code": "621",
+            "name": "METAL, PLASTİK, LASTİK, KAUÇUK, KÂĞIT VE CAM HURDA VE ATIKLARDAN ELDE EDİLEN HAMMADDE TESLİMİ [GT 117-Bölüm (3.3.4)]",
+            "tenths": 9
+        },
+        {
+            "code": "622",
+            "name": "PAMUK, TİFTİK, YÜN VE YAPAĞI İLE HAM POST VE DERİ TESLİMLERİ [GT 117-Bölüm (3.3.5)]",
+            "tenths": 9
+        },
+        {
+            "code": "623",
+            "name": "AĞAÇ VE ORMAN ÜRÜNLERİ TESLİMİ [GT 117-Bölüm (3.3.6)]",
+            "tenths": 5
+        },
+        {
+            "code": "624",
+            "name": "YÜK TAŞIMACILIĞI HİZMETİ [KDVGUT-(I/C-2.1.3.2.11)]",
+            "tenths": 2
+        },
+        {
+            "code": "625",
+            "name": "TİCARİ REKLAM HİZMETLERİ [KDVGUT-(I/C-2.1.3.2.15)]",
+            "tenths": 3
+        },
+        {
+            "code": "626",
+            "name": "DİĞER TESLİMLER [KDVGUT-(I/C-2.1.3.3.7.)]",
+            "tenths": 2
+        }
+    ]
+}

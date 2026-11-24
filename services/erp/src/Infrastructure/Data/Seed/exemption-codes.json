@@ -1,0 +1,387 @@
+{
+    "_source": "https://ebelge.gib.gov.tr/dosyalar/kilavuzlar/UBL-TR_Kod_Listeleri-V_1_27.pdf",
+    "_fetchedAt": "2026-11-24",
+    "_note": "GİB UBL-TR Kod Listeleri Kılavuzu v1.27 (Kasım 2021) alınmıştır. Sonraki GİB güncellemeleri (örn. 344 eklenmesi, 650 kaldırılması) doğrulanıp işlenmelidir; yeni sürüm için bu dosya güncellenir.",
+    "items": [
+        {
+            "code": "201",
+            "name": "17/1 Kültür ve Eğitim Amacı Taşıyan İşlemler",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "202",
+            "name": "17/2-a Sağlık, Çevre Ve Sosyal Yardım Amaçlı İşlemler",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "204",
+            "name": "17/2-c Yabancı Diplomatik Organ Ve Hayır Kurumlarının Yapacakları Bağışlarla İlgili Mal Ve Hizmet Alışları",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "205",
+            "name": "17/2-d Taşınmaz Kültür Varlıklarına İlişkin Teslimler ve Mimarlık Hizmetleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "206",
+            "name": "17/2-e Mesleki Kuruluşların İşlemleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "207",
+            "name": "17/3 Askeri Fabrika, Tersane ve Atölyelerin İşlemleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "208",
+            "name": "17/4-c Birleşme, Devir, Dönüşüm ve Bölünme İşlemleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "209",
+            "name": "17/4-e Banka ve Sigorta Muameleleri Vergisi Kapsamına Giren İşlemler",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "211",
+            "name": "17/4-h Zirai Amaçlı Su Teslimleri İle Köy Tüzel Kişiliklerince Yapılan İçme Suyu teslimleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "212",
+            "name": "17/4-ı Serbest Bölgelerde Verilen Hizmetler",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "213",
+            "name": "17/4-j Boru Hattı İle Yapılan Petrol Ve Gaz Taşımacılığı",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "214",
+            "name": "17/4-k Organize Sanayi Bölgelerindeki Arsa ve İşyeri Teslimleri İle Konut Yapı Kooperatiflerinin Üyelerine Konut Teslimleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "215",
+            "name": "17/4-l Varlık Yönetim Şirketlerinin İşlemleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "216",
+            "name": "17/4-m Tasarruf Mevduatı Sigorta Fonunun İşlemleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "217",
+            "name": "17/4-n Basın-Yayın ve Enformasyon Genel Müdürlüğüne Verilen Haber Hizmetleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "218",
+            "name": "KDV 17/4-o md. Gümrük Antrepoları, Geçici Depolama Yerleri ile Gümrüklü Sahalarda Vergisiz Satış Yapılan İşyeri, Depo ve Ardiye Gibi Bağımsız Birimlerin Kiralanması",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "219",
+            "name": "17/4-p Hazine ve Arsa Ofisi Genel Müdürlüğünün işlemleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "220",
+            "name": "17/4-r İki Tam Yıl Süreyle Sahip Olunan Taşınmaz ve İştirak Hisseleri Satışları",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "221",
+            "name": "Geçici 15 Konut Yapı Kooperatifleri, Belediyeler ve Sosyal Güvenlik Kuruluşlarına Verilen İnşaat Taahhüt Hizmeti",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "223",
+            "name": "Geçici 20/1 Teknoloji Geliştirme Bölgelerinde Yapılan İşlemler",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "225",
+            "name": "Geçici 23 Milli Eğitim Bakanlığına Yapılan Bilgisayar Bağışları İle İlgili Teslimler",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "226",
+            "name": "17/2-b Özel Okulları, Üniversite ve Yüksekokullar Tarafından Verilen Bedelsiz Eğitim Ve Öğretim Hizmetleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "227",
+            "name": "17/2-b Kanunların Gösterdiği Gerek Üzerine Bedelsiz Olarak Yapılan Teslim ve Hizmetler",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "228",
+            "name": "17/2-b Kanunun (17/1) Maddesinde Sayılan Kurum ve Kuruluşlara Bedelsiz Olarak Yapılan Teslimler",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "229",
+            "name": "17/2-b Gıda Bankacılığı Faaliyetinde Bulunan Dernek ve Vakıflara Bağışlanan Gıda, Temizlik, Giyecek ve Yakacak Maddeleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "230",
+            "name": "17/4-g Külçe Altın, Külçe Gümüş Ve Kiymetli Taşlarin Teslimi",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "231",
+            "name": "17/4-g Metal Plastik, Lastik, Kauçuk, Kağit, Cam Hurda Ve Atıkların Teslimi",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "232",
+            "name": "17/4-g Döviz, Para, Damga Pulu, Değerli Kağıtlar, Hisse Senedi ve Tahvil Teslimleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "234",
+            "name": "17/4-ş Konut Finansmanı Amacıyla Teminat Gösterilen ve İpotek Konulan Konutların Teslimi",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "235",
+            "name": "16/1-c Transit ve Gümrük Antrepo Rejimleri İle Geçici Depolama ve Serbest Bölge Hükümlerinin Uygulandığiı Malların Teslimi",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "236",
+            "name": "19/2 Usulüne Göre Yürürlüğe Girmiş Uluslararası Anlaşmalar Kapsamındaki İstisnalar (İade Hakkı Tanınmayan)",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "237",
+            "name": "17/4-t 5300 Sayılı Kanuna Göre Düzenlenen Ürün Senetlerinin İhtisas/Ticaret Borsaları Aracılığıyla İlk Teslimlerinden Sonraki Teslim",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "238",
+            "name": "17/4-u Varlıkların Varlık Kiralama Şirketlerine Devri İle Bu Varlıkların Varlık Kiralama Şirketlerince Kiralanması ve Devralınan Kuruma Devri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "239",
+            "name": "17/4-y Taşınmazların Finansal Kiralama Şirketlerine Devri, Finansal Kiralama Şirketi Tarafından Devredene Kiralanması ve Devri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "240",
+            "name": "17/4-z Patentli Veya Faydalı Model Belgeli Buluşa İlişkin Gayri Maddi Hakların Kiralanması, Devri ve Satışı",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "241",
+            "name": "TürkAkım Gaz Boru Hattı Projesine İlişkin Anlaşmanın (9/b) Maddesinde Yer Alan Hizmetler",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "242",
+            "name": "KDV 17/4-ö md. Gümrük Antrepoları, Geçici Depolama Yerleri ile Gümrüklü Sahalarda, İthalat ve İhracat İşlemlerine konu mallar ile transit rejim kapsamında işlem gören mallar için verilen ardiye, depolama ve terminal hizmetleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "250",
+            "name": "Diğerleri",
+            "group": "kismi-istisna"
+        },
+        {
+            "code": "301",
+            "name": "11/1-a Mal İhracatı",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "302",
+            "name": "11/1-a Hizmet İhracatı",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "303",
+            "name": "11/1-a Roaming Hizmetleri",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "304",
+            "name": "13/a Deniz Hava ve Demiryolu Taşıma Araçlarının Teslimi İle İnşa, Tadil, Bakım ve Onarımları",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "305",
+            "name": "13/b Deniz ve Hava Taşıma Araçları İçin Liman Ve Hava Meydanlarında Yapılan Hizmetler",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "306",
+            "name": "13/c Petrol Aramaları ve Petrol Boru Hatlarının İnşa ve Modernizasyonuna İlişkin Yapılan Teslim ve Hizmetler",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "307",
+            "name": "13/c Maden Arama, Altın, Gümüş ve Platin Madenleri İçin İşletme, Zenginleştirme Ve Rafinaj Faaliyetlerine İlişkin Teslim Ve Hizmetler[KDVGUT-(II/8-4)]",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "308",
+            "name": "13/d Teşvikli Yatırım Mallarının Teslimi",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "309",
+            "name": "13/e Liman Ve Hava Meydanlarının İnşası, Yenilenmesi Ve Genişletilmesi",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "310",
+            "name": "13/f Ulusal Güvenlik Amaçlı Teslim ve Hizmetler",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "311",
+            "name": "14/1 Uluslararası Taşımacılık",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "312",
+            "name": "15/a Diplomatik Organ Ve Misyonlara Yapılan Teslim ve Hizmetler",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "313",
+            "name": "15/b Uluslararası Kuruluşlara Yapılan Teslim ve Hizmetler",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "314",
+            "name": "19/2 Usulüne Göre Yürürlüğe Girmiş Uluslar Arası Anlaşmalar Kapsamındaki İstisnalar",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "315",
+            "name": "14/3 İhraç Konusu Eşyayı Taşıyan Kamyon, Çekici ve Yarı Romorklara Yapılan Motorin Teslimleri",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "316",
+            "name": "11/1-a Serbest Bölgelerdeki Müşteriler İçin Yapılan Fason Hizmetler",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "317",
+            "name": "17/4-s Engellilerin Eğitimleri, Meslekleri ve Günlük Yaşamlarına İlişkin Araç-Gereç ve Bilgisayar Programları",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "318",
+            "name": "Geçici 29 3996 Sayılı Kanuna Göre Yap-İşlet-Devret Modeli Çerçevesinde Gerçekleştirilecek Projeler, 3359 Sayılı Kanuna Göre Kiralama Karşılığı Yaptırılan Sağlık Tesislerine İlişkin Projeler ve 652 Sayılı Kanun Hükmünde Kararnameye Göre Kiralama Karşılığı Yaptırılan Eğitim Öğretim Tesislerine İlişkin Projelere İlişkin Teslim ve Hizmetler",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "319",
+            "name": "13/g Başbakanlık Merkez Teşkilatına Yapılan Araç Teslimleri",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "320",
+            "name": "Geçici 16 (6111 sayılı K.) İSMEP Kapsamında İstanbul İl Özel İdaresi'ne Bağlı Olarak Faaliyet Gösteren \"İstanbul Proje Koordinasyon Birimi\"ne Yapılacak Teslim ve Hizmetler",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "321",
+            "name": "Geçici 26 Birleşmiş Milletler (BM) ile Kuzey Atlantik Antlaşması Teşkilatı (NATO) Temsilcilikleri ve Bu Teşkilatlara Bağlı Program, Fon ve Özel İhtisas Kuruluşları ile İktisadi İşbirliği ve Kalkınma Teşkilatına (OECD) Resmi Kullanımları İçin Yapılacak Mal Teslimi ve Hizmet İfaları, Bunların Sosyal ve Ekonomik Yardım Amacıyla Bedelsiz Olarak Yapacakları Mal Teslimi ve Hizmet İfaları İle İlgili Bunlara Yapılan Mal Teslimi ve Hizmet İfaları",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "322",
+            "name": "11/1-a Türkiye'de İkamet Etmeyenlere Özel Fatura ile Yapılan Teslimler (Bavul Ticareti)",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "323",
+            "name": "13/ğ 5300 Sayılı Kanuna Göre Düzenlenen Ürün Senetlerinin İhtisas/Ticaret Borsaları Aracılığıyla İlk Teslimi",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "324",
+            "name": "13/h Türkiye Kızılay Derneğine Yapılan Teslim ve Hizmetler ile Türkiye Kızılay Derneğinin Teslim ve Hizmetleri",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "325",
+            "name": "13/ı Yem Teslimleri",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "326",
+            "name": "13/ı Gıda, Tarım ve Hayvancılık Bakanlığı Tarafından Tescil Edilmiş Gübrelerin Teslimi",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "327",
+            "name": "13/ı Gıda, Tarım ve Hayvancılık Bakanlığı Tarafından Tescil Edilmiş Gübrelerin İçeriğinde Bulunan Hammaddelerin Gübre Üreticilerine Teslimi",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "328",
+            "name": "13/i Konut veya İşyeri Teslimleri",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "330",
+            "name": "KDV 13/j md. Organize Sanayi Bölgeleri ile Küçük Sanayi Sitelerinin İnşasına İlişkin Teslim ve Hizmetler",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "331",
+            "name": "KDV 13/m md. Ar-Ge, Yenilik ve Tasarım Faaliyetlerinde Kullanılmak Üzere Yapılan Yeni Makina ve Teçhizat Teslimlerinde İstisna",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "332",
+            "name": "KDV Geçici 39. Md. İmalat Sanayiinde Kullanılmak Üzere Yapılan Yeni Makina ve Teçhizat Teslimlerinde İstisna",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "333",
+            "name": "KDV 13/k md. Kapsamında Genel ve Özel Bütçeli Kamu İdarelerine, İl Özel İdarelerine, Belediyelere ve Köylere bağışlanan Tesislerin İnşasına İlişkin İstisna",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "334",
+            "name": "KDV 13/l md. Kapsamında Yabancılara Verilen Sağlık Hizmetlerinde İstisna",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "335",
+            "name": "KDV 13/n Basılı Kitap ve Süreli Yayınların Teslimleri",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "336",
+            "name": "Geçici 40 UEFA Müsabakaları Kapsamında Yapılacak Teslim ve Hizmetler",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "337",
+            "name": "Türk Akım Gaz Boru Hattı Projesine İlişkin Anlaşmanın (9/h) Maddesi Kapsamındaki Gaz Taşıma Hizmetleri",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "350",
+            "name": "Diğerleri",
+            "group": "tam-istisna"
+        },
+        {
+            "code": "351",
+            "name": "KDV - İstisna Olmayan Diğer (0 KDV'li, istisna olmayan faturalar için)",
+            "group": "tam-istisna"
+        }
+    ]
+}
