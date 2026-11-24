@@ -30,6 +30,8 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.CostCalculator>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.IRevaluationRunner, ERP.Application.Inventory.Costing.RevaluationRunner>();
         builder.Services.AddScoped<ERP.Application.Catalog.Excel.ImportEngine>();
+        builder.Services.AddScoped<ERP.Application.Inventory.Documents.LineResolver>();
+        builder.Services.AddScoped<ERP.Application.Inventory.Excel.OpeningStockEngine>();
 
         builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 

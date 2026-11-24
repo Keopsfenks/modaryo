@@ -26,7 +26,7 @@ public sealed class CommitImportCommandHandler(
     TimeProvider          time
 ) : IRequestHandler<CommitImportCommand, CommitImportOutcome> {
     public async Task<CommitImportOutcome> Handle(CommitImportCommand request, CancellationToken ct) {
-        var batch = await db.ImportBatches.AsNoTracking().FirstOrDefaultAsync(b => b.Id == request.BatchId, ct)
+        var batch = await db.ImportBatches.AsNoTracking().FirstOrDefaultAsync(b => b.Id == request.BatchId && b.Kind == "products", ct)
                     ?? throw new NotFoundException(request.BatchId.ToString(), "ImportBatch");
 
         if (batch.CommittedAt is not null)

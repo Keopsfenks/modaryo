@@ -1010,6 +1010,23 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.ToTable("cost_layers", (string)null);
                 });
 
+            modelBuilder.Entity("ERP.Domain.Inventory.DocumentCounter", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Key")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("Value")
+                        .HasColumnType("integer");
+
+                    b.HasKey("TenantId", "Key");
+
+                    b.ToTable("document_counters", (string)null);
+                });
+
             modelBuilder.Entity("ERP.Domain.Inventory.Lot", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1347,6 +1364,111 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.ToTable("stock_count_lines", (string)null);
                 });
 
+            modelBuilder.Entity("ERP.Domain.Inventory.StockDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("TenantId", "Date");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("stock_documents", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Inventory.StockDocumentLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("BaseQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<string>("TrackingJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<decimal?>("UnitCost")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<Guid?>("VariantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("stock_document_lines", (string)null);
+                });
+
             modelBuilder.Entity("ERP.Domain.Inventory.StockMovement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1433,6 +1555,90 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.HasIndex("TenantId", "WarehouseId", "ProductId", "VariantId", "Date", "Sequence");
 
                     b.ToTable("stock_movements", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Inventory.Transfer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("FromWarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ToWarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FromWarehouseId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("ToWarehouseId");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("stock_transfers", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Inventory.TransferLineEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("BaseQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<Guid>("TransferId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid?>("VariantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("TransferId");
+
+                    b.ToTable("stock_transfer_lines", (string)null);
                 });
 
             modelBuilder.Entity("ERP.Domain.Inventory.Warehouse", b =>
@@ -2273,6 +2479,30 @@ namespace ERP.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERP.Domain.Inventory.StockDocument", b =>
+                {
+                    b.HasOne("ERP.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Domain.Inventory.StockDocumentLine", b =>
+                {
+                    b.HasOne("ERP.Domain.Inventory.StockDocument", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Domain.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERP.Domain.Inventory.StockMovement", b =>
                 {
                     b.HasOne("ERP.Domain.Catalog.Product", null)
@@ -2290,6 +2520,36 @@ namespace ERP.Infrastructure.Data.Migrations
                         .WithMany()
                         .HasForeignKey("WarehouseId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Domain.Inventory.Transfer", b =>
+                {
+                    b.HasOne("ERP.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("FromWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("ToWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Domain.Inventory.TransferLineEntry", b =>
+                {
+                    b.HasOne("ERP.Domain.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Domain.Inventory.Transfer", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("TransferId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -2375,9 +2635,19 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.Navigation("Lines");
                 });
 
+            modelBuilder.Entity("ERP.Domain.Inventory.StockDocument", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("ERP.Domain.Inventory.StockMovement", b =>
                 {
                     b.Navigation("LotLines");
+                });
+
+            modelBuilder.Entity("ERP.Domain.Inventory.Transfer", b =>
+                {
+                    b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618
         }

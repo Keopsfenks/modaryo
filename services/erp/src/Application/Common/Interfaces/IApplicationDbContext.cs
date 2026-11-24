@@ -81,6 +81,15 @@ public interface IApplicationDbContext {
 
     DbSet<RevaluationJob> RevaluationJobs { get; }
 
+    DbSet<StockDocument> StockDocuments { get; }
+
+    DbSet<Transfer> Transfers { get; }
+
+    DbSet<DocumentCounter> DocumentCounters { get; }
+
+    /// <summary>Firma + anahtar için sıradaki numarayı (1'den) tek SQL ifadesiyle ayırır; işlem geri alınırsa numara da geri gider.</summary>
+    Task<int> NextDocumentNumberAsync(string key, CancellationToken cancellationToken);
+
     /// <summary>İzlenen tüm varlıkları bırakır (geri alınan bir işlemden sonra bağlamı temizlemek için).</summary>
     void ClearTracking();
 

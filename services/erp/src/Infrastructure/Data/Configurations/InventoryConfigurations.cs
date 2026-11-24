@@ -203,3 +203,71 @@ public class RevaluationJobConfiguration : IEntityTypeConfiguration<RevaluationJ
         builder.HasOne<Warehouse>().WithMany().HasForeignKey(e => e.WarehouseId).OnDelete(DeleteBehavior.Cascade);
     }
 }
+
+public class StockDocumentConfiguration : IEntityTypeConfiguration<StockDocument> {
+    public void Configure(EntityTypeBuilder<StockDocument> builder) {
+        builder.ToTable("stock_documents");
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.Number).HasMaxLength(30).IsRequired();
+        builder.Property(e => e.Kind).HasConversion<string>().HasMaxLength(20);
+        builder.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+        builder.Property(e => e.Reason).HasMaxLength(500);
+        builder.Property(e => e.CancelReason).HasMaxLength(500);
+        builder.Property(e => e.CreatedBy).HasMaxLength(100);
+
+        builder.HasIndex(e => new { e.TenantId, e.Number }).IsUnique();
+        builder.HasIndex(e => new { e.TenantId, e.Date });
+
+        builder.HasOne<Warehouse>().WithMany().HasForeignKey(e => e.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasMany(e => e.Lines).WithOne().HasForeignKey(l => l.DocumentId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class StockDocumentLineConfiguration : IEntityTypeConfiguration<StockDocumentLine> {
+    public void Configure(EntityTypeBuilder<StockDocumentLine> builder) {
+        builder.ToTable("stock_document_lines");
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.Unit).HasMaxLength(30).IsRequired();
+        builder.Property(e => e.Quantity).HasPrecision(18, 6);
+        builder.Property(e => e.BaseQuantity).HasPrecision(18, 6);
+        builder.Property(e => e.UnitCost).HasPrecision(18, 6);
+
+        builder.HasOne<Product>().WithMany().HasForeignKey(e => e.ProductId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class TransferConfiguration : IEntityTypeConfiguration<Transfer> {
+    public void Configure(EntityTypeBuilder<Transfer> builder) {
+        builder.ToTable("stock_transfers");
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.Number).HasMaxLength(30).IsRequired();
+        builder.Property(e => e.Note).HasMaxLength(500);
+        builder.Property(e => e.CreatedBy).HasMaxLength(100);
+
+        builder.HasIndex(e => new { e.TenantId, e.Number }).IsUnique();
+
+        builder.HasOne<Warehouse>().WithMany().HasForeignKey(e => e.FromWarehouseId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Warehouse>().WithMany().HasForeignKey(e => e.ToWarehouseId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasMany(e => e.Lines).WithOne().HasForeignKey(l => l.TransferId).OnDelete(DeleteBehavior.Cascade);
+    }
+}
+
+public class TransferLineEntryConfiguration : IEntityTypeConfiguration<TransferLineEntry> {
+    public void Configure(EntityTypeBuilder<TransferLineEntry> builder) {
+        builder.ToTable("stock_transfer_lines");
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.Unit).HasMaxLength(30).IsRequired();
+        builder.Property(e => e.Quantity).HasPrecision(18, 6);
+        builder.Property(e => e.BaseQuantity).HasPrecision(18, 6);
+
+        builder.HasOne<Product>().WithMany().HasForeignKey(e => e.ProductId).OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public class DocumentCounterConfiguration : IEntityTypeConfiguration<DocumentCounter> {
+    public void Configure(EntityTypeBuilder<DocumentCounter> builder) {
+        builder.ToTable("document_counters");
+        builder.HasKey(e => new { e.TenantId, e.Key });
+        builder.Property(e => e.Key).HasMaxLength(30);
+    }
+}

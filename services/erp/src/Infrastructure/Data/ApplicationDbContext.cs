@@ -102,6 +102,12 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
 
     public DbSet<RevaluationJob> RevaluationJobs => Set<RevaluationJob>();
 
+    public DbSet<StockDocument> StockDocuments => Set<StockDocument>();
+
+    public DbSet<Transfer> Transfers => Set<Transfer>();
+
+    public DbSet<DocumentCounter> DocumentCounters => Set<DocumentCounter>();
+
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
@@ -158,6 +164,16 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
                                                                    AND "ProductId" = {productId}
                                                                    AND "VariantId" IS NOT DISTINCT FROM {variantId}::uuid) t
                                                            """).ToListAsync(cancellationToken);
+        return rows.Single();
+    }
+
+    public async Task<int> NextDocumentNumberAsync(string key, CancellationToken cancellationToken) {
+        var tenantId = CurrentTenantId ?? throw new InvalidOperationException("Aktif firma yok.");
+        var rows = await Database.SqlQuery<int>($"""
+                                                 INSERT INTO document_counters ("TenantId", "Key", "Value") VALUES ({tenantId}, {key}, 1)
+                                                 ON CONFLICT ("TenantId", "Key") DO UPDATE SET "Value" = document_counters."Value" + 1
+                                                 RETURNING "Value"
+                                                 """).ToListAsync(cancellationToken);
         return rows.Single();
     }
 
