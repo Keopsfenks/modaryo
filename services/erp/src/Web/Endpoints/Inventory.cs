@@ -4,6 +4,7 @@ using ERP.Application.Inventory.Counts;
 using ERP.Application.Inventory.Documents;
 using ERP.Application.Inventory.Excel;
 using ERP.Application.Inventory.Minimums;
+using ERP.Application.Inventory.Queries;
 using ERP.Application.Inventory.Transfers;
 using ERP.Application.Inventory.Tracking.Queries;
 using Microsoft.AspNetCore.Http.Features;
@@ -26,6 +27,9 @@ public class Inventory : IEndpointGroup {
         groupBuilder.MapGet(ListLots, "tracking/lots");
         groupBuilder.MapGet(SuggestLots, "tracking/lots/suggest");
         groupBuilder.MapGet(ListSerials, "tracking/serials");
+        groupBuilder.MapGet(ListBalances, "balances");
+        groupBuilder.MapGet(GetItemCard, "item-card");
+        groupBuilder.MapGet(GetValuation, "valuation");
         groupBuilder.MapPost(CreateDocument, "documents");
         groupBuilder.MapGet(ListDocuments, "documents");
         groupBuilder.MapGet(GetDocument, "documents/{id:guid}");
@@ -63,6 +67,24 @@ public class Inventory : IEndpointGroup {
     [EndpointDescription("stok.read, seri-lot modülü. inStock true: stokta olanlar, false: olmayanlar.")]
     public static async Task<Ok<IReadOnlyList<SerialDto>>> ListSerials(ISender sender, Guid productId, Guid? variantId, Guid? warehouseId, bool? inStock) {
         return TypedResults.Ok(await sender.Send(new ListSerialsQuery(productId, variantId, warehouseId, inStock)));
+    }
+
+    [EndpointSummary("Stok durumu")]
+    [EndpointDescription("stok.read. Depo x kalem satırları: physical, reserved, available (yalnızca Normal depoda), minQty, avgCost (yalnızca maliyet.read; yoksa null). Yalnızca erişilebilir şubelerin depoları. search kod/ad içinde arar; categoryId alt kategoriler dahil; onlyNonZero sıfır bakiyeleri gizler; belowMinimum minimumun altındakileri listeler. Yanıt { items, total }.")]
+    public static async Task<Ok<PagedResult<BalanceRowDto>>> ListBalances(ISender sender, Guid? warehouseId, string? search, Guid? categoryId, bool onlyNonZero = false, bool belowMinimum = false, int page = 1, int pageSize = 50) {
+        return TypedResults.Ok(await sender.Send(new ListBalancesQuery(warehouseId, search, categoryId, onlyNonZero, belowMinimum, page, pageSize)));
+    }
+
+    [EndpointSummary("Stok kartı")]
+    [EndpointDescription("stok.read. from öncesi devir (openingQty), aralıktaki hareketler ve yürüyen bakiye; warehouseId yoksa erişilebilir depoların toplamı. Her hareket sourceType/sourceId taşır. unitCost/totalCost yalnızca maliyet.read ile gelir.")]
+    public static async Task<Ok<ItemCardDto>> GetItemCard(ISender sender, Guid productId, Guid? variantId, Guid? warehouseId, DateOnly? from, DateOnly? to) {
+        return TypedResults.Ok(await sender.Send(new ItemCardQuery(productId, variantId, warehouseId, from, to)));
+    }
+
+    [EndpointSummary("Stok değerleme")]
+    [EndpointDescription("maliyet.read. date (varsayılan bugün) itibarıyla kalem x depo miktarı, birim maliyeti ve değeri; toplam değer.")]
+    public static async Task<Ok<ValuationDto>> GetValuation(ISender sender, DateOnly? date, Guid? warehouseId) {
+        return TypedResults.Ok(await sender.Send(new ValuationQuery(date, warehouseId)));
     }
 
     [EndpointSummary("Stok fişi oluştur")]
