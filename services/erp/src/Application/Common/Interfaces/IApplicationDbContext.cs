@@ -2,6 +2,7 @@ using ERP.Domain.Catalog;
 using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Files;
 using ERP.Domain.Inventory;
+using ERP.Domain.Invoicing;
 using ERP.Domain.Pricing;
 using ERP.Domain.Settings;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -86,6 +87,20 @@ public interface IApplicationDbContext {
     DbSet<Transfer> Transfers { get; }
 
     DbSet<DocumentCounter> DocumentCounters { get; }
+
+    DbSet<Invoice> Invoices { get; }
+
+    DbSet<InvoiceLine> InvoiceLines { get; }
+
+    DbSet<InvoiceDueLine> InvoiceDueLines { get; }
+
+    DbSet<DocumentSeries> DocumentSeries { get; }
+
+    DbSet<WithholdingCode> WithholdingCodes { get; }
+
+    DbSet<ExemptionCode> ExemptionCodes { get; }
+
+    DbSet<ExchangeRate> ExchangeRates { get; }
 
     /// <summary>Firma + anahtar için sıradaki numarayı (1'den) tek SQL ifadesiyle ayırır; işlem geri alınırsa numara da geri gider.</summary>
     Task<int> NextDocumentNumberAsync(string key, CancellationToken cancellationToken);

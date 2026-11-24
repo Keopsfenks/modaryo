@@ -42,5 +42,13 @@ public static class Permissions
     public const string CostRead = "maliyet.read";
     public const string SettingsStock = "ayarlar.stok";
 
+    public const string InvoiceRead = "fatura.read";
+    public const string InvoiceManage = "fatura.manage";
+    public const string InvoiceIssue = "fatura.issue";
+    public const string InvoiceCancel = "fatura.cancel";
+    public const string SettingsDocuments = "ayarlar.belgeler";
+    public const string SettingsEBelge = "ayarlar.ebelge";
+    public const string RateManage = "kur.manage";
+
     public const string AuditRead = "denetim.read";
 }

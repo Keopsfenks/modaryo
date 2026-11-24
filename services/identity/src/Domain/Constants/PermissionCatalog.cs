@@ -56,6 +56,14 @@ public static class PermissionCatalog
             new(Permissions.CostRead, null, "Stok", "Maliyetleri gör", "Birim maliyetleri ve stok değerlemesini her yerde görüntüleyebilir."),
             new(Permissions.SettingsStock, null, "Stok", "Stok ayarlarını yönet", "Maliyet yöntemini ve eksi stok ayarını düzenleyebilir."),
 
+            new(Permissions.InvoiceRead, null, "Fatura", "Faturaları görüntüle", "Satış ve alış faturalarını görüntüleyebilir."),
+            new(Permissions.InvoiceManage, null, "Fatura", "Fatura taslaklarını yönet", "Fatura taslağı oluşturabilir, düzenleyebilir ve silebilir."),
+            new(Permissions.InvoiceIssue, null, "Fatura", "Fatura kes", "Taslak faturayı kesebilir; numara atanır, cari ve stok işlenir."),
+            new(Permissions.InvoiceCancel, null, "Fatura", "Fatura iptal et", "Kesilmiş faturayı gerekçesiyle iptal edebilir."),
+            new(Permissions.SettingsDocuments, null, "Fatura", "Belge ayarlarını yönet", "Belge serilerini, PDF görünümünü ve e-posta şablonlarını düzenleyebilir."),
+            new(Permissions.SettingsEBelge, null, "Fatura", "e-Belge ayarlarını yönet", "e-Fatura / e-Arşiv kullanımını ve varsayılan senaryoyu düzenleyebilir."),
+            new(Permissions.RateManage, null, "Fatura", "Kurları yönet", "Döviz kurlarını elle girebilir ve düzeltebilir."),
+
             new(Permissions.AuditRead, null, "Denetim", "Denetim kaydını görüntüle", "Firmadaki işlem geçmişini ve denetim kayıtlarını görüntüleyebilir."));
         CoreCount = Entries.Count;
     }

@@ -835,10 +835,19 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.Property<string>("LastModifiedBy")
                         .HasColumnType("text");
 
+                    b.Property<decimal?>("Rate")
+                        .HasColumnType("numeric");
+
                     b.Property<string>("Source")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<decimal?>("SourceAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("SourceCurrency")
+                        .HasColumnType("text");
 
                     b.Property<Guid?>("SourceId")
                         .HasColumnType("uuid");
@@ -1686,6 +1695,1378 @@ namespace ERP.Infrastructure.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("warehouses", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Invoicing.DocumentSeries", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("KindGroup")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("MinWidth")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<long>("NextNumber")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Prefix")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "BranchId", "KindGroup", "Mode");
+
+                    b.HasIndex("TenantId", "KindGroup", "Mode", "Prefix", "Year")
+                        .IsUnique();
+
+                    b.ToTable("document_series", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Invoicing.ExchangeRate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("Rate")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Currency", "Type", "Date")
+                        .IsUnique();
+
+                    b.ToTable("exchange_rates", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Invoicing.ExemptionCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Group")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("exemption_codes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("27c33c60-bd62-48b1-1120-1ae00bb99e68"),
+                            Code = "201",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/1 Kültür ve Eğitim Amacı Taşıyan İşlemler"
+                        },
+                        new
+                        {
+                            Id = new Guid("ea7a4513-29d6-81d1-d630-12c247e11aed"),
+                            Code = "202",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/2-a Sağlık, Çevre Ve Sosyal Yardım Amaçlı İşlemler"
+                        },
+                        new
+                        {
+                            Id = new Guid("8efe5a10-44d8-9df8-9be3-f482c02d45e8"),
+                            Code = "204",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/2-c Yabancı Diplomatik Organ Ve Hayır Kurumlarının Yapacakları Bağışlarla İlgili Mal Ve Hizmet Alışları"
+                        },
+                        new
+                        {
+                            Id = new Guid("30050a1b-3786-26fd-3224-619ce9e3973a"),
+                            Code = "205",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/2-d Taşınmaz Kültür Varlıklarına İlişkin Teslimler ve Mimarlık Hizmetleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("e9b896e8-91db-e80f-1acd-619df6521412"),
+                            Code = "206",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/2-e Mesleki Kuruluşların İşlemleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("2d0f30f6-f246-898f-2291-2a264d38f6e0"),
+                            Code = "207",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/3 Askeri Fabrika, Tersane ve Atölyelerin İşlemleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("3a69c1cc-210a-9f1f-9028-e67090440306"),
+                            Code = "208",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-c Birleşme, Devir, Dönüşüm ve Bölünme İşlemleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("6e907887-bc3e-28a5-7f19-9c2f4d059d78"),
+                            Code = "209",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-e Banka ve Sigorta Muameleleri Vergisi Kapsamına Giren İşlemler"
+                        },
+                        new
+                        {
+                            Id = new Guid("55285bd9-0f1d-1ca0-e657-1d48c8292058"),
+                            Code = "211",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-h Zirai Amaçlı Su Teslimleri İle Köy Tüzel Kişiliklerince Yapılan İçme Suyu teslimleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("8070a6b0-17ca-1876-d8f2-18ad2fb2ab7a"),
+                            Code = "212",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-ı Serbest Bölgelerde Verilen Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("a7340c29-d770-05d5-723d-f42c50e9d370"),
+                            Code = "213",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-j Boru Hattı İle Yapılan Petrol Ve Gaz Taşımacılığı"
+                        },
+                        new
+                        {
+                            Id = new Guid("ee85673f-77db-1166-71fd-f23715c06797"),
+                            Code = "214",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-k Organize Sanayi Bölgelerindeki Arsa ve İşyeri Teslimleri İle Konut Yapı Kooperatiflerinin Üyelerine Konut Teslimleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("e5d51053-b873-f12f-c668-61b6765361ee"),
+                            Code = "215",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-l Varlık Yönetim Şirketlerinin İşlemleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("43eb9738-ba12-5cbe-561c-9efa26bc84cb"),
+                            Code = "216",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-m Tasarruf Mevduatı Sigorta Fonunun İşlemleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("4d29d801-446f-37fc-6b6d-cd8a64083aba"),
+                            Code = "217",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-n Basın-Yayın ve Enformasyon Genel Müdürlüğüne Verilen Haber Hizmetleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("4fd0f701-c060-704a-fb44-8475536d1e7e"),
+                            Code = "218",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "KDV 17/4-o md. Gümrük Antrepoları, Geçici Depolama Yerleri ile Gümrüklü Sahalarda Vergisiz Satış Yapılan İşyeri, Depo ve Ardiye Gibi Bağımsız Birimlerin Kiralanması"
+                        },
+                        new
+                        {
+                            Id = new Guid("12e36443-f27e-f24e-55f5-5c4fb64d276d"),
+                            Code = "219",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-p Hazine ve Arsa Ofisi Genel Müdürlüğünün işlemleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("e515ef1e-681f-2633-9217-e28ea1485d34"),
+                            Code = "220",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-r İki Tam Yıl Süreyle Sahip Olunan Taşınmaz ve İştirak Hisseleri Satışları"
+                        },
+                        new
+                        {
+                            Id = new Guid("657e5bc3-04e0-5983-6f83-6455b4134d59"),
+                            Code = "221",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "Geçici 15 Konut Yapı Kooperatifleri, Belediyeler ve Sosyal Güvenlik Kuruluşlarına Verilen İnşaat Taahhüt Hizmeti"
+                        },
+                        new
+                        {
+                            Id = new Guid("b0ad3a08-6bdb-bef0-f2de-d5f9b406c835"),
+                            Code = "223",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "Geçici 20/1 Teknoloji Geliştirme Bölgelerinde Yapılan İşlemler"
+                        },
+                        new
+                        {
+                            Id = new Guid("ba63fc73-3a85-2917-2c13-703dd1e0f873"),
+                            Code = "225",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "Geçici 23 Milli Eğitim Bakanlığına Yapılan Bilgisayar Bağışları İle İlgili Teslimler"
+                        },
+                        new
+                        {
+                            Id = new Guid("1fa3d95a-da93-0344-6616-186eb8d35717"),
+                            Code = "226",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/2-b Özel Okulları, Üniversite ve Yüksekokullar Tarafından Verilen Bedelsiz Eğitim Ve Öğretim Hizmetleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("b071c0c6-e429-cf51-6aa7-39b50f2bc927"),
+                            Code = "227",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/2-b Kanunların Gösterdiği Gerek Üzerine Bedelsiz Olarak Yapılan Teslim ve Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("cf32c0bf-5af9-b8b2-66e7-cc04e24176dc"),
+                            Code = "228",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/2-b Kanunun (17/1) Maddesinde Sayılan Kurum ve Kuruluşlara Bedelsiz Olarak Yapılan Teslimler"
+                        },
+                        new
+                        {
+                            Id = new Guid("bdb0ae54-0ccb-1b4e-3481-d6dc6b02c1fc"),
+                            Code = "229",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/2-b Gıda Bankacılığı Faaliyetinde Bulunan Dernek ve Vakıflara Bağışlanan Gıda, Temizlik, Giyecek ve Yakacak Maddeleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("d4c8da78-66bd-bd8b-ef17-66b221f38bb4"),
+                            Code = "230",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-g Külçe Altın, Külçe Gümüş Ve Kiymetli Taşlarin Teslimi"
+                        },
+                        new
+                        {
+                            Id = new Guid("fd7eba4e-0867-8e29-b430-eb1cd5ba09a8"),
+                            Code = "231",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-g Metal Plastik, Lastik, Kauçuk, Kağit, Cam Hurda Ve Atıkların Teslimi"
+                        },
+                        new
+                        {
+                            Id = new Guid("4b252964-9e21-3bee-f06f-666691df4b44"),
+                            Code = "232",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-g Döviz, Para, Damga Pulu, Değerli Kağıtlar, Hisse Senedi ve Tahvil Teslimleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("e4294b77-8f2f-14ac-ec8e-25f029e0ff8c"),
+                            Code = "234",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-ş Konut Finansmanı Amacıyla Teminat Gösterilen ve İpotek Konulan Konutların Teslimi"
+                        },
+                        new
+                        {
+                            Id = new Guid("eaf4178e-1f62-5c3d-4268-adfa7e6804ac"),
+                            Code = "235",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "16/1-c Transit ve Gümrük Antrepo Rejimleri İle Geçici Depolama ve Serbest Bölge Hükümlerinin Uygulandığiı Malların Teslimi"
+                        },
+                        new
+                        {
+                            Id = new Guid("6fab81c1-a932-d900-56bb-dda6f10d4eb2"),
+                            Code = "236",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "19/2 Usulüne Göre Yürürlüğe Girmiş Uluslararası Anlaşmalar Kapsamındaki İstisnalar (İade Hakkı Tanınmayan)"
+                        },
+                        new
+                        {
+                            Id = new Guid("875a0f5b-f7f2-597d-8ac4-c606dbe4b856"),
+                            Code = "237",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-t 5300 Sayılı Kanuna Göre Düzenlenen Ürün Senetlerinin İhtisas/Ticaret Borsaları Aracılığıyla İlk Teslimlerinden Sonraki Teslim"
+                        },
+                        new
+                        {
+                            Id = new Guid("5a3bcd7a-8dd2-6a7c-9913-a95f11efefb2"),
+                            Code = "238",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-u Varlıkların Varlık Kiralama Şirketlerine Devri İle Bu Varlıkların Varlık Kiralama Şirketlerince Kiralanması ve Devralınan Kuruma Devri"
+                        },
+                        new
+                        {
+                            Id = new Guid("8d769ffe-9dc3-1f9c-f52a-7c2cab2d36bd"),
+                            Code = "239",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-y Taşınmazların Finansal Kiralama Şirketlerine Devri, Finansal Kiralama Şirketi Tarafından Devredene Kiralanması ve Devri"
+                        },
+                        new
+                        {
+                            Id = new Guid("e1aead14-6e3f-60bb-e514-c054a7cb83e8"),
+                            Code = "240",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "17/4-z Patentli Veya Faydalı Model Belgeli Buluşa İlişkin Gayri Maddi Hakların Kiralanması, Devri ve Satışı"
+                        },
+                        new
+                        {
+                            Id = new Guid("c131b828-7815-85af-dea3-44bddc525484"),
+                            Code = "241",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "TürkAkım Gaz Boru Hattı Projesine İlişkin Anlaşmanın (9/b) Maddesinde Yer Alan Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("d78064cc-0bea-6d0a-e58a-c3873633ffa7"),
+                            Code = "242",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "KDV 17/4-ö md. Gümrük Antrepoları, Geçici Depolama Yerleri ile Gümrüklü Sahalarda, İthalat ve İhracat İşlemlerine konu mallar ile transit rejim kapsamında işlem gören mallar için verilen ardiye, depolama ve terminal hizmetleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("0ca80582-f346-647d-ec7a-7466eee3c47b"),
+                            Code = "250",
+                            Group = "kismi-istisna",
+                            IsActive = true,
+                            Name = "Diğerleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("2d9a38be-faf2-4196-2fb7-22c92e86fe5e"),
+                            Code = "301",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "11/1-a Mal İhracatı"
+                        },
+                        new
+                        {
+                            Id = new Guid("d0a63a38-f183-c478-680f-2132aa81a16c"),
+                            Code = "302",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "11/1-a Hizmet İhracatı"
+                        },
+                        new
+                        {
+                            Id = new Guid("ee4f8925-561b-4c43-2888-b0bab6d1ab6c"),
+                            Code = "303",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "11/1-a Roaming Hizmetleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("4cfb4b67-60a0-bddb-8d5c-6e7abfcfe396"),
+                            Code = "304",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/a Deniz Hava ve Demiryolu Taşıma Araçlarının Teslimi İle İnşa, Tadil, Bakım ve Onarımları"
+                        },
+                        new
+                        {
+                            Id = new Guid("439b2e1f-feb8-07dd-601b-a9bb9d6a24ba"),
+                            Code = "305",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/b Deniz ve Hava Taşıma Araçları İçin Liman Ve Hava Meydanlarında Yapılan Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("ffff97fc-919b-d46e-5026-952b71a356a2"),
+                            Code = "306",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/c Petrol Aramaları ve Petrol Boru Hatlarının İnşa ve Modernizasyonuna İlişkin Yapılan Teslim ve Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("2fa5f7fb-c812-cf7e-c751-ae825b350ae5"),
+                            Code = "307",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/c Maden Arama, Altın, Gümüş ve Platin Madenleri İçin İşletme, Zenginleştirme Ve Rafinaj Faaliyetlerine İlişkin Teslim Ve Hizmetler[KDVGUT-(II/8-4)]"
+                        },
+                        new
+                        {
+                            Id = new Guid("e23e4e02-1111-44ab-93f7-9311dfa157f0"),
+                            Code = "308",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/d Teşvikli Yatırım Mallarının Teslimi"
+                        },
+                        new
+                        {
+                            Id = new Guid("62d463cb-c38f-eeb3-92db-f433f237ac5b"),
+                            Code = "309",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/e Liman Ve Hava Meydanlarının İnşası, Yenilenmesi Ve Genişletilmesi"
+                        },
+                        new
+                        {
+                            Id = new Guid("24572723-bd2d-7915-9ded-cec615b00b0d"),
+                            Code = "310",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/f Ulusal Güvenlik Amaçlı Teslim ve Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("11d17e3f-1e89-6715-740d-6365bb7e0bad"),
+                            Code = "311",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "14/1 Uluslararası Taşımacılık"
+                        },
+                        new
+                        {
+                            Id = new Guid("fd23d8c7-1e83-e14a-6eb4-eb75a2bb075a"),
+                            Code = "312",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "15/a Diplomatik Organ Ve Misyonlara Yapılan Teslim ve Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("fd314823-b17e-1ad2-b775-d2d60dc2c73d"),
+                            Code = "313",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "15/b Uluslararası Kuruluşlara Yapılan Teslim ve Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("8b846bdb-91af-5c53-f1a9-ab159c345096"),
+                            Code = "314",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "19/2 Usulüne Göre Yürürlüğe Girmiş Uluslar Arası Anlaşmalar Kapsamındaki İstisnalar"
+                        },
+                        new
+                        {
+                            Id = new Guid("c8b5e249-298c-152e-ab41-0bcf3d21ee6b"),
+                            Code = "315",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "14/3 İhraç Konusu Eşyayı Taşıyan Kamyon, Çekici ve Yarı Romorklara Yapılan Motorin Teslimleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("26b2ac24-d6ee-690c-a09a-0022496e2956"),
+                            Code = "316",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "11/1-a Serbest Bölgelerdeki Müşteriler İçin Yapılan Fason Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("b8e874ad-2fcc-15c6-7dd0-481f48b30034"),
+                            Code = "317",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "17/4-s Engellilerin Eğitimleri, Meslekleri ve Günlük Yaşamlarına İlişkin Araç-Gereç ve Bilgisayar Programları"
+                        },
+                        new
+                        {
+                            Id = new Guid("fb18c799-c7ef-db09-6215-7d481bee83c5"),
+                            Code = "318",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "Geçici 29 3996 Sayılı Kanuna Göre Yap-İşlet-Devret Modeli Çerçevesinde Gerçekleştirilecek Projeler, 3359 Sayılı Kanuna Göre Kiralama Karşılığı Yaptırılan Sağlık Tesislerine İlişkin Projeler ve 652 Sayılı Kanun Hükmünde Kararnameye Göre Kiralama Karşılığı Yaptırılan Eğitim Öğretim Tesislerine İlişkin Projelere İlişkin Teslim ve Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("5d34e251-7a31-b9c3-f186-6a46775f5659"),
+                            Code = "319",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/g Başbakanlık Merkez Teşkilatına Yapılan Araç Teslimleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("4be33588-f4fe-8695-05ab-0ba9311eccc5"),
+                            Code = "320",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "Geçici 16 (6111 sayılı K.) İSMEP Kapsamında İstanbul İl Özel İdaresi'ne Bağlı Olarak Faaliyet Gösteren \"İstanbul Proje Koordinasyon Birimi\"ne Yapılacak Teslim ve Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("92f0d5c6-1a6e-9e9d-834e-75cdc67875a1"),
+                            Code = "321",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "Geçici 26 Birleşmiş Milletler (BM) ile Kuzey Atlantik Antlaşması Teşkilatı (NATO) Temsilcilikleri ve Bu Teşkilatlara Bağlı Program, Fon ve Özel İhtisas Kuruluşları ile İktisadi İşbirliği ve Kalkınma Teşkilatına (OECD) Resmi Kullanımları İçin Yapılacak Mal Teslimi ve Hizmet İfaları, Bunların Sosyal ve Ekonomik Yardım Amacıyla Bedelsiz Olarak Yapacakları Mal Teslimi ve Hizmet İfaları İle İlgili Bunlara Yapılan Mal Teslimi ve Hizmet İfaları"
+                        },
+                        new
+                        {
+                            Id = new Guid("b2fb262f-0c84-c825-52c7-e6cf807e82d8"),
+                            Code = "322",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "11/1-a Türkiye'de İkamet Etmeyenlere Özel Fatura ile Yapılan Teslimler (Bavul Ticareti)"
+                        },
+                        new
+                        {
+                            Id = new Guid("11b8c594-dfac-95ce-f5dc-f42c0e1d359a"),
+                            Code = "323",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/ğ 5300 Sayılı Kanuna Göre Düzenlenen Ürün Senetlerinin İhtisas/Ticaret Borsaları Aracılığıyla İlk Teslimi"
+                        },
+                        new
+                        {
+                            Id = new Guid("004aa1ca-9eb4-882a-5d91-443b263b94e7"),
+                            Code = "324",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/h Türkiye Kızılay Derneğine Yapılan Teslim ve Hizmetler ile Türkiye Kızılay Derneğinin Teslim ve Hizmetleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("2aaf0b13-d937-e7ca-2acf-7c56ffed319d"),
+                            Code = "325",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/ı Yem Teslimleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("6650b305-96c1-9d4f-30c2-bf9824a71832"),
+                            Code = "326",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/ı Gıda, Tarım ve Hayvancılık Bakanlığı Tarafından Tescil Edilmiş Gübrelerin Teslimi"
+                        },
+                        new
+                        {
+                            Id = new Guid("57dda6d1-2ea6-5776-a3e8-8ff34f5e150f"),
+                            Code = "327",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/ı Gıda, Tarım ve Hayvancılık Bakanlığı Tarafından Tescil Edilmiş Gübrelerin İçeriğinde Bulunan Hammaddelerin Gübre Üreticilerine Teslimi"
+                        },
+                        new
+                        {
+                            Id = new Guid("a3d7b242-1099-cd7b-1fcc-ef1947e12823"),
+                            Code = "328",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "13/i Konut veya İşyeri Teslimleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("41ce9536-0c39-fd3c-5728-06f6030d1da1"),
+                            Code = "330",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "KDV 13/j md. Organize Sanayi Bölgeleri ile Küçük Sanayi Sitelerinin İnşasına İlişkin Teslim ve Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("9af2d568-f1a6-dca3-f943-44a39cd5cb19"),
+                            Code = "331",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "KDV 13/m md. Ar-Ge, Yenilik ve Tasarım Faaliyetlerinde Kullanılmak Üzere Yapılan Yeni Makina ve Teçhizat Teslimlerinde İstisna"
+                        },
+                        new
+                        {
+                            Id = new Guid("9332edd6-d137-abd3-170d-0feba4d5d63a"),
+                            Code = "332",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "KDV Geçici 39. Md. İmalat Sanayiinde Kullanılmak Üzere Yapılan Yeni Makina ve Teçhizat Teslimlerinde İstisna"
+                        },
+                        new
+                        {
+                            Id = new Guid("c28c623e-3386-c22d-ad66-d0901914eaec"),
+                            Code = "333",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "KDV 13/k md. Kapsamında Genel ve Özel Bütçeli Kamu İdarelerine, İl Özel İdarelerine, Belediyelere ve Köylere bağışlanan Tesislerin İnşasına İlişkin İstisna"
+                        },
+                        new
+                        {
+                            Id = new Guid("e3842921-7449-c23a-0796-ac709069104e"),
+                            Code = "334",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "KDV 13/l md. Kapsamında Yabancılara Verilen Sağlık Hizmetlerinde İstisna"
+                        },
+                        new
+                        {
+                            Id = new Guid("577aa6eb-0c9c-a0da-01f1-574d9976c250"),
+                            Code = "335",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "KDV 13/n Basılı Kitap ve Süreli Yayınların Teslimleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("7b6100be-d6da-bcfc-ecd3-ad143fd5ab01"),
+                            Code = "336",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "Geçici 40 UEFA Müsabakaları Kapsamında Yapılacak Teslim ve Hizmetler"
+                        },
+                        new
+                        {
+                            Id = new Guid("caed5967-dfba-4d29-42a3-0b033154eee8"),
+                            Code = "337",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "Türk Akım Gaz Boru Hattı Projesine İlişkin Anlaşmanın (9/h) Maddesi Kapsamındaki Gaz Taşıma Hizmetleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("5e29be4e-2b0d-daf7-3216-c486d1eb7012"),
+                            Code = "350",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "Diğerleri"
+                        },
+                        new
+                        {
+                            Id = new Guid("c13ce395-a49f-b453-6343-9086249eb50a"),
+                            Code = "351",
+                            Group = "tam-istisna",
+                            IsActive = true,
+                            Name = "KDV - İstisna Olmayan Diğer (0 KDV'li, istisna olmayan faturalar için)"
+                        });
+                });
+
+            modelBuilder.Entity("ERP.Domain.Invoicing.Invoice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AffectsStock")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("Created")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<Guid>("CurrentAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<decimal>("Discount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("DiscountTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("DocDiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("DocDiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<string>("ExternalNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<decimal>("Gross")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("GrossTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTimeOffset>("LastModified")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("LedgerEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("Net")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("NetTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Number")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<decimal>("Otv")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("OtvTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("Payable")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("PayableTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("PaymentTermDays")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Rate")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<bool>("RateOverridden")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("RateType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("ReturnOfInvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Scenario")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("SeriesId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<TimeOnly?>("Time")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<decimal>("Vat")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("VatTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Withheld")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("WithheldTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CurrentAccountId");
+
+                    b.HasIndex("LedgerEntryId");
+
+                    b.HasIndex("ReturnOfInvoiceId");
+
+                    b.HasIndex("SeriesId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique()
+                        .HasFilter("\"Number\" IS NOT NULL");
+
+                    b.HasIndex("TenantId", "CurrentAccountId", "Date");
+
+                    b.HasIndex("TenantId", "CurrentAccountId", "ExternalNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_invoices_supplier_external_number")
+                        .HasFilter("\"ExternalNumber\" IS NOT NULL AND \"Status\" <> 'Cancelled'");
+
+                    b.HasIndex("TenantId", "Status", "Date");
+
+                    b.ToTable("invoices", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Invoicing.InvoiceDueLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("InvoiceId", "Sort")
+                        .IsUnique();
+
+                    b.ToTable("invoice_due_lines", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Invoicing.InvoiceLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal?>("DiscountAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("DiscountPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<decimal>("DocDiscount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("ExemptionCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("ExemptionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal>("Factor")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<decimal>("Gross")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("Length")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<decimal>("LineDiscount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Lots")
+                        .HasColumnType("jsonb");
+
+                    b.Property<decimal>("Net")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("NetTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("Otv")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("OtvPerUnit")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<decimal?>("OtvPercent")
+                        .HasPrecision(9, 4)
+                        .HasColumnType("numeric(9,4)");
+
+                    b.Property<decimal>("OtvTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<int>("Sort")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("SourceLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("TotalTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<Guid?>("VariantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Vat")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("VatBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("VatIncluded")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("VatRate")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("VatTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("Width")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<decimal>("Withheld")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("WithheldTl")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("WithholdingCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("VariantId");
+
+                    b.HasIndex("InvoiceId", "Sort")
+                        .IsUnique();
+
+                    b.ToTable("invoice_lines", (string)null);
+                });
+
+            modelBuilder.Entity("ERP.Domain.Invoicing.WithholdingCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("Tenths")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("withholding_codes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("cfaadad5-0a90-f56c-92fb-0e66e7bc405f"),
+                            Code = "601",
+                            IsActive = true,
+                            Name = "YAPIM İŞLERİ İLE BU İŞLERLE BİRLİKTE İFA EDİLEN MÜHENDİSLİK- MİMARLIK VE ETÜT-PROJE HİZMETLERİ [GT 117-Bölüm (3.2.1)]",
+                            Tenths = 4
+                        },
+                        new
+                        {
+                            Id = new Guid("ec5b38f9-5276-e2f1-2bc2-562aa5e56e95"),
+                            Code = "602",
+                            IsActive = true,
+                            Name = "ETÜT, PLAN-PROJE, DANIŞMANLIK, DENETİM VE BENZERİ HİZMETLER[GT 117-Bölüm (3.2.2)]",
+                            Tenths = 9
+                        },
+                        new
+                        {
+                            Id = new Guid("1622b7a4-be95-e86c-7a99-051d934d7c6f"),
+                            Code = "603",
+                            IsActive = true,
+                            Name = "MAKİNE, TEÇHİZAT, DEMİRBAŞ VE TAŞITLARA AİT TADİL, BAKIM VE ONARIM HİZMETLERİ [GT 117-Bölüm (3.2.3)]",
+                            Tenths = 7
+                        },
+                        new
+                        {
+                            Id = new Guid("1408e4a4-2f41-7b17-4ae4-07cc820e1957"),
+                            Code = "604",
+                            IsActive = true,
+                            Name = "YEMEK SERVİS HİZMETİ [GT 117-Bölüm (3.2.4)]",
+                            Tenths = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("69a7977f-e3cb-43f9-9845-98aed0724131"),
+                            Code = "605",
+                            IsActive = true,
+                            Name = "ORGANİZASYON HİZMETİ [GT 117-Bölüm (3.2.4)]",
+                            Tenths = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("2fc389a0-ac51-b2d5-5b1c-f9999f89d955"),
+                            Code = "606",
+                            IsActive = true,
+                            Name = "İŞGÜCÜ TEMİN HİZMETLERİ [GT 117-Bölüm (3.2.5)]",
+                            Tenths = 9
+                        },
+                        new
+                        {
+                            Id = new Guid("891aa5b8-6562-8b15-5ec5-a3a20ccad127"),
+                            Code = "607",
+                            IsActive = true,
+                            Name = "ÖZEL GÜVENLİK HİZMETİ [GT 117-Bölüm (3.2.5)]",
+                            Tenths = 9
+                        },
+                        new
+                        {
+                            Id = new Guid("a60814ba-4cf0-0553-29d4-8029c1021fd2"),
+                            Code = "608",
+                            IsActive = true,
+                            Name = "YAPI DENETİM HİZMETLERİ [GT 117-Bölüm (3.2.6)]",
+                            Tenths = 9
+                        },
+                        new
+                        {
+                            Id = new Guid("6ef74048-7e5f-c245-8715-4fd880dd0345"),
+                            Code = "609",
+                            IsActive = true,
+                            Name = "FASON OLARAK YAPTIRILAN TEKSTİL VE KONFEKSİYON İŞLERİ, ÇANTA VE AYAKKABI DİKİM İŞLERİ VE BU İŞLERE ARACILIK HİZMETLERİ [GT 117-Bölüm (3.2.7)]",
+                            Tenths = 7
+                        },
+                        new
+                        {
+                            Id = new Guid("a08d2f9f-da8e-33f0-dad5-707eb05ef7d9"),
+                            Code = "610",
+                            IsActive = true,
+                            Name = "TURİSTİK MAĞAZALARA VERİLEN MÜŞTERİ BULMA / GÖTÜRME HİZMETLERİ [GT 117-Bölüm (3.2.8)]",
+                            Tenths = 9
+                        },
+                        new
+                        {
+                            Id = new Guid("f4e233df-9f9a-89bf-77b4-fdc8da042683"),
+                            Code = "611",
+                            IsActive = true,
+                            Name = "SPOR KULÜPLERİNİN YAYIN, REKLÂM VE İSİM HAKKI GELİRLERİNE KONU İŞLEMLERİ [GT 117-Bölüm (3.2.9)]",
+                            Tenths = 9
+                        },
+                        new
+                        {
+                            Id = new Guid("00fde86a-05d3-8af3-70c3-62202ba08741"),
+                            Code = "612",
+                            IsActive = true,
+                            Name = "TEMİZLİK HİZMETİ [GT 117-Bölüm (3.2.10)]",
+                            Tenths = 9
+                        },
+                        new
+                        {
+                            Id = new Guid("371254ce-8dad-32b4-6182-b1de217c30e3"),
+                            Code = "613",
+                            IsActive = true,
+                            Name = "ÇEVRE VE BAHÇE BAKIM HİZMETLERİ [GT 117-Bölüm (3.2.10)]",
+                            Tenths = 9
+                        },
+                        new
+                        {
+                            Id = new Guid("baae4273-392b-33b5-5063-5f6ae2ed6049"),
+                            Code = "614",
+                            IsActive = true,
+                            Name = "SERVİS TAŞIMACILIĞI HİZMETİ [GT 117-Bölüm (3.2.11)]",
+                            Tenths = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("29a4765e-db6f-9a72-4d62-0114c871bcc5"),
+                            Code = "615",
+                            IsActive = true,
+                            Name = "HER TÜRLÜ BASKI VE BASIM HİZMETLERİ [GT 117-Bölüm (3.2.12)]",
+                            Tenths = 7
+                        },
+                        new
+                        {
+                            Id = new Guid("03cea1c6-7c82-b4e8-b33e-f1b0f0cb9b64"),
+                            Code = "616",
+                            IsActive = true,
+                            Name = "Diğer Hizmetler [KDVGUT-(I/C-2.1.3.2.13)]",
+                            Tenths = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("5444ade0-9099-54bb-1799-cbb22d6a351b"),
+                            Code = "617",
+                            IsActive = true,
+                            Name = "HURDA METALDEN ELDE EDİLEN KÜLÇE TESLİMLERİ [GT 117- Bölüm (3.3.1)]",
+                            Tenths = 7
+                        },
+                        new
+                        {
+                            Id = new Guid("02c4739b-3994-f384-150c-df5aafcc4e2c"),
+                            Code = "618",
+                            IsActive = true,
+                            Name = "HURDA METALDEN ELDE EDİLENLER DIŞINDAKİ BAKIR, ÇİNKO VE ALÜMİNYUM KÜLÇE TESLİMLERİ [GT 117-Bölüm (3.3.1)]",
+                            Tenths = 7
+                        },
+                        new
+                        {
+                            Id = new Guid("586030e5-283c-c4e1-9b25-53983d155cc4"),
+                            Code = "619",
+                            IsActive = true,
+                            Name = "BAKIR, ÇİNKO VE ALÜMİNYUM ÜRÜNLERİNİN TESLİMİ [GT 117- Bölüm (3.3.2)]",
+                            Tenths = 7
+                        },
+                        new
+                        {
+                            Id = new Guid("b92ca3d8-3322-3781-38ff-8099b8d881bd"),
+                            Code = "620",
+                            IsActive = true,
+                            Name = "İSTİSNADAN VAZGEÇENLERİN HURDA VE ATIK TESLİMİ [GT 117- Bölüm (3.3.3)]",
+                            Tenths = 7
+                        },
+                        new
+                        {
+                            Id = new Guid("01ec2e2b-f8f8-4c75-0332-9c25c0338453"),
+                            Code = "621",
+                            IsActive = true,
+                            Name = "METAL, PLASTİK, LASTİK, KAUÇUK, KÂĞIT VE CAM HURDA VE ATIKLARDAN ELDE EDİLEN HAMMADDE TESLİMİ [GT 117-Bölüm (3.3.4)]",
+                            Tenths = 9
+                        },
+                        new
+                        {
+                            Id = new Guid("81c13202-a32a-13b6-611e-93df61f986e3"),
+                            Code = "622",
+                            IsActive = true,
+                            Name = "PAMUK, TİFTİK, YÜN VE YAPAĞI İLE HAM POST VE DERİ TESLİMLERİ [GT 117-Bölüm (3.3.5)]",
+                            Tenths = 9
+                        },
+                        new
+                        {
+                            Id = new Guid("1e61d964-d73b-5b38-6837-e4030312f0fd"),
+                            Code = "623",
+                            IsActive = true,
+                            Name = "AĞAÇ VE ORMAN ÜRÜNLERİ TESLİMİ [GT 117-Bölüm (3.3.6)]",
+                            Tenths = 5
+                        },
+                        new
+                        {
+                            Id = new Guid("ebcc8e91-181c-87f1-e869-b735c566b210"),
+                            Code = "624",
+                            IsActive = true,
+                            Name = "YÜK TAŞIMACILIĞI HİZMETİ [KDVGUT-(I/C-2.1.3.2.11)]",
+                            Tenths = 2
+                        },
+                        new
+                        {
+                            Id = new Guid("2c4ce241-e123-5285-ff7b-586efe7144ab"),
+                            Code = "625",
+                            IsActive = true,
+                            Name = "TİCARİ REKLAM HİZMETLERİ [KDVGUT-(I/C-2.1.3.2.15)]",
+                            Tenths = 3
+                        },
+                        new
+                        {
+                            Id = new Guid("ac0bdf97-8b59-2b08-2639-8613d4a94e10"),
+                            Code = "626",
+                            IsActive = true,
+                            Name = "DİĞER TESLİMLER [KDVGUT-(I/C-2.1.3.3.7.)]",
+                            Tenths = 2
+                        });
                 });
 
             modelBuilder.Entity("ERP.Domain.Platform.IdempotencyRecord", b =>
@@ -2553,6 +3934,98 @@ namespace ERP.Infrastructure.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERP.Domain.Invoicing.Invoice", b =>
+                {
+                    b.HasOne("ERP.Domain.CurrentAccounts.CurrentAccount", null)
+                        .WithMany()
+                        .HasForeignKey("CurrentAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Domain.CurrentAccounts.LedgerEntry", null)
+                        .WithMany()
+                        .HasForeignKey("LedgerEntryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Domain.Invoicing.Invoice", null)
+                        .WithMany()
+                        .HasForeignKey("ReturnOfInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Domain.Invoicing.DocumentSeries", null)
+                        .WithMany()
+                        .HasForeignKey("SeriesId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.OwnsOne("ERP.Domain.Invoicing.AddressSnapshot", "BuyerOrSeller", b1 =>
+                        {
+                            b1.Property<Guid>("InvoiceId");
+
+                            b1.Property<string>("Address");
+
+                            b1.Property<string>("City");
+
+                            b1.Property<string>("Country");
+
+                            b1.Property<string>("District");
+
+                            b1.Property<string>("Email");
+
+                            b1.Property<string>("TaxNumber");
+
+                            b1.Property<string>("TaxOffice");
+
+                            b1.Property<string>("Title")
+                                .IsRequired();
+
+                            b1.HasKey("InvoiceId");
+
+                            b1.ToTable("invoices");
+
+                            b1
+                                .ToJson("BuyerOrSeller")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("InvoiceId");
+                        });
+
+                    b.Navigation("BuyerOrSeller");
+                });
+
+            modelBuilder.Entity("ERP.Domain.Invoicing.InvoiceDueLine", b =>
+                {
+                    b.HasOne("ERP.Domain.Invoicing.Invoice", null)
+                        .WithMany("DueSchedule")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Domain.Invoicing.InvoiceLine", b =>
+                {
+                    b.HasOne("ERP.Domain.Invoicing.Invoice", null)
+                        .WithMany("Lines")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Domain.Catalog.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERP.Domain.Catalog.ProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("VariantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("ERP.Domain.Pricing.CustomerGroup", b =>
                 {
                     b.HasOne("ERP.Domain.Pricing.PriceList", null)
@@ -2647,6 +4120,13 @@ namespace ERP.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("ERP.Domain.Inventory.Transfer", b =>
                 {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("ERP.Domain.Invoicing.Invoice", b =>
+                {
+                    b.Navigation("DueSchedule");
+
                     b.Navigation("Lines");
                 });
 #pragma warning restore 612, 618

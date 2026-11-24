@@ -12,6 +12,11 @@ public class LedgerEntry : BaseAuditableEntity, ITenantOwned {
     public decimal           Debit            { get; set; }
     public decimal           Credit           { get; set; }
     public string            Currency         { get; set; } = "TRY";
+
+    /// <summary>Hareket belge para biriminden çevrilmişse özgün para birimi, tutar ve kur.</summary>
+    public string?  SourceCurrency { get; set; }
+    public decimal? SourceAmount   { get; set; }
+    public decimal? Rate           { get; set; }
     public DateTimeOffset?   CancelledAt      { get; set; }
     public string?           CancelledBy      { get; set; }
     public string?           CancelReason     { get; set; }

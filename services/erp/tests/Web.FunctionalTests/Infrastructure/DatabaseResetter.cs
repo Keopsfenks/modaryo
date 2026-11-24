@@ -24,7 +24,7 @@ internal sealed class DatabaseResetter : IAsyncDisposable {
         var respawner = await Respawner.CreateAsync(connection, new RespawnerOptions {
                                                                     DbAdapter        = DbAdapter.Postgres,
                                                                     SchemasToInclude = ["public"],
-                                                                    TablesToIgnore   = ["__EFMigrationsHistory"]
+                                                                    TablesToIgnore   = ["__EFMigrationsHistory", "withholding_codes", "exemption_codes"]
                                                                 });
         await connection.CloseAsync();
         return new DatabaseResetter(connection, respawner);

@@ -7,6 +7,7 @@ using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Platform;
 using ERP.Domain.Files;
 using ERP.Domain.Inventory;
+using ERP.Domain.Invoicing;
 using ERP.Domain.Pricing;
 using ERP.Domain.Settings;
 using Microsoft.EntityFrameworkCore;
@@ -107,6 +108,20 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<Transfer> Transfers => Set<Transfer>();
 
     public DbSet<DocumentCounter> DocumentCounters => Set<DocumentCounter>();
+
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+
+    public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+
+    public DbSet<InvoiceDueLine> InvoiceDueLines => Set<InvoiceDueLine>();
+
+    public DbSet<DocumentSeries> DocumentSeries => Set<DocumentSeries>();
+
+    public DbSet<WithholdingCode> WithholdingCodes => Set<WithholdingCode>();
+
+    public DbSet<ExemptionCode> ExemptionCodes => Set<ExemptionCode>();
+
+    public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 

@@ -9,6 +9,7 @@ import { renderWithTheme } from "@/test/render";
 import { server } from "@/test/server";
 import SetupWizard from "./SetupWizard";
 import DoneStep from "./steps/DoneStep";
+import EBelgeStep from "./steps/EBelgeStep";
 import SectorStep from "./steps/SectorStep";
 
 vi.mock("next/navigation", () => import("@/test/nextNavigation"));
@@ -78,6 +79,49 @@ describe("SetupWizard", () => {
         await waitFor(() => expect(onNext).toHaveBeenCalled());
         expect((enabledPut as { enabled: string[] }).enabled.slice().sort()).toEqual(["cek-senet", "pos", "seri-lot"]);
         expect(setupPut?.value.sector).toBe("perakende");
+    });
+
+    it("WizardEBelgeStep_EnablesAndCreatesSeries", async () => {
+        let settingsPut: { version: number; value: { enabled: boolean } } | undefined;
+        const created: { kindGroup: string; mode: string; prefix: string; branchId: string }[] = [];
+        server.use(
+            http.get("*/api/erp/settings/ebelge", () =>
+                HttpResponse.json({ version: 0, value: { enabled: false, defaultScenario: "basic", eIrsaliyeEnabled: false } }),
+            ),
+            http.put("*/api/erp/settings/ebelge", async ({ request }) => {
+                settingsPut = (await request.json()) as typeof settingsPut;
+                return HttpResponse.json({ version: 1, value: settingsPut!.value });
+            }),
+            http.get("*/api/identity/companies/current/branches", () =>
+                HttpResponse.json([{ id: "br-1", code: "MRK", name: "Merkez", isActive: true, isDefault: true }]),
+            ),
+            http.post("*/api/erp/document-series", async ({ request }) => {
+                const body = (await request.json()) as (typeof created)[number];
+                created.push(body);
+                return HttpResponse.json({ id: `s-${created.length}`, ...body }, { status: 201 });
+            }),
+            http.get(SESSION, () => HttpResponse.json(sessionInfo())),
+        );
+        const onNext = vi.fn();
+        const { user } = renderWithTheme(
+            <SessionProvider>
+                <EBelgeStep onNext={onNext} onBack={() => {}} />
+            </SessionProvider>,
+        );
+
+        await user.click(await screen.findByRole("radio", { name: /Evet/ }));
+        await user.click(screen.getByRole("button", { name: "Devam" }));
+
+        await waitFor(() => expect(onNext).toHaveBeenCalled());
+        expect(settingsPut?.version).toBe(0);
+        expect(settingsPut?.value.enabled).toBe(true);
+        expect(created.map((s) => `${s.kindGroup}:${s.mode}:${s.prefix}`)).toEqual([
+            "sales:eInvoice:FAT",
+            "sales:eArchive:ARS",
+            "purchase:eInvoice:ALF",
+            "purchase:eArchive:ALA",
+        ]);
+        expect(created.every((s) => s.branchId === "br-1")).toBe(true);
     });
 
     it("Wizard_Done_SetsCompletedAtAndGoesToPanel", async () => {
