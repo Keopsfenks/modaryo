@@ -159,6 +159,19 @@ export type DocumentQuery = { kind?: StockDocumentKind; warehouseId?: string; fr
 
 export type TransferRow = { id: string; number: string; date: string; fromWarehouseId: string; toWarehouseId: string; lineCount: number };
 
+export type TransferLine = {
+    id: string;
+    productId: string;
+    productCode: string;
+    productName: string;
+    variantId: string | null;
+    unit: string;
+    quantity: number;
+    baseQuantity: number;
+};
+
+export type Transfer = Omit<TransferRow, "lineCount"> & { note: string | null; createdAt: string; createdBy: string; lines: TransferLine[] };
+
 export type CountLine = {
     productId: string;
     productCode: string;
@@ -242,6 +255,8 @@ export const inventory = {
 
     createTransfer: (body: TransferInput) => send<DocumentCreated>("POST", "/transfers", body),
     transfers: (page = 1, pageSize = 50) => get<PagedResult<TransferRow>>(`/transfers${queryString({ page, pageSize })}`),
+
+    transfer: (id: string) => get<Transfer>(`/transfers/${id}`),
 
     createCount: (body: { warehouseId: string; categoryId?: string | null; name?: string | null }) => send<DocumentCreated>("POST", "/counts", body),
     counts: (warehouseId?: string) => get<CountRow[]>(`/counts${queryString({ warehouseId })}`),

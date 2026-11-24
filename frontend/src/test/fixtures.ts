@@ -62,3 +62,22 @@ export function addressDto(overrides: Record<string, unknown> = {}) {
         ...overrides,
     };
 }
+
+/** Katalog kalem araması (GET /catalog/items) yanıt satırı. */
+export const sellable = (overrides: Record<string, unknown> = {}) => ({
+    productId: "p-1",
+    variantId: null,
+    kind: "product",
+    code: "U00001",
+    name: "Pamuklu Tişört",
+    baseUnit: "adet",
+    vatRate: 20,
+    soldByMeasure: false,
+    measureUnit: null,
+    tracksSerialLot: false,
+    salePrice: null,
+    purchasePrice: null,
+    units: [],
+    isActive: true,
+    ...overrides,
+});
