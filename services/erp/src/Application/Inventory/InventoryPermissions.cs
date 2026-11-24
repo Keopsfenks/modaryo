@@ -42,6 +42,35 @@ public static class InventoryErrors {
                                 "Stok hareketi olan ürünün seri/lot takip türü değiştirilemez.");
     }
 
+    public static AppException InsufficientStock(string item) {
+        return new AppException(409, "insufficient_stock", $"Yetersiz stok: {item}.");
+    }
+
+    public static AppException BundleInbound() {
+        return new AppException(409, "bundle_inbound", "Set ürün için stok girişi yapılamaz; bileşenlere giriş yapın.");
+    }
+
+    public static AppException BundleNotReservable() {
+        return new AppException(409, "bundle_not_reservable", "Set ürün rezerve edilemez; bileşenleri rezerve edin.");
+    }
+
+    public static AppException ItemNotStockable(string item) {
+        return new AppException(409, "item_not_stockable", $"{item} stok takibi yapılan bir kalem değil.");
+    }
+
+    public static AppException WarehouseInactive(string name) {
+        return new AppException(409, "warehouse_inactive", $"\"{name}\" deposu pasif.");
+    }
+
+    public static AppException CostCorrectionNoStock() {
+        return new AppException(409, "cost_correction_no_stock",
+                                "Bu girişin tarihinde stok kalmadığı için maliyet düzeltmesi yapılamaz.");
+    }
+
+    public static AppException ModuleDisabled() {
+        return new AppException(403, "module_disabled", "Bu modül firmanızda kapalı.");
+    }
+
     /// <summary>Kayıt sırasında benzersiz indeks çakışması (yarış durumu) mı?</summary>
     public static bool IsUniqueViolation(Microsoft.EntityFrameworkCore.DbUpdateException ex) {
         var inner = ex.InnerException;

@@ -95,9 +95,29 @@ public interface IApplicationDbContext {
     Task<bool> LockCurrentAccountAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
+    ///     Verilen depo x kalem anahtarlarını işlem sonuna kadar kilitler (pg_advisory_xact_lock). Anahtarlar sıralı alınır
+    ///     (kilitlenme olmaması için). Açık bir işlem gerekir; kilit, bakiye okumalarından ÖNCE alınmalıdır.
+    /// </summary>
+    Task LockStockAsync(IEnumerable<(Guid WarehouseId, Guid ProductId, Guid? VariantId)> items, CancellationToken cancellationToken);
+
+    /// <summary>Bir depo x kalemin defter özeti: tarihe kadar bakiye, sonraki en düşük kümülatif bakiye, toplam ve son hareket tarihi.</summary>
+    Task<StockProfile> StockProfileAsync(Guid warehouseId, Guid productId, Guid? variantId, DateOnly date, CancellationToken cancellationToken);
+
+    /// <summary>
     ///     Katalog ayarlarındaki sıra sayacından tek SQL ifadesiyle (UPDATE ... RETURNING) sayı ayırır:
     ///     verilen sayı = max(sayaç, atLeast), sayaç = verilen + 1. Ayar satırı yoksa varsayılanlarla oluşturulur.
     ///     field: "nextCodeSequence" | "nextBarcodeSequence". Etkin firma gerekir.
     /// </summary>
     Task<int> ReserveCatalogSequenceAsync(string field, int atLeast, string seedJson, CancellationToken cancellationToken);
+}
+
+/// <summary>
+///     AtDate: tarih (dahil) sonuna kadar fiziksel bakiye. MinAfter: tarihten sonraki hareketlerin kümülatif bakiyelerinin
+///     en düşüğü (sonraki hareket yoksa null). Total: tüm hareketlerin toplamı. LastDate: son hareket tarihi.
+/// </summary>
+public sealed class StockProfile {
+    public decimal   AtDate   { get; set; }
+    public decimal?  MinAfter { get; set; }
+    public decimal   Total    { get; set; }
+    public DateOnly? LastDate { get; set; }
 }

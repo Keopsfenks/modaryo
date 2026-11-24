@@ -125,6 +125,42 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
         return locked.Count > 0;
     }
 
+    public async Task LockStockAsync(IEnumerable<(Guid WarehouseId, Guid ProductId, Guid? VariantId)> items,
+                                     CancellationToken cancellationToken
+    ) {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Stok kilidi yalnızca açık bir işlem içinde alınabilir.");
+
+        var tenantId = CurrentTenantId ?? throw new InvalidOperationException("Aktif firma yok.");
+        // Anahtar metni sürümler ve süreçler arasında sabittir; hash PostgreSQL'de hesaplanır.
+        var keys = items.Select(i => $"stock:{tenantId:N}:{i.WarehouseId:N}:{i.ProductId:N}:{i.VariantId:N}")
+                        .Distinct().Order(StringComparer.Ordinal).ToList();
+        foreach (var key in keys)
+            await Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", cancellationToken);
+    }
+
+    public async Task<StockProfile> StockProfileAsync(Guid              warehouseId,
+                                                      Guid              productId,
+                                                      Guid?             variantId,
+                                                      DateOnly          date,
+                                                      CancellationToken cancellationToken
+    ) {
+        var tenantId = CurrentTenantId ?? throw new InvalidOperationException("Aktif firma yok.");
+        var rows = await Database.SqlQuery<StockProfile>($"""
+                                                           SELECT COALESCE(SUM(CASE WHEN t."Date" <= {date} THEN t."Quantity" END), 0) AS "AtDate",
+                                                                  MIN(CASE WHEN t."Date" > {date} THEN t."Run" END)                    AS "MinAfter",
+                                                                  COALESCE(SUM(t."Quantity"), 0)                                        AS "Total",
+                                                                  MAX(t."Date")                                                         AS "LastDate"
+                                                           FROM (SELECT "Date", "Quantity",
+                                                                        SUM("Quantity") OVER (ORDER BY "Date", "Sequence") AS "Run"
+                                                                 FROM stock_movements
+                                                                 WHERE "TenantId" = {tenantId} AND "WarehouseId" = {warehouseId}
+                                                                   AND "ProductId" = {productId}
+                                                                   AND "VariantId" IS NOT DISTINCT FROM {variantId}::uuid) t
+                                                           """).ToListAsync(cancellationToken);
+        return rows.Single();
+    }
+
     public async Task<int> ReserveCatalogSequenceAsync(string            field,
                                                        int               atLeast,
                                                        string            seedJson,

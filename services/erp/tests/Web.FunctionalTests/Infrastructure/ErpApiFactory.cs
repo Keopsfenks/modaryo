@@ -35,6 +35,7 @@ public class ErpApiFactory(
                                           services.AddSingleton<IStartupFilter, LoopbackClientStartupFilter>();
                                           Platform.GuardProbes.Register(services);
                                           Platform.InternalProbes.Register(services);
+                                          Platform.StockProbes.Register(services);
                                           services.RemoveAll<IBranchDirectory>();
                                           services.AddSingleton<IBranchDirectory>(Branches);
                                           services.AddSingleton<IItemUsageProvider>(ItemUsage);
