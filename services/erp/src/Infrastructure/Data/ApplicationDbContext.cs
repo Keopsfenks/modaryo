@@ -6,6 +6,7 @@ using ERP.Domain.Common;
 using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Platform;
 using ERP.Domain.Files;
+using ERP.Domain.Inventory;
 using ERP.Domain.Pricing;
 using ERP.Domain.Settings;
 using Microsoft.EntityFrameworkCore;
@@ -76,6 +77,30 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<PriceHistoryEntry> PriceHistory => Set<PriceHistoryEntry>();
 
     public DbSet<Campaign> Campaigns => Set<Campaign>();
+
+    public DbSet<Warehouse> Warehouses => Set<Warehouse>();
+
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+
+    public DbSet<MovementLotLine> MovementLotLines => Set<MovementLotLine>();
+
+    public DbSet<CostLayer> CostLayers => Set<CostLayer>();
+
+    public DbSet<AverageCostSnapshot> AverageCosts => Set<AverageCostSnapshot>();
+
+    public DbSet<Lot> Lots => Set<Lot>();
+
+    public DbSet<SerialNumber> SerialNumbers => Set<SerialNumber>();
+
+    public DbSet<Reservation> Reservations => Set<Reservation>();
+
+    public DbSet<MinStockLevel> MinStockLevels => Set<MinStockLevel>();
+
+    public DbSet<StockCount> StockCounts => Set<StockCount>();
+
+    public DbSet<StockCountLine> StockCountLines => Set<StockCountLine>();
+
+    public DbSet<RevaluationJob> RevaluationJobs => Set<RevaluationJob>();
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 

@@ -50,6 +50,12 @@ public static class PermissionCatalog
             new(Permissions.PricingPurchase, null, "Fiyatlandırma", "Alış fiyatlarını gör", "Alış fiyatlarını ve alış fiyat listelerini her yerde görüntüleyebilir."),
             new(Permissions.SettingsPricing, null, "Fiyatlandırma", "Fiyatlandırma ayarlarını yönet", "Varsayılan fiyat listeleri, KDV gösterimi ve yuvarlama kuralını düzenleyebilir."),
 
+            new(Permissions.StockRead, null, "Stok", "Stoğu görüntüle", "Stok durumunu, hareketleri ve depoları görüntüleyebilir."),
+            new(Permissions.StockManage, null, "Stok", "Stoğu yönet", "Stok fişleri, transferler, depolar ve minimum stok seviyelerini düzenleyebilir."),
+            new(Permissions.StockCount, null, "Stok", "Stok sayımı yap", "Stok sayımı başlatabilir, girebilir ve onaylayabilir."),
+            new(Permissions.CostRead, null, "Stok", "Maliyetleri gör", "Birim maliyetleri ve stok değerlemesini her yerde görüntüleyebilir."),
+            new(Permissions.SettingsStock, null, "Stok", "Stok ayarlarını yönet", "Maliyet yöntemini ve eksi stok ayarını düzenleyebilir."),
+
             new(Permissions.AuditRead, null, "Denetim", "Denetim kaydını görüntüle", "Firmadaki işlem geçmişini ve denetim kayıtlarını görüntüleyebilir."));
         CoreCount = Entries.Count;
     }

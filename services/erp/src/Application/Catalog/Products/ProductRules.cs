@@ -5,9 +5,11 @@ using ERP.Application.Catalog.CustomFields;
 using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Files.Commands;
+using ERP.Application.Inventory;
 using ERP.Application.Settings;
 using ERP.Application.Settings.Categories;
 using ERP.Domain.Catalog;
+using ERP.Domain.Inventory;
 using FluentValidation.Results;
 
 namespace ERP.Application.Catalog.Products;
@@ -124,6 +126,14 @@ public sealed class ProductWriter(
                                       bool              joinOpenTransaction = false,
                                       ImportContext?    import              = null) {
         var isNew = existing is null;
+        // Excel içe aktarma stok alanlarını bilmez: mevcut kartın takip türü ve set bileşenleri korunur.
+        if (import is not null && existing is not null)
+            input = input with {
+                TrackingMode = existing.TrackingMode, IsBundle = existing.IsBundle,
+                BundleComponents = existing.BundleComponents
+                    .Select(c => new BundleComponentInput(c.ProductId, c.VariantId, c.Quantity)).ToList()
+            };
+
         if (!ERP.Application.Pricing.PurchaseVisibility.CanSee(session))
             input = ERP.Application.Pricing.PurchaseVisibility.StripPurchase(input, existing);
         if (input.TracksSerialLot && !session.HasModule("seri-lot"))
@@ -184,6 +194,18 @@ public sealed class ProductWriter(
         if (existing is { SoldByMeasure: true } && !input.SoldByMeasure && await usage.ProductInUseAsync(existing.Id, ct))
             throw new AppException(409, "measure_in_use",
                                    "Kullanımdaki ürünün ölçüyle satış ayarı kapatılamaz.");
+
+        // Seri/lot takip türü: takip açıkken Lot | Serial (boşsa mevcut, o da yoksa Lot); kapalıyken olamaz.
+        TrackingMode? trackingMode = null;
+        if (input.TrackingMode is { } requestedMode && !Enum.IsDefined(requestedMode)) Fail("TrackingMode", "Takip türü Lot veya Serial olmalıdır.");
+        else if (input.TracksSerialLot) trackingMode = input.TrackingMode ?? existing?.TrackingMode ?? TrackingMode.Lot;
+        else if (input.TrackingMode is not null) Fail("TrackingMode", "Takip türü yalnızca seri/lot takibi açıkken seçilebilir.");
+
+        if (existing is not null && existing.TrackingMode != trackingMode && existing.TrackingMode is not null
+            && await db.StockMovements.AnyAsync(m => m.ProductId == existing.Id, ct))
+            throw InventoryErrors.TrackingModeLocked();
+
+        var bundleComponents = await ValidateBundleAsync(existing, input, kind, Fail, ct);
 
         var barcode = string.IsNullOrWhiteSpace(input.Barcode) ? null : input.Barcode.Trim();
         if (barcode is { Length: > 40 }) Fail("Barcode", "Barkod en fazla 40 karakter olabilir.");
@@ -323,6 +345,9 @@ public sealed class ProductWriter(
         product.SoldByMeasure        = input.SoldByMeasure;
         product.MeasureUnit          = measureUnit;
         product.TracksSerialLot      = input.TracksSerialLot;
+        product.TrackingMode         = trackingMode;
+        product.IsBundle             = input.IsBundle;
+        product.BundleComponents     = bundleComponents;
         product.WeightKg             = input.WeightKg;
         product.WidthCm              = input.WidthCm;
         product.LengthCm             = input.LengthCm;
@@ -412,6 +437,66 @@ public sealed class ProductWriter(
 
         if (transaction is not null) await transaction.CommitAsync(ct);
         return product.Id;
+    }
+
+    /// <summary>
+    ///     Set ürün kuralları: bileşenler var olmalı, hizmet olmamalı, miktar &gt; 0; bileşen set olamaz ve set başka bir
+    ///     setin bileşeni olamaz (bundle_nested, 409). Hareketi olan kart sete çevrilemez. Set olmayan kartta bileşen yoktur.
+    /// </summary>
+    private async Task<List<BundleComponent>> ValidateBundleAsync(Product?                    existing,
+                                                                  ProductInput                input,
+                                                                  ProductKind                 kind,
+                                                                  Action<string, string>      fail,
+                                                                  CancellationToken           ct) {
+        var inputs = input.BundleComponents ?? [];
+        if (!input.IsBundle) {
+            if (inputs.Count > 0) fail("BundleComponents", "Bileşen yalnızca set ürünlerde tanımlanabilir.");
+            return [];
+        }
+
+        if (kind == ProductKind.Service) fail("IsBundle", "Hizmet set ürün olamaz.");
+        if (input.TracksSerialLot) fail("IsBundle", "Set ürünün kendi stoğu olmadığından seri/lot takibi yapılamaz.");
+        if (inputs.Count is < 1 or > 50) {
+            fail("BundleComponents", "Set ürün 1 ile 50 arasında bileşen içermelidir.");
+            return [];
+        }
+
+        foreach (var c in inputs)
+            if (c.Quantity <= 0 || c.Quantity > 999_999_999m || decimal.Round(c.Quantity, 6) != c.Quantity)
+                fail("BundleComponents", "Bileşen miktarı 0'dan büyük olmalı ve en fazla 6 ondalık içermelidir.");
+
+        if (inputs.Select(c => (c.ProductId, c.VariantId)).Distinct().Count() != inputs.Count)
+            fail("BundleComponents", "Aynı bileşen birden fazla kez eklenmiş.");
+        if (existing is not null && inputs.Any(c => c.ProductId == existing.Id))
+            fail("BundleComponents", "Set ürün kendisini bileşen olarak içeremez.");
+
+        var ids = inputs.Select(c => c.ProductId).Distinct().ToList();
+        var found = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id))
+                        .Select(p => new { p.Id, p.Kind, p.IsBundle }).ToListAsync(ct);
+        foreach (var c in inputs.Where(c => found.All(p => p.Id != c.ProductId)))
+            fail("BundleComponents", $"Bileşen ürünü bulunamadı ({c.ProductId}).");
+        if (found.Any(p => p.Kind == ProductKind.Service)) fail("BundleComponents", "Hizmet bileşen olarak eklenemez.");
+        if (found.Any(p => p.IsBundle)) throw InventoryErrors.BundleNested();
+
+        var variantIds = inputs.Where(c => c.VariantId is not null).Select(c => c.VariantId!.Value).Distinct().ToList();
+        if (variantIds.Count > 0) {
+            var variants = await db.ProductVariants.AsNoTracking().Where(v => variantIds.Contains(v.Id))
+                               .Select(v => new { v.Id, v.ProductId }).ToListAsync(ct);
+            foreach (var c in inputs.Where(c => c.VariantId is not null))
+                if (!variants.Any(v => v.Id == c.VariantId && v.ProductId == c.ProductId))
+                    fail("BundleComponents", "Bileşen varyantı ilgili ürüne ait değil.");
+        }
+
+        if (existing is not null && !existing.IsBundle) {
+            // Başka bir setin bileşeni olan kart set olamaz; hareketi olan kartın stoğu sete taşınamaz.
+            var others = await db.Products.AsNoTracking().Where(p => p.IsBundle && p.Id != existing.Id)
+                             .Select(p => p.BundleComponents).ToListAsync(ct);
+            if (others.Any(l => l.Any(c => c.ProductId == existing.Id))) throw InventoryErrors.BundleNested();
+            if (await db.StockMovements.AnyAsync(m => m.ProductId == existing.Id, ct))
+                throw new AppException(409, "bundle_has_stock", "Stok hareketi olan ürün set ürüne çevrilemez.");
+        }
+
+        return inputs.Select(c => new BundleComponent(c.ProductId, c.VariantId, c.Quantity)).ToList();
     }
 
     private static ProductVariant NewVariant(Product                     product,

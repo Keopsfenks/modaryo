@@ -158,7 +158,7 @@ public class CompanyTests : TestBase
         using var response = await owner.PatchAsJsonAsync($"/api/identity/companies/current/members/{memberId}", new { roleId = adminRole });
 
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        Permissions(await member.SessionAsync()).ShouldBe(["ayarlar.finans", "ayarlar.firma", "ayarlar.fiyat", "ayarlar.genel", "ayarlar.katalog", "ayarlar.moduller", "ayarlar.subeler", "cari.manage", "cari.movements", "cari.read", "company.update", "denetim.read", "fiyat.alis", "fiyat.manage", "fiyat.read", "katalog.manage", "katalog.read", "members.invite", "members.manage", "members.read", "roller.manage", "roller.read"]);
+        Permissions(await member.SessionAsync()).ShouldBe(["ayarlar.finans", "ayarlar.firma", "ayarlar.fiyat", "ayarlar.genel", "ayarlar.katalog", "ayarlar.moduller", "ayarlar.stok", "ayarlar.subeler", "cari.manage", "cari.movements", "cari.read", "company.update", "denetim.read", "fiyat.alis", "fiyat.manage", "fiyat.read", "katalog.manage", "katalog.read", "maliyet.read", "members.invite", "members.manage", "members.read", "roller.manage", "roller.read", "stok.manage", "stok.read", "stok.sayim"]);
         (await member.PatchAsJsonAsync("/api/identity/companies/current", new { name = "Artık yapabilir" })).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         member.Dispose();
     }

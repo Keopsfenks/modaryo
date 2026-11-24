@@ -67,6 +67,13 @@ public sealed class UpdateSettingsCommandHandler(
         }
 
         var row   = await db.TenantSettings.FirstOrDefaultAsync(s => s.Category == info.Key, ct);
+        if (value is StockSettings stock) {
+            var current = row is null
+                              ? new StockSettings()
+                              : JsonSerializer.Deserialize<StockSettings>(row.Json, SettingsRegistry.Json) ?? new StockSettings();
+            await StockSettingsRules.EnsureMethodUnlockedAsync(db, current, stock, ct);
+        }
+
         var stored = row?.Version ?? 0;
         if (request.Version != stored) throw VersionConflict();
 

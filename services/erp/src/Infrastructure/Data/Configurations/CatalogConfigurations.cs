@@ -52,6 +52,8 @@ public class ProductConfiguration : IEntityTypeConfiguration<Product> {
         builder.Property(e => e.Tags).HasColumnType("text[]");
         builder.Property(e => e.CustomFieldsJson).HasColumnType("jsonb").IsRequired();
         builder.Property(e => e.Attributes).AsJsonb().HasColumnName("attributes");
+        builder.Property(e => e.TrackingMode).HasConversion<string>().HasMaxLength(20);
+        builder.Property(e => e.BundleComponents).AsJsonb().HasColumnName("bundle_components").HasDefaultValueSql("'[]'::jsonb");
         builder.MapMoney(e => e.DefaultPurchasePrice, "default_purchase_price");
         builder.MapMoney(e => e.DefaultSalePrice, "default_sale_price");
 

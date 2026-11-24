@@ -55,6 +55,13 @@ public static class ProductReader {
         var accountNames = await db.CurrentAccounts.AsNoTracking().Where(a => accountIds.Contains(a.Id))
                                .ToDictionaryAsync(a => a.Id, a => a.Name, ct);
 
+        var componentIds = p.BundleComponents.Select(c => c.ProductId).Distinct().ToList();
+        var componentNames = componentIds.Count == 0
+                                 ? new Dictionary<Guid, (string Code, string Name)?>()
+                                 : (await db.Products.AsNoTracking().Where(x => componentIds.Contains(x.Id))
+                                        .Select(x => new { x.Id, x.Code, x.Name }).ToListAsync(ct))
+                                 .ToDictionary(x => x.Id, x => ((string Code, string Name)?)(x.Code, x.Name));
+
         var variants = new List<VariantDto>();
         foreach (var v in p.Variants.OrderBy(v => v.Code, StringComparer.Ordinal))
             variants.Add(new VariantDto(v.Id, v.Code, v.Barcode, v.Values, v.SalePriceOverride, v.PurchasePriceOverride,
@@ -76,6 +83,10 @@ public static class ProductReader {
                                                                    accountNames.GetValueOrDefault(s.CurrentAccountId),
                                                                    s.SupplierCode, s.IsDefault)).ToList(),
                               p.Images.OrderBy(i => i.Sort).Select(i => new ImageDto(i.Id, i.FileId, i.Sort)).ToList(),
+                              p.TrackingMode, p.IsBundle,
+                              p.BundleComponents.Select(c => new BundleComponentDto(c.ProductId, c.VariantId, c.Quantity,
+                                                                                    componentNames.GetValueOrDefault(c.ProductId)?.Code,
+                                                                                    componentNames.GetValueOrDefault(c.ProductId)?.Name)).ToList(),
                               await usage.ProductInUseAsync(p.Id, ct));
     }
 }

@@ -36,5 +36,11 @@ public static class Permissions
     public const string PricingPurchase = "fiyat.alis";
     public const string SettingsPricing = "ayarlar.fiyat";
 
+    public const string StockRead = "stok.read";
+    public const string StockManage = "stok.manage";
+    public const string StockCount = "stok.sayim";
+    public const string CostRead = "maliyet.read";
+    public const string SettingsStock = "ayarlar.stok";
+
     public const string AuditRead = "denetim.read";
 }

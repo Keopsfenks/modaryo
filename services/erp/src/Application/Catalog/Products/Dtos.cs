@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ERP.Domain.Catalog;
+using ERP.Domain.Inventory;
 
 namespace ERP.Application.Catalog.Products;
 
@@ -27,6 +28,14 @@ public sealed record SupplierCodeDto(
 );
 
 public sealed record ImageDto(Guid Id, Guid FileId, int Sort);
+
+public sealed record BundleComponentDto(
+    Guid    ProductId,
+    Guid?   VariantId,
+    decimal Quantity,
+    string? ProductCode,
+    string? ProductName
+);
 
 public sealed record ProductDto(
     Guid                              Id,
@@ -60,6 +69,9 @@ public sealed record ProductDto(
     IReadOnlyList<UnitDto>            Units,
     IReadOnlyList<SupplierCodeDto>    Suppliers,
     IReadOnlyList<ImageDto>           Images,
+    TrackingMode?                     TrackingMode,
+    bool                              IsBundle,
+    IReadOnlyList<BundleComponentDto> BundleComponents,
     bool                              InUse
 );
 
@@ -105,6 +117,8 @@ public sealed record SupplierInput(Guid CurrentAccountId, string? SupplierCode, 
 
 public sealed record ImageInput(Guid FileId);
 
+public sealed record BundleComponentInput(Guid ProductId, Guid? VariantId, decimal Quantity);
+
 public abstract record ProductInput {
     public ProductKind Kind { get; init; }
 
@@ -125,6 +139,15 @@ public abstract record ProductInput {
     public bool    SoldByMeasure   { get; init; }
     public string? MeasureUnit     { get; init; }
     public bool    TracksSerialLot { get; init; }
+
+    /// <summary>Seri/lot takibi açıkken Lot | Serial; boşsa mevcut değer, o da yoksa Lot.</summary>
+    public TrackingMode? TrackingMode { get; init; }
+
+    /// <summary>Set ürün: kendi stoğu yoktur, bileşenlerinden oluşur.</summary>
+    public bool IsBundle { get; init; }
+
+    public List<BundleComponentInput>? BundleComponents { get; init; }
+
     public string? Barcode         { get; init; }
     public decimal? WeightKg       { get; init; }
     public decimal? WidthCm        { get; init; }

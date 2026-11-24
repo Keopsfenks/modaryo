@@ -2,7 +2,7 @@ namespace ERP.Application.Common.Interfaces;
 
 /// <summary>
 ///     Bir ürünün ya da varyantın başka bir modülde (stok hareketi, fatura satırı vb.) kullanılıp kullanılmadığını
-///     söyler. Kalem verisi taşıyan her modül kendi uygulamasını kaydeder; P1'de hiçbiri kayıtlı değildir.
+///     söyler. Kalem verisi taşıyan her modül kendi uygulamasını kaydeder; stok modülü (Inventory) kendi uygulamasını kaydeder.
 /// </summary>
 public interface IItemUsageProvider {
     Task<bool> ProductInUseAsync(Guid productId, CancellationToken ct);

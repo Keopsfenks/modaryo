@@ -19,6 +19,9 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Pricing.Quotes.IPriceQuoteService, ERP.Application.Pricing.Quotes.PriceQuoteService>();
         builder.Services.AddScoped<ERP.Application.Pricing.Campaigns.ICampaignService, ERP.Application.Pricing.Campaigns.CampaignService>();
         builder.Services.AddScoped<ERP.Application.Common.Interfaces.ItemUsage>();
+        builder.Services.AddScoped<ERP.Application.Common.Interfaces.IItemUsageProvider, ERP.Application.Inventory.Usage.InventoryItemUsageProvider>();
+        builder.Services.AddScoped<ERP.Application.Common.Interfaces.IBranchUsageProvider, ERP.Application.Inventory.Usage.InventoryBranchUsageProvider>();
+        builder.Services.AddScoped<ERP.Application.Inventory.Warehouses.DefaultWarehouseService>();
         builder.Services.AddScoped<ERP.Application.Catalog.Excel.ImportEngine>();
 
         builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());

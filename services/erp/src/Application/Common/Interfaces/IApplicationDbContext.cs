@@ -1,6 +1,7 @@
 using ERP.Domain.Catalog;
 using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Files;
+using ERP.Domain.Inventory;
 using ERP.Domain.Pricing;
 using ERP.Domain.Settings;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -55,6 +56,30 @@ public interface IApplicationDbContext {
     DbSet<PriceHistoryEntry> PriceHistory { get; }
 
     DbSet<Campaign> Campaigns { get; }
+
+    DbSet<Warehouse> Warehouses { get; }
+
+    DbSet<StockMovement> StockMovements { get; }
+
+    DbSet<MovementLotLine> MovementLotLines { get; }
+
+    DbSet<CostLayer> CostLayers { get; }
+
+    DbSet<AverageCostSnapshot> AverageCosts { get; }
+
+    DbSet<Lot> Lots { get; }
+
+    DbSet<SerialNumber> SerialNumbers { get; }
+
+    DbSet<Reservation> Reservations { get; }
+
+    DbSet<MinStockLevel> MinStockLevels { get; }
+
+    DbSet<StockCount> StockCounts { get; }
+
+    DbSet<StockCountLine> StockCountLines { get; }
+
+    DbSet<RevaluationJob> RevaluationJobs { get; }
 
     /// <summary>İzlenen tüm varlıkları bırakır (geri alınan bir işlemden sonra bağlamı temizlemek için).</summary>
     void ClearTracking();
