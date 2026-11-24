@@ -1,3 +1,5 @@
+using ERP.Domain.Inventory;
+
 namespace ERP.Domain.Catalog;
 
 public class Product : BaseAuditableEntity, ITenantOwned {
@@ -13,6 +15,8 @@ public class Product : BaseAuditableEntity, ITenantOwned {
     public bool         SoldByMeasure        { get; set; }
     public string?      MeasureUnit          { get; set; }
     public bool         TracksSerialLot      { get; set; }
+    public TrackingMode? TrackingMode        { get; set; }
+    public bool         IsBundle             { get; set; }
     public decimal?     WeightKg             { get; set; }
     public decimal?     WidthCm              { get; set; }
     public decimal?     LengthCm             { get; set; }
@@ -29,6 +33,9 @@ public class Product : BaseAuditableEntity, ITenantOwned {
     public List<ProductUnit>      Units      { get; set; } = new();
     public List<ProductSupplier>  Suppliers  { get; set; } = new();
     public List<ProductImage>     Images     { get; set; } = new();
+
+    /// <summary>Set ürün bileşenleri (iç içe set yok).</summary>
+    public List<BundleComponent>  BundleComponents { get; set; } = new();
 
     public Guid TenantId { get; set; }
 }
