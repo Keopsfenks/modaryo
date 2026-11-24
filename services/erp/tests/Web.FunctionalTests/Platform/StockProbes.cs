@@ -131,6 +131,8 @@ public static class StockProbes {
         }
 
         await db.SaveChangesAsync(ct);
+        // Test için: kilitler ve yazılmış satırlar onaydan önce bu kadar süre tutulur (yarışları deterministik kurar).
+        if (int.TryParse(ctx.Request.Query["delayMs"], out var delay) && delay > 0) await Task.Delay(delay, ct);
         await transaction.CommitAsync(ct);
         ctx.Response.StatusCode = 200;
     }

@@ -109,6 +109,12 @@ public interface IApplicationDbContext {
     /// </summary>
     Task LockStockAsync(IEnumerable<(Guid WarehouseId, Guid ProductId, Guid? VariantId)> items, CancellationToken cancellationToken);
 
+    /// <summary>
+    ///     Deponun yazma kilidini ÖZEL alır: bu depoya yazan (LockStockAsync) açık işlemlerin bitmesini bekler ve yenilerini
+    ///     işlem sonuna kadar engeller. Sayım anlık görüntüsü için; başka stok kilidi tutulurken çağrılmamalıdır.
+    /// </summary>
+    Task LockWarehouseExclusiveAsync(Guid warehouseId, CancellationToken cancellationToken);
+
     /// <summary>Bir depo x kalemin defter özeti: tarihe kadar bakiye, sonraki en düşük kümülatif bakiye, toplam ve son hareket tarihi.</summary>
     Task<StockProfile> StockProfileAsync(Guid warehouseId, Guid productId, Guid? variantId, DateOnly date, CancellationToken cancellationToken);
 

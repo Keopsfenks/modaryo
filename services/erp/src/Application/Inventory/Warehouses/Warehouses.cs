@@ -61,6 +61,20 @@ public sealed class DefaultWarehouseService(
     ICurrentTenant        tenant,
     IBranchDirectory      branches
 ) {
+    /// <summary>
+    ///     Oturumun erişebildiği her aktif şubenin varsayılan deposunu (yoksa) oluşturur; tekrar çağrılması zararsızdır.
+    ///     Depo listesi ilk açıldığında çalışır: şube kimlik servisinde sonradan açılsa da depo ilk stok erişiminde hazır olur.
+    /// </summary>
+    public async Task EnsureAllAsync(CancellationToken ct) {
+        var tenantId = tenant.TenantId ?? throw new InvalidOperationException("Aktif firma yok.");
+        var active   = (await branches.ListAsync(tenantId, ct)).Where(b => b.IsActive && tenant.CanAccessBranch(b.Id)).ToList();
+        if (active.Count == 0) return;
+
+        var have = (await db.Warehouses.AsNoTracking().Where(w => w.IsDefault).Select(w => w.BranchId).ToListAsync(ct)).ToHashSet();
+        foreach (var branch in active.Where(b => !have.Contains(b.Id)))
+            await EnsureAsync(branch.Id, ct);
+    }
+
     public async Task<Warehouse> EnsureAsync(Guid branchId, CancellationToken ct) {
         BranchGuard.Ensure(tenant, branchId);
         var existing = await db.Warehouses.FirstOrDefaultAsync(w => w.BranchId == branchId && w.IsDefault, ct);
@@ -100,10 +114,12 @@ public sealed class DefaultWarehouseService(
 public sealed record ListWarehousesQuery : IRequest<IReadOnlyList<WarehouseDto>>;
 
 public sealed class ListWarehousesQueryHandler(
-    IApplicationDbContext db,
-    ICurrentTenant        tenant
+    IApplicationDbContext   db,
+    ICurrentTenant          tenant,
+    DefaultWarehouseService defaults
 ) : IRequestHandler<ListWarehousesQuery, IReadOnlyList<WarehouseDto>> {
     public async Task<IReadOnlyList<WarehouseDto>> Handle(ListWarehousesQuery request, CancellationToken ct) {
+        await defaults.EnsureAllAsync(ct);
         var warehouses = (await db.Warehouses.AsNoTracking().OrderBy(w => w.Name).ToListAsync(ct))
             .Where(w => tenant.CanAccessBranch(w.BranchId)).ToList();
         var used = (await db.StockMovements.AsNoTracking().Select(m => m.WarehouseId).Distinct().ToListAsync(ct))

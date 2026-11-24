@@ -25,9 +25,12 @@ internal sealed class TrackingValidator(
         return product.TrackingMode ?? TrackingMode.Lot;
     }
 
-    /// <summary>Kalem düzeyi kilit anahtarı (depo yerine boş kimlik).</summary>
-    public static (Guid WarehouseId, Guid ProductId, Guid? VariantId) ItemKey(Guid productId, Guid? variantId) {
-        return (Guid.Empty, productId, variantId);
+    /// <summary>
+    ///     Kalem düzeyi kilit anahtarı (depo yerine boş kimlik). Seri ve lot kimliği ürün başınadır (varyanttan bağımsız),
+    ///     bu yüzden kilit de yalnızca ürüne göre alınır: aynı seri iki varyant/depoya aynı anda girip yazılamaz.
+    /// </summary>
+    public static (Guid WarehouseId, Guid ProductId, Guid? VariantId) ItemKey(Guid productId) {
+        return (Guid.Empty, productId, null);
     }
 
     private static AppException Invalid(string code, string message) {

@@ -85,7 +85,7 @@ internal sealed class StockService(
         var list = keys.ToList();
         return list.Select(k => (k.Warehouse, k.Product, k.Variant))
                    .Concat(list.Where(k => products.TryGetValue(k.Product, out var p) && TrackingValidator.IsTracked(p))
-                               .Select(k => TrackingValidator.ItemKey(k.Product, k.Variant)));
+                               .Select(k => TrackingValidator.ItemKey(k.Product)));
     }
 
     // ---- giriş / çıkış ---------------------------------------------------------------------------------------
@@ -233,7 +233,7 @@ internal sealed class StockService(
         if (keys.Count == 0) return;
 
         await LockAsync(keys.Select(k => (k.WarehouseId, k.ProductId, k.VariantId))
-                            .Concat(keys.Where(k => k.Tracked).Select(k => TrackingValidator.ItemKey(k.ProductId, k.VariantId))), ct);
+                            .Concat(keys.Where(k => k.Tracked).Select(k => TrackingValidator.ItemKey(k.ProductId))), ct);
 
         var movements = await db.StockMovements.AsNoTracking()
                                 .Where(m => m.SourceType == sourceType && m.SourceId == sourceId)

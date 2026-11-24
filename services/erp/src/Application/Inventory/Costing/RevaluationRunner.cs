@@ -89,10 +89,50 @@ internal sealed class RevaluationRunner : IRevaluationRunner {
         var seed = await db.RevaluationJobs.AsNoTracking().FirstOrDefaultAsync(j => j.Id == jobId, ct);
         if (seed is null) return false;
 
-        await using var transaction = await db.BeginTransactionAsync(ct);
-        // Yazarlarla aynı kilit: işlem sürerken bu depo x kaleme yeni hareket yazılamaz, iş birleşmesi de kaybolmaz.
-        await db.LockStockAsync([(seed.WarehouseId, seed.ProductId, seed.VariantId)], ct);
+        var source = (seed.WarehouseId, seed.ProductId, seed.VariantId);
 
+        // Kilit kümesi = kaynak anahtar + bu anahtardaki transfer çıkışlarının karşı depo anahtarları. Karşı depodaki giriş ve
+        // iş kaydı da değiştirileceğinden hepsi tek sıralı çağrıda baştan kilitlenir. Kilit beklerken yeni transfer eklenmişse
+        // (küme büyüdü) işlem geri alınır ve büyüyen kümeyle yeniden denenir.
+        var wanted = new HashSet<(Guid, Guid, Guid?)> { source };
+        for (var attempt = 0; ; attempt++) {
+            foreach (var key in await DestinationKeysAsync(source, ct)) wanted.Add(key);
+
+            var transaction = await db.BeginTransactionAsync(ct);
+            await using (transaction) {
+                await db.LockStockAsync(wanted, ct);
+
+                var current = await DestinationKeysAsync(source, ct);
+                if (current.All(wanted.Contains)) return await RunLockedAsync(jobId, transaction, ct);
+
+                await transaction.RollbackAsync(ct);
+            }
+
+            db.ClearTracking();
+            if (attempt >= 5) throw new InvalidOperationException("Yeniden değerleme kilit kümesi sabitlenemedi.");
+        }
+    }
+
+    /// <summary>Bu depo x kalemdeki transfer çıkışlarının karşı girişlerinin (depo, ürün, varyant) anahtarları.</summary>
+    private async Task<List<(Guid, Guid, Guid?)>> DestinationKeysAsync((Guid WarehouseId, Guid ProductId, Guid? VariantId) source,
+                                                                         CancellationToken ct) {
+        var outs = await db.StockMovements.AsNoTracking()
+                           .Where(m => m.WarehouseId == source.WarehouseId && m.ProductId == source.ProductId && m.VariantId == source.VariantId
+                                       && m.Type == MovementType.TransferOut && m.Quantity < 0m)
+                           .Select(m => m.Id).ToListAsync(ct);
+        var keys = new HashSet<(Guid, Guid, Guid?)>();
+        foreach (var chunk in outs.Chunk(500)) {
+            var notes = chunk.Select(id => CostReplay.TransferPrefix + id).ToList();
+            var found = await db.StockMovements.AsNoTracking().Where(m => m.Quantity > 0m && m.Note != null && notes.Contains(m.Note))
+                                .Select(m => new { m.WarehouseId, m.ProductId, m.VariantId }).Distinct().ToListAsync(ct);
+            foreach (var f in found) keys.Add((f.WarehouseId, f.ProductId, f.VariantId));
+        }
+
+        keys.Remove((source.WarehouseId, source.ProductId, source.VariantId));
+        return keys.ToList();
+    }
+
+    private async Task<bool> RunLockedAsync(Guid jobId, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction, CancellationToken ct) {
         var job = await db.RevaluationJobs.FirstOrDefaultAsync(j => j.Id == jobId, ct);
         if (job is null) {
             await transaction.CommitAsync(ct);

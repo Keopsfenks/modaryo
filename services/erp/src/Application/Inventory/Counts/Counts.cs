@@ -55,6 +55,12 @@ public sealed class CreateCountCommandHandler(
 ) : IRequestHandler<CreateCountCommand, DocumentCreated> {
     public async Task<DocumentCreated> Handle(CreateCountCommand request, CancellationToken ct) {
         var warehouse = await WarehouseRules.FindAsync(db, tenant, request.WarehouseId, ct);
+
+        // Depo yazma kilidini ÖZEL al: bu depoya yazan açık işlemler biter, yenileri işlem sonuna kadar bekler. Böylece anlık
+        // görüntü, yazılmış ama henüz onaylanmamış (CreatedAt < SnapshotAt) hareketleri kaçıramaz; SnapshotAt'ten önce
+        // damgalanmış her hareket görüntüye girer, sonrakiler "sayımdan sonra" sayılır.
+        await using var transaction = await db.BeginTransactionAsync(ct);
+        await db.LockWarehouseExclusiveAsync(warehouse.Id, ct);
         if (await db.StockCounts.AnyAsync(c => c.WarehouseId == warehouse.Id && c.Status == StockCountStatus.Open, ct))
             throw CountErrors.OpenExists();
 
@@ -78,7 +84,6 @@ public sealed class CreateCountCommandHandler(
         var ids      = balances.Keys.Select(k => k.Product).Distinct().ToList();
         var products = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
 
-        await using var transaction = await db.BeginTransactionAsync(ct);
         var count = new StockCount {
             WarehouseId = warehouse.Id, Number = await DocumentNumbers.NextAsync(db, "SY", DateOnly.FromDateTime(now.UtcDateTime), ct),
             Status = StockCountStatus.Open, SnapshotAt = now, Date = DateOnly.FromDateTime(now.UtcDateTime),
@@ -193,6 +198,10 @@ public sealed class PostCountCommandHandler(
             if (diff > 0m) gains.Add(new StockLine(count.WarehouseId, line.ProductId, line.VariantId, diff, null, null, null, null));
             else if (diff < 0m) loses.Add(new StockLine(count.WarehouseId, line.ProductId, line.VariantId, -diff, null, null, null, null));
         }
+
+        // Tüm anahtarlar tek sıralı çağrıda baştan kilitlenir: çıkış ve giriş ayrı çağrılarda kilit alırsa eşzamanlı belgelerle
+        // ters sırada kilit bekleyip kilitlenebilir. Sonraki servis çağrılarındaki kilitler aynı oturumda anında döner.
+        await db.LockStockAsync(gains.Concat(loses).Select(l => (l.WarehouseId, l.ProductId, l.VariantId)), ct);
 
         // Önce çıkışlar: stok yetersizliği (ör. sayım sırasında çok satış) hiçbir şey yazılmadan reddedilir.
         if (loses.Count > 0) await stock.IssueAsync(MovementType.CountAdjustment, "stock-count", count.Id, today, loses, ct);

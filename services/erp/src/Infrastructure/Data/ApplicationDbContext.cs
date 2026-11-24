@@ -138,11 +138,29 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
             throw new InvalidOperationException("Stok kilidi yalnızca açık bir işlem içinde alınabilir.");
 
         var tenantId = CurrentTenantId ?? throw new InvalidOperationException("Aktif firma yok.");
-        // Anahtar metni sürümler ve süreçler arasında sabittir; hash PostgreSQL'de hesaplanır.
-        var keys = items.Select(i => $"stock:{tenantId:N}:{i.WarehouseId:N}:{i.ProductId:N}:{i.VariantId:N}")
-                        .Distinct().Order(StringComparer.Ordinal).ToList();
+        var list     = items.ToList();
+
+        // Genel sıra: önce depo düzeyi PAYLAŞIMLI kilitler (sıralı), sonra kalem kilitleri (sıralı). Sayım açılışı depo kilidini
+        // özel alır; böylece yazan hiçbir işlem sayım anlık görüntüsünün altında yarım kalmaz. Anahtar metni sürümler ve
+        // süreçler arasında sabittir; hash PostgreSQL'de hesaplanır.
+        var warehouses = list.Select(i => i.WarehouseId).Where(w => w != Guid.Empty)
+                             .Select(w => $"stockwh:{tenantId:N}:{w:N}").Distinct().Order(StringComparer.Ordinal).ToList();
+        foreach (var key in warehouses)
+            await Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock_shared(hashtextextended({key}, 0))", cancellationToken);
+
+        var keys = list.Select(i => $"stock:{tenantId:N}:{i.WarehouseId:N}:{i.ProductId:N}:{i.VariantId:N}")
+                       .Distinct().Order(StringComparer.Ordinal).ToList();
         foreach (var key in keys)
             await Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", cancellationToken);
+    }
+
+    public async Task LockWarehouseExclusiveAsync(Guid warehouseId, CancellationToken cancellationToken) {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Stok kilidi yalnızca açık bir işlem içinde alınabilir.");
+
+        var tenantId = CurrentTenantId ?? throw new InvalidOperationException("Aktif firma yok.");
+        var key      = $"stockwh:{tenantId:N}:{warehouseId:N}";
+        await Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", cancellationToken);
     }
 
     public async Task<StockProfile> StockProfileAsync(Guid              warehouseId,

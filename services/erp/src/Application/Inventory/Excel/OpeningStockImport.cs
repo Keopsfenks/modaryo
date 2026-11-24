@@ -6,6 +6,7 @@ using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.Inventory.Documents;
 using ERP.Application.Inventory.Ledger;
+using ERP.Application.Inventory.Tracking;
 using ERP.Application.Settings;
 using ERP.Domain.Catalog;
 using ERP.Domain.Common;
@@ -194,6 +195,14 @@ public sealed class OpeningStockEngine(
 
     private async Task WriteAsync(List<Parsed> parsed, CancellationToken ct) {
         var today = DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
+
+        // Tüm (depo, ürün, varyant) anahtarları ve takipli kalemlerin kalem kilitleri, gruplara geçmeden tek sıralı çağrıda
+        // alınır; gruplar ayrı servis çağrıları olduğundan sırayla kilit alsalardı eşzamanlı belgelerle kilitlenebilirdi.
+        var keys = parsed.Select(p => (p.Warehouse!.Id, p.Line!.ProductId, p.Line.VariantId))
+                         .Concat(parsed.Where(p => p.Line!.Lots is not null || p.Line.Serials is not null)
+                                       .Select(p => TrackingValidator.ItemKey(p.Line!.ProductId)));
+        await db.LockStockAsync(keys, ct);
+
         foreach (var byWarehouse in parsed.GroupBy(p => p.Warehouse!.Id)) {
             var document = await StockDocumentWriter.BeginAsync(db, tenant, StockDocumentKind.Opening, today, byWarehouse.Key, "Açılış aktarımı", ct);
             await db.SaveChangesAsync(ct);
