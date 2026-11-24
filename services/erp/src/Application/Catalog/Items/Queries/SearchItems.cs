@@ -27,7 +27,8 @@ public sealed class SearchItemsQueryValidator : AbstractValidator<SearchItemsQue
 ///     barkoduyla eşleşen kartta yalnızca o varyantlar döner.
 /// </summary>
 public sealed class SearchItemsQueryHandler(
-    IApplicationDbContext db
+    IApplicationDbContext db,
+    ICurrentSession       session
 ) : IRequestHandler<SearchItemsQuery, IReadOnlyList<SellableItem>> {
     public async Task<IReadOnlyList<SellableItem>> Handle(SearchItemsQuery request, CancellationToken ct) {
         var query = db.Products.AsNoTracking().AsQueryable();
@@ -69,10 +70,11 @@ public sealed class SearchItemsQueryHandler(
                                   .Select(b => b.OwnerId).ToListAsync(ct)).ToHashSet();
         }
 
-        var items = new List<SellableItem>();
+        var canSee = ERP.Application.Pricing.PurchaseVisibility.CanSee(session);
+        var items  = new List<SellableItem>();
         foreach (var product in products) {
             if (product.Variants.Count == 0) {
-                items.Add(SellableItem.From(product, null));
+                items.Add(ERP.Application.Pricing.PurchaseVisibility.Mask(SellableItem.From(product, null), canSee));
                 continue;
             }
 
@@ -83,7 +85,7 @@ public sealed class SearchItemsQueryHandler(
                                           || variantMatches.Contains(variant.Id)))
                     continue;
 
-                items.Add(SellableItem.From(product, variant));
+                items.Add(ERP.Application.Pricing.PurchaseVisibility.Mask(SellableItem.From(product, variant), canSee));
             }
         }
 

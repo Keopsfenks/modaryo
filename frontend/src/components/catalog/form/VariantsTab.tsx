@@ -37,6 +37,8 @@ type AttributeRow = { name: string; values: string[] };
 type VariantsTabProps = {
     product: ProductDto;
     canManage: boolean;
+    /** fiyat.alis izni yoksa alış fiyatı sütunu ve metinleri gösterilmez. */
+    canSeePurchase: boolean;
     onChanged: (product: ProductDto) => void;
 };
 
@@ -48,7 +50,7 @@ const priceLabel = (m: Money4 | null) => (m ? `${amountText(m)} ${m.currency}` :
 const MAX_LISTED = 20;
 
 /** Varyantlar sekmesi: özellik düzenleyici (ad + değer çipleri), canlı varyant sayısı ve varyant tablosu. */
-export default function VariantsTab({ product, canManage, onChanged }: VariantsTabProps) {
+export default function VariantsTab({ product, canManage, canSeePurchase, onChanged }: VariantsTabProps) {
     const [attrs, setAttrs] = useState<AttributeRow[]>(() => product.attributes.map((a) => ({ name: a.name, values: a.values })));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -175,7 +177,7 @@ export default function VariantsTab({ product, canManage, onChanged }: VariantsT
                         {pendingRemoval?.slice(0, MAX_LISTED).map((variant) => (
                             <li key={variant.id}>
                                 <Typography variant="body2">
-                                    <strong>{variant.code}</strong> ({Object.values(variant.values).join(" / ")}) - Barkod: {variant.barcode ?? "-"}; Satış: {priceLabel(variant.salePriceOverride)}; Alış: {priceLabel(variant.purchasePriceOverride)}
+                                    <strong>{variant.code}</strong> ({Object.values(variant.values).join(" / ")}) - Barkod: {variant.barcode ?? "-"}; Satış: {priceLabel(variant.salePriceOverride)}{canSeePurchase && `; Alış: ${priceLabel(variant.purchasePriceOverride)}`}
                                 </Typography>
                             </li>
                         ))}
@@ -206,7 +208,7 @@ export default function VariantsTab({ product, canManage, onChanged }: VariantsT
                                     <TableCell>Varyant</TableCell>
                                     <TableCell>Kod</TableCell>
                                     <TableCell>Barkod</TableCell>
-                                    <TableCell>Alış fiyatı</TableCell>
+                                    {canSeePurchase && <TableCell>Alış fiyatı</TableCell>}
                                     <TableCell>Satış fiyatı</TableCell>
                                     <TableCell>Aktif</TableCell>
                                     <TableCell />
@@ -214,7 +216,7 @@ export default function VariantsTab({ product, canManage, onChanged }: VariantsT
                             </TableHead>
                             <TableBody>
                                 {product.variants.map((variant) => (
-                                    <VariantRow key={variant.id} product={product} variant={variant} attributeNames={attributeNames} canManage={canManage} onChanged={onChanged} />
+                                    <VariantRow key={variant.id} product={product} variant={variant} attributeNames={attributeNames} canManage={canManage} canSeePurchase={canSeePurchase} onChanged={onChanged} />
                                 ))}
                             </TableBody>
                         </Table>
@@ -230,10 +232,11 @@ type VariantRowProps = {
     variant: VariantDto;
     attributeNames: string[];
     canManage: boolean;
+    canSeePurchase: boolean;
     onChanged: (product: ProductDto) => void;
 };
 
-function VariantRow({ product, variant, attributeNames, canManage, onChanged }: VariantRowProps) {
+function VariantRow({ product, variant, attributeNames, canManage, canSeePurchase, onChanged }: VariantRowProps) {
     const [code, setCode] = useState(variant.code);
     const [barcode, setBarcode] = useState(variant.barcode ?? "");
     const [sale, setSale] = useState(amountText(variant.salePriceOverride));
@@ -254,7 +257,8 @@ function VariantRow({ product, variant, attributeNames, canManage, onChanged }: 
         const next: typeof errors = {};
         if (code.trim().length < 1 || code.trim().length > 40) next.code = "Kod 1 ile 40 karakter arasında olmalı.";
         const salePrice = money(sale, variant.salePriceOverride, product.defaultSalePrice);
-        const purchasePrice = money(purchase, variant.purchasePriceOverride, product.defaultPurchasePrice);
+        // Alış fiyatını göremeyen kullanıcı için alan hiç yok; null gönderilir, sunucu mevcut değeri korur.
+        const purchasePrice = canSeePurchase ? money(purchase, variant.purchasePriceOverride, product.defaultPurchasePrice) : null;
         if (salePrice === "invalid") next.sale = "Geçerli tutar (en çok 4 ondalık)";
         if (purchasePrice === "invalid") next.purchase = "Geçerli tutar (en çok 4 ondalık)";
         setErrors(next);
@@ -316,9 +320,11 @@ function VariantRow({ product, variant, attributeNames, canManage, onChanged }: 
                     )}
                 </Box>
             </TableCell>
-            <TableCell>
+            {canSeePurchase && (
+                <TableCell>
                 <TextField size="small" value={purchase} disabled={!canManage} placeholder="Ürün fiyatı" onChange={(e) => setPurchase(e.target.value)} error={Boolean(errors.purchase)} helperText={errors.purchase} slotProps={{ htmlInput: { inputMode: "decimal", "aria-label": `${label} alış fiyatı` } }} sx={{ width: 120 }} />
-            </TableCell>
+                </TableCell>
+            )}
             <TableCell>
                 <TextField size="small" value={sale} disabled={!canManage} placeholder="Ürün fiyatı" onChange={(e) => setSale(e.target.value)} error={Boolean(errors.sale)} helperText={errors.sale} slotProps={{ htmlInput: { inputMode: "decimal", "aria-label": `${label} satış fiyatı` } }} sx={{ width: 120 }} />
             </TableCell>

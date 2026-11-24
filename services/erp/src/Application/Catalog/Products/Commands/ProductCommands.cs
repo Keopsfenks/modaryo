@@ -14,11 +14,12 @@ public sealed record CreateProductCommand : ProductInput, IRequest<ProductDto>;
 public sealed class CreateProductCommandHandler(
     ProductWriter         writer,
     IApplicationDbContext db,
-    ItemUsage             usage
+    ItemUsage             usage,
+    ICurrentSession       session
 ) : IRequestHandler<CreateProductCommand, ProductDto> {
     public async Task<ProductDto> Handle(CreateProductCommand request, CancellationToken ct) {
         var id = await writer.SaveAsync(null, request, ct);
-        return await ProductReader.GetDtoAsync(db, usage, id, ct);
+        return await ProductReader.GetDtoAsync(db, usage, session, id, ct);
     }
 }
 
@@ -30,7 +31,8 @@ public sealed record UpdateProductCommand : ProductInput, IRequest<ProductDto> {
 public sealed class UpdateProductCommandHandler(
     ProductWriter         writer,
     IApplicationDbContext db,
-    ItemUsage             usage
+    ItemUsage             usage,
+    ICurrentSession       session
 ) : IRequestHandler<UpdateProductCommand, ProductDto> {
     public async Task<ProductDto> Handle(UpdateProductCommand request, CancellationToken ct) {
         var product = await db.Products.Include(p => p.Variants).Include(p => p.Units).Include(p => p.Suppliers)
@@ -38,7 +40,7 @@ public sealed class UpdateProductCommandHandler(
                       ?? throw new NotFoundException(request.Id.ToString(), "Product");
 
         await writer.SaveAsync(product, request, ct);
-        return await ProductReader.GetDtoAsync(db, usage, product.Id, ct);
+        return await ProductReader.GetDtoAsync(db, usage, session, product.Id, ct);
     }
 }
 

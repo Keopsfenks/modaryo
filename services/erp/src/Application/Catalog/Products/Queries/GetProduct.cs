@@ -20,10 +20,21 @@ public static class ProductReader {
         return names.Count == 0 ? null : string.Join(" > ", names);
     }
 
+    /// <summary>Alış fiyatları, fiyat.alis izni olmayan oturum için her zaman maskelenir.</summary>
     public static async Task<ProductDto> GetDtoAsync(IApplicationDbContext db,
                                                      ItemUsage             usage,
+                                                     ICurrentSession       session,
                                                      Guid                  id,
                                                      CancellationToken     ct
+    ) {
+        return ERP.Application.Pricing.PurchaseVisibility.Mask(await ReadDtoAsync(db, usage, id, ct),
+                                                              ERP.Application.Pricing.PurchaseVisibility.CanSee(session));
+    }
+
+    private static async Task<ProductDto> ReadDtoAsync(IApplicationDbContext db,
+                                                       ItemUsage             usage,
+                                                       Guid                  id,
+                                                       CancellationToken     ct
     ) {
         var p = await db.Products.AsNoTracking().Include(x => x.Variants).Include(x => x.Units)
                     .Include(x => x.Suppliers).Include(x => x.Images)
@@ -74,9 +85,10 @@ public sealed record GetProductQuery(Guid Id) : IRequest<ProductDto>;
 
 public sealed class GetProductQueryHandler(
     IApplicationDbContext db,
-    ItemUsage             usage
+    ItemUsage             usage,
+    ICurrentSession       session
 ) : IRequestHandler<GetProductQuery, ProductDto> {
     public Task<ProductDto> Handle(GetProductQuery request, CancellationToken ct) {
-        return ProductReader.GetDtoAsync(db, usage, request.Id, ct);
+        return ProductReader.GetDtoAsync(db, usage, session, request.Id, ct);
     }
 }

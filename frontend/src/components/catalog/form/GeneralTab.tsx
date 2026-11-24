@@ -35,6 +35,8 @@ type GeneralTabProps = {
     vatRates: number[];
     showSeriLot: boolean;
     canManageBrands: boolean;
+    /** fiyat.alis izni yoksa alış fiyatı alanı hiç gösterilmez (sunucu da değeri zaten göndermez). */
+    canSeePurchase: boolean;
     onChange: (patch: Partial<FormValues>) => void;
     onBrandCreated: (brand: BrandDto) => void;
     onGenerateBarcode: () => void;
@@ -78,7 +80,7 @@ function MoneyFields({ label, value, onChange, error, idPrefix }: { label: strin
 
 /** Genel sekmesi: kart kimliği, sınıflandırma, birim/KDV, fiyatlar, ölçüyle satış ve teknik alanlar. */
 export default function GeneralTab(props: GeneralTabProps) {
-    const { v, errors, creating, categories, brands, unitOptions, vatRates, showSeriLot, canManageBrands, onChange, onBrandCreated, onGenerateBarcode, onKindChange } = props;
+    const { v, errors, creating, categories, brands, unitOptions, vatRates, showSeriLot, canManageBrands, canSeePurchase, onChange, onBrandCreated, onGenerateBarcode, onKindChange } = props;
     const service = v.kind === "service";
     const [brandError, setBrandError] = useState<string | null>(null);
     const categoryOptions = flattenCategories(categories);
@@ -174,7 +176,7 @@ export default function GeneralTab(props: GeneralTabProps) {
                 </Box>
             </Grid>
 
-            <MoneyFields label="Alış fiyatı" idPrefix="purchase" value={v.purchase} error={errors.purchaseAmount} onChange={(purchase) => onChange({ purchase })} />
+            {canSeePurchase && <MoneyFields label="Alış fiyatı" idPrefix="purchase" value={v.purchase} error={errors.purchaseAmount} onChange={(purchase) => onChange({ purchase })} />}
             <MoneyFields label="Satış fiyatı" idPrefix="sale" value={v.sale} error={errors.saleAmount} onChange={(sale) => onChange({ sale })} />
 
             {!service && (

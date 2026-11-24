@@ -13,9 +13,9 @@ vi.mock("next/navigation", () => import("@/test/nextNavigation"));
 
 const IDENTITY = "http://localhost:3000/api/identity";
 
-function setup(modules: string[] = []) {
+function setup(modules: string[] = [], permissions: string[] = ["*"]) {
     server.use(
-        http.get(`${IDENTITY}/auth/session`, () => HttpResponse.json(sessionInfo({ modules }))),
+        http.get(`${IDENTITY}/auth/session`, () => HttpResponse.json(sessionInfo({ modules, permissions }))),
         // Seçenekler katalog.read ile okunur; ayarlar.katalog ucu (settings/katalog) forma gerekmez.
         http.get("*/api/erp/catalog/options", () => HttpResponse.json({ units: ["adet", "m2", "m", "saat"], defaultVatRate: 10, customFields: [] })),
         http.get("*/api/erp/catalog/categories", () => HttpResponse.json([])),
@@ -28,6 +28,21 @@ const render = (ui: React.ReactElement) => renderWithTheme(<SessionProvider>{ui}
 
 describe("ProductForm", () => {
     beforeEach(() => resetNavigation("/stok/urunler/yeni"));
+
+    it("ProductForm_PurchasePriceHiddenWithoutAlisPermission", async () => {
+        setup([], ["katalog.read", "katalog.manage"]);
+        render(<ProductForm onSaved={vi.fn()} />);
+
+        await screen.findByLabelText("Satış fiyatı");
+        expect(screen.queryByLabelText("Alış fiyatı")).not.toBeInTheDocument();
+    });
+
+    it("ProductForm_PurchasePriceShownWithAlisPermission", async () => {
+        setup([], ["katalog.read", "katalog.manage", "fiyat.alis"]);
+        render(<ProductForm onSaved={vi.fn()} />);
+
+        expect(await screen.findByLabelText("Alış fiyatı")).toBeInTheDocument();
+    });
 
     it("ProductForm_NewFillsNextCode", async () => {
         setup();

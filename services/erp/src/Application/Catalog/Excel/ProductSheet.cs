@@ -78,6 +78,12 @@ public static class ProductSheet {
         PurchaseVatIncludedH, SaleAmountH, SaleCurrencyH, SaleVatIncludedH, TagsH, PassiveH
     ];
 
+    /// <summary>Headers içindeki alış sütunlarının sıraları.</summary>
+    public static readonly IReadOnlyList<int> PurchaseColumns = [8, 9, 10];
+
+    public static readonly IReadOnlyList<string> HeadersWithoutPurchase =
+        Headers.Where((_, i) => !PurchaseColumns.Contains(i)).ToList();
+
     public const string Yes = "Evet";
     public const string No  = "Hayır";
 

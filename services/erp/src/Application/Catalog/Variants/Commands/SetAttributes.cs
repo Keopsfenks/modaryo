@@ -22,7 +22,8 @@ public sealed record SetAttributesCommand(Guid ProductId, List<AttributeValuesIn
 public sealed partial class SetAttributesCommandHandler(
     IApplicationDbContext db,
     ItemUsage             usage,
-    BarcodeRegistry       barcodes
+    BarcodeRegistry       barcodes,
+    ICurrentSession       session
 ) : IRequestHandler<SetAttributesCommand, ProductDto> {
     private const int MaxVariants = 500;
 
@@ -120,7 +121,7 @@ public sealed partial class SetAttributesCommandHandler(
         }
 
         await transaction.CommitAsync(ct);
-        return await ProductReader.GetDtoAsync(db, usage, product.Id, ct);
+        return await ProductReader.GetDtoAsync(db, usage, session, product.Id, ct);
     }
 
     private static bool Same(IReadOnlyDictionary<string, string> a, IReadOnlyDictionary<string, string> b) {

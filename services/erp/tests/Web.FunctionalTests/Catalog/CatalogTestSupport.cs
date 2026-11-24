@@ -6,7 +6,7 @@ namespace ERP.Web.FunctionalTests.Catalog;
 internal static class CatalogTestSupport {
     public const string Products = "/api/erp/catalog/products";
 
-    public static string[] AllPermissions => ["katalog.read", "katalog.manage", "ayarlar.katalog", "cari.read", "cari.manage"];
+    public static string[] AllPermissions => ["katalog.read", "katalog.manage", "ayarlar.katalog", "cari.read", "cari.manage", "fiyat.alis"];
 
     public static Task<HttpClient> Manager(Guid tenant, string[]? modules = null) {
         return TestEnvironment.Factory.ClientAsync(tenant, modules, null, null, AllPermissions);

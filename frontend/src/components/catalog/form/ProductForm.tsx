@@ -67,6 +67,7 @@ export default function ProductForm({ product, defaultKind = "product", onSaved,
     const searchParams = useSearchParams();
     const { hasPermission, hasModule } = useSession();
     const creating = !product;
+    const canSeePurchase = hasPermission("fiyat.alis");
 
     const [lookups, setLookups] = useState<Lookups | null>(null);
     const [v, setV] = useState<FormValues | null>(null);
@@ -224,6 +225,7 @@ export default function ProductForm({ product, defaultKind = "product", onSaved,
                     vatRates={VAT_RATES}
                     showSeriLot={hasModule("seri-lot")}
                     canManageBrands={hasPermission("katalog.manage")}
+                    canSeePurchase={canSeePurchase}
                     onChange={patch}
                     onBrandCreated={(brand) => setLookups((l) => (l ? { ...l, brands: [...l.brands, brand] } : l))}
                     onGenerateBarcode={() => void generateBarcode()}
@@ -232,7 +234,7 @@ export default function ProductForm({ product, defaultKind = "product", onSaved,
             )}
             {tab === "varyantlar" &&
                 (product ? (
-                    <VariantsTab product={product} canManage={canManage} onChanged={(p) => onProductChange?.(p)} />
+                    <VariantsTab product={product} canManage={canManage} canSeePurchase={canSeePurchase} onChanged={(p) => onProductChange?.(p)} />
                 ) : (
                     <Alert severity="info">Varyantlar kart kaydedildikten sonra tanımlanır. Önce kartı kaydedin.</Alert>
                 ))}

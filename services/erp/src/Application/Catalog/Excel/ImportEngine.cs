@@ -19,7 +19,8 @@ namespace ERP.Application.Catalog.Excel;
 public sealed class ImportEngine(
     IApplicationDbContext db,
     ProductWriter         writer,
-    ITenantSettings       settingsService
+    ITenantSettings       settingsService,
+    ICurrentSession       session
 ) {
     private sealed class Context {
         public required List<Category>                              Categories { get; init; }
@@ -115,8 +116,12 @@ public sealed class ImportEngine(
             vat = null; // boş: ayarlardaki varsayılan KDV
         }
 
-        var purchase = ResolveMoney(row.PurchaseAmount, row.PurchaseCurrency, row.PurchaseVatIncluded,
-                                    existing?.DefaultPurchasePrice, "Alış", errors);
+        var purchase = existing?.DefaultPurchasePrice;
+        if (ERP.Application.Pricing.PurchaseVisibility.CanSee(session))
+            purchase = ResolveMoney(row.PurchaseAmount, row.PurchaseCurrency, row.PurchaseVatIncluded, purchase, "Alış", errors);
+        else if (!string.IsNullOrWhiteSpace(row.PurchaseAmount) || !string.IsNullOrWhiteSpace(row.PurchaseCurrency)
+                                                                || !string.IsNullOrWhiteSpace(row.PurchaseVatIncluded))
+            errors.Add("Alış fiyatı için yetkiniz yok.");
         var sale = ResolveMoney(row.SaleAmount, row.SaleCurrency, row.SaleVatIncluded, existing?.DefaultSalePrice,
                                 "Satış", errors);
 

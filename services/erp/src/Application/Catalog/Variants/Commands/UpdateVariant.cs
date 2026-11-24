@@ -21,7 +21,8 @@ public sealed record UpdateVariantCommand : IRequest<ProductDto> {
 public sealed class UpdateVariantCommandHandler(
     IApplicationDbContext db,
     ItemUsage             usage,
-    BarcodeRegistry       barcodes
+    BarcodeRegistry       barcodes,
+    ICurrentSession       session
 ) : IRequestHandler<UpdateVariantCommand, ProductDto> {
     public async Task<ProductDto> Handle(UpdateVariantCommand request, CancellationToken ct) {
         var product = await db.Products.Include(p => p.Variants).Include(p => p.Units)
@@ -50,7 +51,8 @@ public sealed class UpdateVariantCommandHandler(
 
         variant.Code                  = code;
         variant.SalePriceOverride     = request.SalePriceOverride;
-        variant.PurchasePriceOverride = request.PurchasePriceOverride;
+        // fiyat.alis izni yoksa alış fiyatı gönderilse de mevcut değer korunur.
+        if (ERP.Application.Pricing.PurchaseVisibility.CanSee(session)) variant.PurchasePriceOverride = request.PurchasePriceOverride;
         variant.Barcode               = barcode;
 
         // Kartın kendi barkodları (ürün, diğer varyantlar, birimler) ile yinelenme ve başka kartlarla çakışma.
@@ -69,6 +71,6 @@ public sealed class UpdateVariantCommandHandler(
             throw conflict;
         }
 
-        return await ProductReader.GetDtoAsync(db, usage, product.Id, ct);
+        return await ProductReader.GetDtoAsync(db, usage, session, product.Id, ct);
     }
 }

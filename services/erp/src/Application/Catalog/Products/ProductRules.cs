@@ -124,6 +124,8 @@ public sealed class ProductWriter(
                                       bool              joinOpenTransaction = false,
                                       ImportContext?    import              = null) {
         var isNew = existing is null;
+        if (!ERP.Application.Pricing.PurchaseVisibility.CanSee(session))
+            input = ERP.Application.Pricing.PurchaseVisibility.StripPurchase(input, existing);
         if (input.TracksSerialLot && !session.HasModule("seri-lot"))
             throw new AppException(403, "module_disabled", "Seri/lot takibi için Seri-Lot modülü firmanızda kapalı.");
 

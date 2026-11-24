@@ -14,9 +14,14 @@ public sealed record LookupBarcodeQuery(string Value) : IRequest<BarcodeHit>;
 ///     IsActive=false olarak döner; kararı çağıran modül verir.
 /// </summary>
 public sealed class LookupBarcodeQueryHandler(
-    IApplicationDbContext db
+    IApplicationDbContext db,
+    ICurrentSession       session
 ) : IRequestHandler<LookupBarcodeQuery, BarcodeHit> {
     public async Task<BarcodeHit> Handle(LookupBarcodeQuery request, CancellationToken ct) {
+        return ERP.Application.Pricing.PurchaseVisibility.Mask(await Find(request, ct), ERP.Application.Pricing.PurchaseVisibility.CanSee(session));
+    }
+
+    private async Task<BarcodeHit> Find(LookupBarcodeQuery request, CancellationToken ct) {
         var value = request.Value.Trim();
         var row = await db.Barcodes.AsNoTracking().FirstOrDefaultAsync(b => b.Value == value, ct)
                   ?? throw new NotFoundException(value, "Barcode");

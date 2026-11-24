@@ -27,7 +27,7 @@ describe("VariantsTab", () => {
             }),
         );
         const onChanged = vi.fn();
-        const { user } = renderWithTheme(<VariantsTab product={productDto()} canManage onChanged={onChanged} />);
+        const { user } = renderWithTheme(<VariantsTab product={productDto()} canManage canSeePurchase onChanged={onChanged} />);
 
         await addAttribute(user, 1, "Beden", ["S", "M", "L"]);
         await addAttribute(user, 2, "Renk", ["Kırmızı", "Mavi"]);
@@ -57,7 +57,7 @@ describe("VariantsTab", () => {
             ],
         });
         const onChanged = vi.fn();
-        const { user } = renderWithTheme(<VariantsTab product={product} canManage onChanged={onChanged} />);
+        const { user } = renderWithTheme(<VariantsTab product={product} canManage canSeePurchase onChanged={onChanged} />);
 
         expect(screen.getByText("2 varyant oluşacak")).toBeInTheDocument();
         const input = screen.getByLabelText("1. özellik değerleri");
@@ -90,7 +90,7 @@ describe("VariantsTab", () => {
                 return HttpResponse.json(productDto());
             }),
         );
-        const { user } = renderWithTheme(<VariantsTab product={withBarcodes()} canManage onChanged={vi.fn()} />);
+        const { user } = renderWithTheme(<VariantsTab product={withBarcodes()} canManage canSeePurchase onChanged={vi.fn()} />);
 
         await user.click(screen.getByLabelText("1. özellik değerleri"));
         await user.keyboard("{Backspace}");
@@ -117,7 +117,7 @@ describe("VariantsTab", () => {
             }),
         );
         const onChanged = vi.fn();
-        const { user } = renderWithTheme(<VariantsTab product={withBarcodes()} canManage onChanged={onChanged} />);
+        const { user } = renderWithTheme(<VariantsTab product={withBarcodes()} canManage canSeePurchase onChanged={onChanged} />);
 
         await user.type(screen.getByLabelText("1. özellik adı"), "lar");
         await user.click(screen.getByRole("button", { name: "Özellikleri kaydet" }));
@@ -135,12 +135,24 @@ describe("VariantsTab", () => {
     it("VariantsTab_AddingValueOnly_SavesWithoutConfirm", async () => {
         server.use(http.put("*/api/erp/catalog/products/p-1/attributes", () => HttpResponse.json(productDto())));
         const onChanged = vi.fn();
-        const { user } = renderWithTheme(<VariantsTab product={withBarcodes()} canManage onChanged={onChanged} />);
+        const { user } = renderWithTheme(<VariantsTab product={withBarcodes()} canManage canSeePurchase onChanged={onChanged} />);
 
         await user.type(screen.getByLabelText("1. özellik değerleri"), "L{Enter}");
         await user.click(screen.getByRole("button", { name: "Özellikleri kaydet" }));
 
         await waitFor(() => expect(onChanged).toHaveBeenCalled());
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("VariantsTab_HidesPurchaseColumnWithoutAlisPermission", () => {
+        const product = productDto({
+            attributes: [{ id: "a1", name: "Beden", values: ["S"], sort: 0 }],
+            variants: [{ id: "v1", code: "U00001-1", barcode: null, values: { Beden: "S" }, salePriceOverride: null, purchasePriceOverride: null, isActive: true, inUse: false }],
+        });
+        renderWithTheme(<VariantsTab product={product} canManage canSeePurchase={false} onChanged={vi.fn()} />);
+
+        expect(screen.getByRole("columnheader", { name: "Satış fiyatı" })).toBeInTheDocument();
+        expect(screen.queryByRole("columnheader", { name: "Alış fiyatı" })).not.toBeInTheDocument();
+        expect(screen.queryByLabelText("S alış fiyatı")).not.toBeInTheDocument();
     });
 });

@@ -11,7 +11,8 @@ public sealed record ExportProductsQuery(string? Kind, bool IncludeInactive = tr
 
 public sealed class ExportProductsQueryHandler(
     IApplicationDbContext db,
-    IXlsxService          xlsx
+    IXlsxService          xlsx,
+    ICurrentSession       session
 ) : IRequestHandler<ExportProductsQuery, byte[]> {
     public async Task<byte[]> Handle(ExportProductsQuery request, CancellationToken ct) {
         var query = db.Products.AsNoTracking().AsQueryable();
@@ -35,7 +36,12 @@ public sealed class ExportProductsQueryHandler(
             string.Join(", ", p.Tags), ProductSheet.Flag(!p.IsActive)
         });
 
-        return xlsx.Write(ProductSheet.SheetName, ProductSheet.Headers, rows);
+        // fiyat.alis izni yoksa alış sütunları dosyaya hiç yazılmaz (başlık da dahil).
+        if (ERP.Application.Pricing.PurchaseVisibility.CanSee(session))
+            return xlsx.Write(ProductSheet.SheetName, ProductSheet.Headers, rows);
+
+        return xlsx.Write(ProductSheet.SheetName, ProductSheet.HeadersWithoutPurchase,
+                          rows.Select(r => (IReadOnlyList<object?>)r.Where((_, i) => !ProductSheet.PurchaseColumns.Contains(i)).ToArray()));
     }
 }
 
@@ -43,9 +49,11 @@ public sealed class ExportProductsQueryHandler(
 public sealed record ImportTemplateQuery : IRequest<byte[]>;
 
 public sealed class ImportTemplateQueryHandler(
-    IXlsxService xlsx
+    IXlsxService    xlsx,
+    ICurrentSession session
 ) : IRequestHandler<ImportTemplateQuery, byte[]> {
     public Task<byte[]> Handle(ImportTemplateQuery request, CancellationToken ct) {
-        return Task.FromResult(xlsx.Write(ProductSheet.SheetName, ProductSheet.Headers, []));
+        var headers = ERP.Application.Pricing.PurchaseVisibility.CanSee(session) ? ProductSheet.Headers : ProductSheet.HeadersWithoutPurchase;
+        return Task.FromResult(xlsx.Write(ProductSheet.SheetName, headers, []));
     }
 }
