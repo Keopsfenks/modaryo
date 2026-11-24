@@ -5,6 +5,7 @@ using ERP.Application.Pricing.Groups;
 using ERP.Application.Pricing.History;
 using ERP.Application.Pricing.Items;
 using ERP.Application.Pricing.Lists;
+using ERP.Application.Pricing.Quotes.Queries;
 using ERP.Domain.Pricing;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -32,6 +33,7 @@ public class Pricing : IEndpointGroup {
         groupBuilder.MapPut(UpdateCustomerPrice, "customers/{currentAccountId:guid}/prices/{id:guid}");
         groupBuilder.MapDelete(DeleteCustomerPrice, "customers/{currentAccountId:guid}/prices/{id:guid}");
         groupBuilder.MapGet(ListHistory, "history");
+        groupBuilder.MapGet(GetQuote, "quote");
     }
 
     [EndpointSummary("Fiyat listeleri")]
@@ -142,6 +144,15 @@ public class Pricing : IEndpointGroup {
     public static async Task<Ok<PagedResult<PriceHistoryDto>>> ListHistory(
         ISender sender, Guid? productId, Guid? variantId, string? scope, int page = 1, int pageSize = 50) {
         return TypedResults.Ok(await sender.Send(new ListPriceHistoryQuery(productId, variantId, scope, page, pageSize)));
+    }
+
+    [EndpointSummary("Fiyat sorgula")]
+    [EndpointDescription("fiyat.read; kind=purchase için ayrıca fiyat.alis. kind: sale (varsayılan) | purchase. currentAccountId satışta müşteri, alışta tedarikçi. date boşsa İstanbul bugünü. Öncelik: müşteriye özel, grup listesi, varsayılan liste, kart fiyatı. Bulunamazsa 404 price_not_found.")]
+    public static async Task<Ok<PriceQuote>> GetQuote(
+        ISender sender, string? kind, Guid? currentAccountId, Guid productId, Guid? variantId, string? unit, decimal quantity = 1m,
+        DateOnly? date = null) {
+        return TypedResults.Ok(await sender.Send(new GetQuoteQuery(ParseKind(kind) ?? PriceListKind.Sale, currentAccountId, productId,
+                                                                   variantId, unit, quantity, date)));
     }
 
     internal static PriceListKind? ParseKind(string? kind) {

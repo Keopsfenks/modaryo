@@ -16,6 +16,7 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Catalog.Products.BarcodeRegistry>();
         builder.Services.AddScoped<ERP.Application.Catalog.Products.ProductWriter>();
         builder.Services.AddScoped<ERP.Application.Pricing.PriceHistoryWriter>();
+        builder.Services.AddScoped<ERP.Application.Pricing.Quotes.IPriceQuoteService, ERP.Application.Pricing.Quotes.PriceQuoteService>();
         builder.Services.AddScoped<ERP.Application.Common.Interfaces.ItemUsage>();
         builder.Services.AddScoped<ERP.Application.Catalog.Excel.ImportEngine>();
 
