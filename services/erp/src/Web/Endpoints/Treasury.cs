@@ -3,6 +3,9 @@ using ERP.Application.Treasury.Accounts;
 using ERP.Application.Treasury.Allocations.Commands;
 using ERP.Application.Treasury.Allocations.Queries;
 using ERP.Application.Treasury.ExpenseCategories;
+using ERP.Application.Treasury.Instruments;
+using ERP.Application.Treasury.Instruments.Commands;
+using ERP.Application.Treasury.Instruments.Queries;
 using ERP.Application.Treasury.Payments.Commands;
 using ERP.Application.Treasury.Transfers;
 using ERP.Application.Treasury.Vouchers;
@@ -35,6 +38,13 @@ public class Treasury : IEndpointGroup {
         groupBuilder.MapPut(UpdateExpenseCategory, "expense-categories/{id:guid}");
         groupBuilder.MapDelete(DeleteExpenseCategory, "expense-categories/{id:guid}");
         groupBuilder.MapPost(CreateExpense, "expenses");
+        groupBuilder.MapPost(ReceiveInstrument, "instruments/receive");
+        groupBuilder.MapPost(IssueInstrument, "instruments/issue");
+        groupBuilder.MapPost(MoveInstrument, "instruments/{id:guid}/move");
+        groupBuilder.MapGet(ListInstruments, "instruments");
+        groupBuilder.MapGet(GetInstrument, "instruments/{id:guid}");
+        groupBuilder.MapGet(GetPortfolio, "instruments/portfolio");
+        groupBuilder.MapGet(GetCalendar, "instruments/calendar");
     }
 
     [EndpointSummary("Virman")]
@@ -75,6 +85,49 @@ public class Treasury : IEndpointGroup {
     public static async Task<Created<ExpenseResult>> CreateExpense(ISender sender, CreateExpenseCommand command) {
         var result = await sender.Send(command);
         return TypedResults.Created($"/api/erp/treasury/finance-documents/{result.Id}", result);
+    }
+
+    [EndpointSummary("Çek/senet al")]
+    [EndpointDescription("ceksenet.manage, cek-senet modülü. Müşteri carisi alacaklanır. Numara (tür, yön, banka, numara) benzersizdir (409 instrument_number_taken).")]
+    public static async Task<Created<InstrumentPostResult>> ReceiveInstrument(ISender sender, ReceiveInstrumentCommand command) {
+        var result = await sender.Send(command);
+        return TypedResults.Created($"/api/erp/treasury/instruments/{result.InstrumentId}", result);
+    }
+
+    [EndpointSummary("Çek/senet ver")]
+    [EndpointDescription("ceksenet.manage, cek-senet modülü. Tedarikçi carisi borçlanır; çekte bankAccountId zorunludur.")]
+    public static async Task<Created<InstrumentPostResult>> IssueInstrument(ISender sender, IssueInstrumentCommand command) {
+        var result = await sender.Send(command);
+        return TypedResults.Created($"/api/erp/treasury/instruments/{result.InstrumentId}", result);
+    }
+
+    [EndpointSummary("Çek/senet durum değiştir")]
+    [EndpointDescription("ceksenet.manage, cek-senet modülü. to: endorsed (currentAccountId tedarikçi), inCollection (accountId banka), returnedToCustomer, collected (geç tahsilatta accountId), bounced, paid (notta accountId), returnedFromSupplier. Geçersiz geçiş 409 invalid_instrument_transition; dönem kilitli 409.")]
+    public static async Task<Ok<InstrumentPostResult>> MoveInstrument(ISender sender, Guid id, MoveInstrumentCommand command) {
+        return TypedResults.Ok(await sender.Send(command with { Id = id }));
+    }
+
+    [EndpointSummary("Çek/senet listesi")]
+    [EndpointDescription("finans.read, cek-senet modülü. Sorguda enum değerleri PascalCase (Received, InPortfolio).")]
+    public static async Task<Ok<IReadOnlyList<InstrumentDto>>> ListInstruments(ISender sender, InstrumentDirection? direction, InstrumentStatus? status, DateOnly? dueFrom, DateOnly? dueTo, Guid? currentAccountId) {
+        return TypedResults.Ok(await sender.Send(new ListInstrumentsQuery(direction, status, dueFrom, dueTo, currentAccountId)));
+    }
+
+    [EndpointSummary("Çek/senet ve geçmişi")]
+    public static async Task<Ok<InstrumentDetailDto>> GetInstrument(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetInstrumentQuery(id)));
+    }
+
+    [EndpointSummary("Portföy özeti")]
+    [EndpointDescription("Yön, durum ve para birimine göre adet ve toplam.")]
+    public static async Task<Ok<IReadOnlyList<PortfolioRow>>> GetPortfolio(ISender sender) {
+        return TypedResults.Ok(await sender.Send(new PortfolioQuery()));
+    }
+
+    [EndpointSummary("Vade takvimi")]
+    [EndpointDescription("Açık (portföyde, tahsilde, verilmiş) çek/senetler vade gününe göre.")]
+    public static async Task<Ok<IReadOnlyList<CalendarDay>>> GetCalendar(ISender sender, DateOnly? from, DateOnly? to) {
+        return TypedResults.Ok(await sender.Send(new CalendarQuery(from, to)));
     }
 
     [EndpointSummary("Tahsilat")]

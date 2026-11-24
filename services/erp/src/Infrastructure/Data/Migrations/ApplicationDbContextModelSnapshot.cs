@@ -3958,6 +3958,11 @@ namespace ERP.Infrastructure.Data.Migrations
 
                     b.HasIndex("TenantId", "Status", "DueDate");
 
+                    b.HasIndex("TenantId", "Kind", "Direction", "BankName", "Number")
+                        .IsUnique();
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("TenantId", "Kind", "Direction", "BankName", "Number"), false);
+
                     b.ToTable("instruments", (string)null);
                 });
 

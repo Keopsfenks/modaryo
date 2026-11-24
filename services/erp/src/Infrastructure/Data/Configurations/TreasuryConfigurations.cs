@@ -96,6 +96,7 @@ public class InstrumentConfiguration : IEntityTypeConfiguration<Instrument> {
         builder.HasOne<TreasuryAccount>().WithMany().HasForeignKey(e => e.CollectionAccountId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(e => new { e.TenantId, e.Status, e.DueDate });
+        builder.HasIndex(e => new { e.TenantId, e.Kind, e.Direction, e.BankName, e.Number }).IsUnique().AreNullsDistinct(false);
         builder.HasIndex(e => new { e.TenantId, e.CurrentAccountId });
     }
 }
