@@ -17,7 +17,8 @@ public static class DependencyInjection {
 
         builder.Services.AddScoped<CurrentSession>();
         builder.Services.AddScoped<ICurrentSession>(sp => sp.GetRequiredService<CurrentSession>());
-        builder.Services.AddScoped<ICurrentTenant>(sp => sp.GetRequiredService<CurrentSession>());
+        builder.Services.AddScoped<ICurrentTenant>(sp => sp.GetRequiredService<ERP.Application.Inventory.Costing.TenantScope>().Override
+                                                                     ?? sp.GetRequiredService<CurrentSession>());
 
         var valkeyConnectionString = builder.Configuration.GetConnectionString("Valkey");
         Guard.Against.NullOrWhiteSpace(valkeyConnectionString, message: "Connection string 'Valkey' not found.");

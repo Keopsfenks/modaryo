@@ -1,4 +1,4 @@
-using ERP.Web.FunctionalTests.Pricing;
+﻿using ERP.Web.FunctionalTests.Pricing;
 using static ERP.Web.FunctionalTests.Inventory.InventoryTestSupport;
 using static ERP.Web.FunctionalTests.Inventory.StockTestSupport;
 
@@ -79,7 +79,18 @@ public class ConcurrencyTests : TestBase {
         var             all = db.AverageCosts.ToList();
         all.Count.ShouldBe(1);
         all[0].Quantity.ShouldBe(2m * Parallel);
-        all[0].AverageCost.ShouldBe(13.5m, 0.0001m); // 10..17 ortalaması (6 hane yuvarlama sıraya göre sapabilir)
+
+        // Sapma yarış değil yuvarlamadır: her adım 6 haneye yuvarlandığından sonuç girişlerin sırasına bağlıdır. Hareketler
+        // Sequence sırasıyla (kilit altında yazıldıkları sıra) yeniden oynatılınca anlık değerle birebir aynı çıkmalıdır;
+        // bir giriş kaybolsaydı ya da iki giriş aynı bakiyeyi okusaydı bu eşitlik bozulurdu.
+        var replay = (Qty: 0m, Avg: 0m);
+        foreach (var m in db.StockMovements.OrderBy(m => m.Sequence).ToList()) {
+            var (qty, avg) = ERP.Domain.Inventory.WeightedAverage.ApplyInbound(replay.Qty, replay.Avg, m.Quantity, m.UnitCost);
+            replay = (qty, Math.Round(avg, 6, MidpointRounding.AwayFromZero));
+        }
+
+        all[0].AverageCost.ShouldBe(replay.Avg);
+        all[0].AverageCost.ShouldBe(13.5m, 0.00001m); // sıraya göre yuvarlama sapması en çok birkaç mikro
     }
 
     [Test]

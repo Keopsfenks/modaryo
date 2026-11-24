@@ -58,6 +58,9 @@ public static class DependencyInjection {
                                           sp.GetRequiredService<RelayDatabase>(),
                                           sp.GetRequiredService<TimeProvider>(),
                                           sp.GetRequiredService<ILogger<StoredAllocationsBackfill>>()));
+        builder.Services.AddSingleton<ERP.Infrastructure.Inventory.RevaluationWorker>();
+        if (builder.Configuration.GetValue("Inventory:RevaluationEnabled", true))
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<ERP.Infrastructure.Inventory.RevaluationWorker>());
         if (builder.Configuration.GetValue(OutboxOptions.Section + ":RelayEnabled", true))
             builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxRelay>());
     }

@@ -153,6 +153,48 @@ internal sealed class StockService(
         return movement.Id;
     }
 
+    // ---- transfer --------------------------------------------------------------------------------------------
+
+    public async Task<IReadOnlyList<Guid>> TransferAsync(string sourceType, Guid sourceId, DateOnly date,
+                                                         IReadOnlyList<TransferLine> lines, CancellationToken ct) {
+        foreach (var line in lines) {
+            ValidateQuantity(line.BaseQuantity);
+            if (line.FromWarehouseId == line.ToWarehouseId)
+                throw new AppException(400, "same_warehouse", "Kaynak ve hedef depo aynı olamaz.");
+        }
+
+        var warehouses = await LoadWarehousesAsync(lines.SelectMany(l => new[] { l.FromWarehouseId, l.ToWarehouseId }), ct);
+        var products   = await LoadProductsAsync(lines.Select(l => l.ProductId), ct);
+        foreach (var product in products.Values)
+            if (product.IsBundle)
+                throw InventoryErrors.BundleInbound();
+
+        await periodLock.EnsureOpenAsync(date, ct);
+        await LockAsync(lines.SelectMany(l => new[] { (l.FromWarehouseId, l.ProductId, l.VariantId), (l.ToWarehouseId, l.ProductId, l.VariantId) }), ct);
+
+        var context = await ledger.BeginAsync(ct);
+        var ids     = new List<Guid>();
+        foreach (var line in lines) {
+            var from    = warehouses[line.FromWarehouseId];
+            var to      = warehouses[line.ToWarehouseId];
+            var product = products[line.ProductId];
+            var label   = $"{product.Code} - {product.Name}";
+
+            var watch = await ledger.WatchMinAsync(from, line.ProductId, line.VariantId, ct);
+            var outbound = await ledger.OutboundAsync(context, from, line.ProductId, line.VariantId, MovementType.TransferOut, date,
+                                                      line.BaseQuantity, sourceType, sourceId, line.SourceLineId, null, false, label,
+                                                      null, null, ct);
+            await ledger.CheckMinAsync(watch, from, ct);
+            await ledger.InboundAsync(context, to, line.ProductId, line.VariantId, MovementType.TransferIn, date, line.BaseQuantity,
+                                      outbound.UnitCost, sourceType, sourceId, line.SourceLineId,
+                                      Costing.CostReplay.TransferPrefix + outbound.Id, ct);
+            ids.Add(outbound.Id);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return ids;
+    }
+
     // ---- iptal -----------------------------------------------------------------------------------------------
 
     public async Task ReverseAsync(string sourceType, Guid sourceId, DateOnly date, CancellationToken ct) {

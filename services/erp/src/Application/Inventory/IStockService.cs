@@ -16,6 +16,13 @@ public interface IStockService {
     Task<IReadOnlyList<Guid>> IssueAsync(MovementType type, string sourceType, Guid sourceId, DateOnly date,
                                          IReadOnlyList<StockLine> lines, CancellationToken ct);
 
+    /// <summary>
+    ///     Depolar arası transfer: her satır için kaynakta TransferOut, hedefte TransferIn yazılır. Hedef giriş, kaynak çıkışın
+    ///     birim maliyetini taşır; geriye dönük yeniden değerlemede ikisi birlikte yeniden maliyetlenir. Çıkış hareketlerinin kimliklerini döndürür.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> TransferAsync(string sourceType, Guid sourceId, DateOnly date, IReadOnlyList<TransferLine> lines,
+                                            CancellationToken ct);
+
     /// <summary>Kaynağın hareketlerinin tersini yazar (iptal); hiçbir şey silmez. İkinci çağrı yeni hareket yazmaz.</summary>
     Task ReverseAsync(string sourceType, Guid sourceId, DateOnly date, CancellationToken ct);
 

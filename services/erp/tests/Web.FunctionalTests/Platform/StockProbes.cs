@@ -35,6 +35,8 @@ public static class StockProbes {
 
     private sealed record Doc(string SourceType, Guid SourceId, DateOnly Date, MovementType Type, List<StockLine>? Lines);
 
+    private sealed record TransferDoc(string SourceType, Guid SourceId, DateOnly Date, List<TransferLine> Lines);
+
     private sealed record ReserveDoc(string SourceType, Guid SourceId, List<ReserveLine> Lines);
 
     private sealed record ReleaseDoc(string SourceType, Guid SourceId, Guid? SourceLineId);
@@ -81,6 +83,11 @@ public static class StockProbes {
             case "issue": {
                 var d = Read<Doc>();
                 await svc.IssueAsync(d.Type, d.SourceType, d.SourceId, d.Date, d.Lines!, ct);
+                break;
+            }
+            case "transfer": {
+                var d = Read<TransferDoc>();
+                await svc.TransferAsync(d.SourceType, d.SourceId, d.Date, d.Lines, ct);
                 break;
             }
             case "reverse": {

@@ -29,6 +29,7 @@ public class ErpApiFactory(
         builder.UseSetting($"ConnectionStrings:{Shared.Services.Database}", connectionString);
         builder.UseSetting("ConnectionStrings:Valkey",                      ValkeyConnectionString);
         builder.UseSetting("Files:S3:KeyPrefix", FileKeyPrefix);
+        builder.UseSetting("Inventory:RevaluationEnabled", "false"); // testler PublishPendingAsync / PublicRunOnceAsync çağırır
         builder.UseSetting("Outbox:RelayEnabled", "false"); // testler PublishPendingAsync'i kendileri çağırır
         Platform.InternalProbes.Configure(builder);
         builder.ConfigureTestServices(services => {

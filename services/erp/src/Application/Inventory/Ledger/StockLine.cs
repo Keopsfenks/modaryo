@@ -15,6 +15,18 @@ public sealed record StockLine(
     bool                    ExemptFromStockCheck = false
 );
 
+/// <summary>Depolar arası transfer satırı; BaseQuantity temel birimde ve pozitiftir.</summary>
+public sealed record TransferLine(
+    Guid                     FromWarehouseId,
+    Guid                     ToWarehouseId,
+    Guid                     ProductId,
+    Guid?                    VariantId,
+    decimal                  BaseQuantity,
+    IReadOnlyList<LotInput>? Lots,
+    IReadOnlyList<string>?   Serials,
+    Guid?                    SourceLineId
+);
+
 public sealed record LotInput(string LotNo, DateOnly? Expiry, decimal Quantity, Guid? LotId);
 
 public sealed record ReserveLine(
