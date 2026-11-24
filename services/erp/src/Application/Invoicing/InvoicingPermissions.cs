@@ -29,6 +29,18 @@ public static class InvoicingErrors {
         return new AppException(404, "branch_not_found", "Şube bulunamadı ya da pasif.");
     }
 
+    /// <summary>(Kiracı, şube, grup, mod) başına tek varsayılan seri sağlayan kısmi tekil indeksin adı.</summary>
+    public const string DefaultSeriesIndex = "IX_document_series_default";
+
+    public static AppException SeriesDefaultConflict() {
+        return new AppException(409, "series_default_conflict", "Varsayılan seri aynı anda başka biri tarafından değiştirildi. Tekrar deneyin.");
+    }
+
+    /// <summary>İhlal edilen kısıtın adı (PostgresException.ConstraintName).</summary>
+    public static string? ConstraintName(DbUpdateException ex) {
+        return ex.InnerException?.GetType().GetProperty("ConstraintName")?.GetValue(ex.InnerException) as string;
+    }
+
     /// <summary>Benzersiz indeks çakışması (yarış durumu) mı?</summary>
     public static bool IsUniqueViolation(DbUpdateException ex) {
         var inner = ex.InnerException;

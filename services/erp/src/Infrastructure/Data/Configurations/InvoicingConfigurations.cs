@@ -152,6 +152,9 @@ public class DocumentSeriesConfiguration : IEntityTypeConfiguration<DocumentSeri
         builder.Property(e => e.Prefix).HasMaxLength(10).IsRequired();
 
         builder.HasIndex(e => new { e.TenantId, e.BranchId, e.KindGroup, e.Mode });
+        // (Firma, şube, grup, mod) başına en çok bir varsayılan seri; uygulama kuralı veritabanında da güvence altında.
+        builder.HasIndex(e => new { e.TenantId, e.BranchId, e.KindGroup, e.Mode }).IsUnique().HasFilter("\"IsDefault\"")
+            .HasDatabaseName("IX_document_series_default");
         // Numara tekilliği için önek, firmada grup/mod/yıl başına tekil.
         builder.HasIndex(e => new { e.TenantId, e.KindGroup, e.Mode, e.Prefix, e.Year }).IsUnique();
     }

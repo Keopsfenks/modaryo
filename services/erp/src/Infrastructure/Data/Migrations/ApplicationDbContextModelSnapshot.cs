@@ -1742,7 +1742,10 @@ namespace ERP.Infrastructure.Data.Migrations
 
                     b.HasIndex("TenantId");
 
-                    b.HasIndex("TenantId", "BranchId", "KindGroup", "Mode");
+                    b.HasIndex("TenantId", "BranchId", "KindGroup", "Mode")
+                        .IsUnique()
+                        .HasDatabaseName("IX_document_series_default")
+                        .HasFilter("\"IsDefault\"");
 
                     b.HasIndex("TenantId", "KindGroup", "Mode", "Prefix", "Year")
                         .IsUnique();

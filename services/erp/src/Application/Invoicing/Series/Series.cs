@@ -64,12 +64,29 @@ public static partial class SeriesRules {
         return mode == InvoiceMode.Paper ? p : p.ToUpperInvariant();
     }
 
-    /// <summary>Aynı (grup, şube, mod) içindeki diğer varsayılanları kaldırır.</summary>
+    /// <summary>
+    ///     Aynı (grup, şube, mod) içindeki diğer varsayılanları hemen (tek SQL ile) kaldırır. Kısmi tekil indeks
+    ///     (IX_document_series_default) aynı anda tek varsayılana izin verdiği için yenisi kaydedilmeden ÖNCE çağrılır;
+    ///     çağıran açık bir işlem içinde olmalıdır.
+    /// </summary>
     public static async Task ClearOtherDefaultsAsync(IApplicationDbContext db, DocumentSeries keep, CancellationToken ct) {
-        var others = await db.DocumentSeries
+        await db.DocumentSeries
             .Where(s => s.Id != keep.Id && s.IsDefault && s.KindGroup == keep.KindGroup && s.BranchId == keep.BranchId && s.Mode == keep.Mode)
-            .ToListAsync(ct);
-        foreach (var other in others) other.IsDefault = false;
+            .ExecuteUpdateAsync(set => set.SetProperty(s => s.IsDefault, false), ct);
+    }
+
+    /// <summary>Kaydeder; benzersizlik ihlalini anlamlı hataya çevirir (önek çakışması ya da eşzamanlı varsayılan değişimi).</summary>
+    public static async Task SaveAsync(IApplicationDbContext db, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction tx, string prefix,
+                                       CancellationToken ct) {
+        try {
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        } catch (DbUpdateException ex) when (InvoicingErrors.IsUniqueViolation(ex)) {
+            db.ClearTracking();
+            throw InvoicingErrors.ConstraintName(ex) == InvoicingErrors.DefaultSeriesIndex
+                      ? InvoicingErrors.SeriesDefaultConflict()
+                      : InvoicingErrors.SeriesExists(prefix);
+        }
     }
 }
 
@@ -124,14 +141,10 @@ public sealed class CreateSeriesCommandHandler(
             // Grubun ilk serisi otomatik varsayılan olur.
             IsDefault = request.IsActive && (request.IsDefault || !hasDefault)
         };
-        db.DocumentSeries.Add(series);
+        await using var tx = await db.BeginTransactionAsync(ct);
         if (series.IsDefault) await SeriesRules.ClearOtherDefaultsAsync(db, series, ct);
-        try {
-            await db.SaveChangesAsync(ct);
-        } catch (DbUpdateException ex) when (InvoicingErrors.IsUniqueViolation(ex)) {
-            db.ClearTracking();
-            throw InvoicingErrors.SeriesExists(prefix);
-        }
+        db.DocumentSeries.Add(series);
+        await SeriesRules.SaveAsync(db, tx, prefix, ct);
 
         return SeriesRules.ToDto(series);
     }
@@ -176,13 +189,9 @@ public sealed class UpdateSeriesCommandHandler(
         series.IsActive  = request.IsActive;
         // Varsayılan seri PUT ile kaldırılamaz; başka seri varsayılan yapılınca düşer. Pasif seri varsayılan olamaz.
         series.IsDefault = request.IsActive && (request.IsDefault || series.IsDefault);
+        await using var tx = await db.BeginTransactionAsync(ct);
         if (series.IsDefault) await SeriesRules.ClearOtherDefaultsAsync(db, series, ct);
-        try {
-            await db.SaveChangesAsync(ct);
-        } catch (DbUpdateException ex) when (InvoicingErrors.IsUniqueViolation(ex)) {
-            db.ClearTracking();
-            throw InvoicingErrors.SeriesExists(prefix);
-        }
+        await SeriesRules.SaveAsync(db, tx, prefix, ct);
 
         return SeriesRules.ToDto(series);
     }

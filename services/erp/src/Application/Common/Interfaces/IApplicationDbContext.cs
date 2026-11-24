@@ -107,6 +107,12 @@ public interface IApplicationDbContext {
     /// <summary>Firma + anahtar için sıradaki numarayı (1'den) tek SQL ifadesiyle ayırır; işlem geri alınırsa numara da geri gider.</summary>
     Task<int> NextDocumentNumberAsync(string key, CancellationToken cancellationToken);
 
+    /// <summary>
+    ///     Serinin sıradaki sıra numarasını tek SQL ifadesiyle (UPDATE ... RETURNING) ayırır; satır kilidi işlem sonuna kadar
+    ///     tutulur, işlem geri alınırsa numara da geri gider (boşluksuz). Açık bir işlem gerekir. Seri yok ya da pasifse null.
+    /// </summary>
+    Task<long?> ReserveSeriesNumberAsync(Guid seriesId, CancellationToken cancellationToken);
+
     /// <summary>İzlenen tüm varlıkları bırakır (geri alınan bir işlemden sonra bağlamı temizlemek için).</summary>
     void ClearTracking();
 

@@ -202,6 +202,19 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
         return rows.Single();
     }
 
+    public async Task<long?> ReserveSeriesNumberAsync(Guid seriesId, CancellationToken cancellationToken) {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Seri numarası yalnızca açık bir işlem içinde ayrılabilir.");
+
+        var tenantId = CurrentTenantId ?? throw new InvalidOperationException("Aktif firma yok.");
+        var rows = await Database.SqlQuery<long>($"""
+                                                  UPDATE document_series SET "NextNumber" = "NextNumber" + 1
+                                                  WHERE "Id" = {seriesId} AND "TenantId" = {tenantId} AND "IsActive"
+                                                  RETURNING "NextNumber" - 1 AS "Value"
+                                                  """).ToListAsync(cancellationToken);
+        return rows.Count == 0 ? null : rows[0];
+    }
+
     public async Task<int> NextDocumentNumberAsync(string key, CancellationToken cancellationToken) {
         var tenantId = CurrentTenantId ?? throw new InvalidOperationException("Aktif firma yok.");
         var rows = await Database.SqlQuery<int>($"""
