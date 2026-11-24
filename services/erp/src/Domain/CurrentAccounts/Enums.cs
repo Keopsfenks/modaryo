@@ -12,7 +12,8 @@ public enum LedgerEntryType {
 }
 
 public enum LedgerEntrySource {
-    Manual
+    Manual,
+    Invoice
 }
 
 public enum DueDirection {
@@ -22,5 +23,6 @@ public enum DueDirection {
 
 public enum AllocationKind {
     Auto,
-    Manual
+    Manual,
+    Invoice
 }

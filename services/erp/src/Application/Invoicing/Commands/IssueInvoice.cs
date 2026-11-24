@@ -1,6 +1,7 @@
 using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
+using ERP.Application.Invoicing.Posting;
 using ERP.Application.Settings;
 using ERP.Application.Settings.Categories;
 using ERP.Domain.CurrentAccounts;
@@ -18,6 +19,7 @@ public sealed class IssueInvoiceCommandHandler(
     IPeriodLock           periodLock,
     ITenantSettings       settings,
     InvoiceBuilder        builder,
+    InvoicePoster         poster,
     TimeProvider          clock
 ) : IRequestHandler<IssueInvoiceCommand, InvoiceDto> {
     public async Task<InvoiceDto> Handle(IssueInvoiceCommand request, CancellationToken ct) {
@@ -40,6 +42,11 @@ public sealed class IssueInvoiceCommandHandler(
             // İadeler aynı asıl faturanın cari satırında sıraya girer: iki paralel kesim iade miktarını birlikte aşamaz.
             await db.LockCurrentAccountAsync(invoice.CurrentAccountId, ct);
 
+            // Kilidi beklerken başka bir istek faturayı kesmiş ya da silmiş olabilir: durumu kilit altında yeniden oku.
+            var current = await db.Invoices.AsNoTracking().Where(i => i.Id == invoice.Id).Select(i => (InvoiceStatus?)i.Status).FirstOrDefaultAsync(ct);
+            if (current is null) throw new NotFoundException(request.Id.ToString(), "Invoice");
+            if (current != InvoiceStatus.Draft) throw InvoiceErrors.NotDraft(current.Value);
+
             // Taslağın hazırlandığı andan beri geçen sürede başka iadeler kesilmiş olabilir.
             if (InvoiceRules.IsReturn(invoice.Kind) && invoice.ReturnOfInvoiceId is { } originalId)
                 await builder.EnsureReturnQuantitiesAsync(originalId, invoice.Lines, invoice.Id, ct);
@@ -58,7 +65,8 @@ public sealed class IssueInvoiceCommandHandler(
             invoice.Status        = InvoiceStatus.Issued;
             invoice.LastModified  = clock.GetUtcNow();
 
-            // Defter, vade ve stok kayıtları (P4 Task 5) bu işlemin içinde yazılır.
+            // Defter, vade ve stok kayıtları numarayla aynı işlemde yazılır; biri başarısız olursa numara dahil hiçbiri kalmaz.
+            await poster.PostAsync(invoice, ct);
 
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);

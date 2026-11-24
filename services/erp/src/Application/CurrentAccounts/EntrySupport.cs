@@ -39,6 +39,6 @@ public static class EntryRules {
 
     public static StatementRow ToRow(LedgerEntry e, decimal runningBalance) {
         return new StatementRow(e.Id, e.Date, e.Type, e.DocumentNo, e.Description,
-                                e.Debit, e.Credit, e.DueDate, runningBalance, e.IsCancelled, e.CancelReason);
+                                e.Debit, e.Credit, e.DueDate, runningBalance, e.IsCancelled, e.CancelReason, e.Source, e.SourceId);
     }
 }

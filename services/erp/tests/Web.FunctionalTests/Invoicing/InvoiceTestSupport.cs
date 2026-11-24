@@ -12,8 +12,8 @@ internal static class InvoiceTestSupport {
     public static readonly DateOnly Day = new(2026, 3, 10);
 
     public static readonly string[] AllPermissions = [
-        "fatura.read", "fatura.manage", "fatura.issue", "fatura.cancel", "ayarlar.belgeler", "ayarlar.ebelge", "ayarlar.finans", "katalog.read",
-        "katalog.manage", "cari.read", "cari.manage", "fiyat.alis", "kur.manage", "stok.read", "stok.manage"
+        "fatura.read", "fatura.manage", "fatura.issue", "fatura.cancel", "ayarlar.belgeler", "ayarlar.ebelge", "ayarlar.finans", "ayarlar.stok", "katalog.read",
+        "katalog.manage", "cari.read", "cari.manage", "cari.movements", "fiyat.alis", "kur.manage", "stok.read", "stok.manage"
     ];
 
     public sealed record Env(Guid Tenant, HttpClient Client, Guid Branch, Guid Customer, Guid Supplier, Guid Product);

@@ -17,6 +17,7 @@ public class Invoices : IEndpointGroup {
         groupBuilder.MapPut(Update, "{id:guid}");
         groupBuilder.MapDelete(Delete, "{id:guid}");
         groupBuilder.MapPost(Issue, "{id:guid}/issue");
+        groupBuilder.MapPost(Cancel, "{id:guid}/cancel");
     }
 
     [EndpointSummary("Faturalar")]
@@ -62,5 +63,14 @@ public class Invoices : IEndpointGroup {
     [EndpointDescription("fatura.issue. Dönem kilidini denetler (409 period_locked), modu (kâğıt / e-Fatura / e-Arşiv) ayarlardan ve cari işaretinden belirler, varsayılan seriden boşluksuz numara atar (seri yoksa 409 series_missing), alıcı/satıcı adresini dondurur.")]
     public static async Task<Ok<InvoiceDto>> Issue(ISender sender, Guid id) {
         return TypedResults.Ok(await sender.Send(new IssueInvoiceCommand(id)));
+    }
+
+    public sealed record CancelBody(string Reason);
+
+    [EndpointSummary("Faturayı iptal et")]
+    [EndpointDescription("fatura.cancel (alış türleri ayrıca fiyat.alis). Gövde: { reason } (2-200 karakter). Defter hareketi, vade satırları, eşleştirmeler ve stok tek işlemde geri alınır; numara kullanılmış kalır. 409: invoice_cancelled (zaten iptal), invoice_not_issued (taslak), invoice_has_payments, period_locked.")]
+    public static async Task<NoContent> Cancel(ISender sender, Guid id, CancelBody body) {
+        await sender.Send(new CancelInvoiceCommand(id, body.Reason));
+        return TypedResults.NoContent();
     }
 }

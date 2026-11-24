@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using ERP.Application.Common.Behaviours;
 using Microsoft.Extensions.Hosting;
 
@@ -28,6 +28,9 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Inventory.Tracking.TrackingValidator>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.TenantScope>();
         builder.Services.AddScoped<ERP.Application.Invoicing.InvoiceBuilder>();
+        builder.Services.AddScoped<ERP.Application.Invoicing.Posting.CurrencyPosting>();
+        builder.Services.AddScoped<ERP.Application.Invoicing.Posting.InvoicePoster>();
+        builder.Services.AddScoped<ERP.Application.Invoicing.Posting.IInvoicePaymentGuard, ERP.Application.Invoicing.Posting.NoInvoicePaymentGuard>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.CostCalculator>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.IRevaluationRunner, ERP.Application.Inventory.Costing.RevaluationRunner>();
         builder.Services.AddScoped<ERP.Application.Catalog.Excel.ImportEngine>();

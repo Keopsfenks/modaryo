@@ -11,7 +11,9 @@ public sealed record StatementRow(
     DateOnly?       DueDate,
     decimal         RunningBalance,
     bool            Cancelled,
-    string?         CancelReason
+    string?         CancelReason,
+    LedgerEntrySource Source   = LedgerEntrySource.Manual,
+    Guid?           SourceId   = null
 );
 
 public sealed record StatementResult(
@@ -44,7 +46,7 @@ public static class Statement {
             }
 
             rows.Add(new StatementRow(e.Id, e.Date, e.Type, e.DocumentNo, e.Description,
-                                      e.Debit, e.Credit, e.DueDate, running, e.IsCancelled, e.CancelReason));
+                                      e.Debit, e.Credit, e.DueDate, running, e.IsCancelled, e.CancelReason, e.Source, e.SourceId));
         }
 
         return new StatementResult(opening, rows, totalDebit, totalCredit, running);
