@@ -37,7 +37,7 @@ public interface IStockService {
     /// </summary>
     Task ConsumeAsync(string sourceType, Guid sourceId, Guid sourceLineId, decimal baseQuantity, CancellationToken ct,
                       string? movementSourceType = null, Guid? movementSourceId = null, DateOnly? date = null,
-                      bool exemptFromStockCheck = false);
+                      bool exemptFromStockCheck = false, IReadOnlyList<LotInput>? lots = null, IReadOnlyList<string>? serials = null);
 
     /// <summary>Sevkiyat iptali: tüketilmiş rezervasyonu (en fazla baseQuantity kadar) tekrar Active yapar.</summary>
     Task RestoreConsumedAsync(string sourceType, Guid sourceId, Guid sourceLineId, decimal baseQuantity, CancellationToken ct);

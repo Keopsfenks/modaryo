@@ -25,6 +25,7 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Inventory.Ledger.StockLedger>();
         builder.Services.AddScoped<ERP.Application.Inventory.IStockService, ERP.Application.Inventory.Ledger.StockService>();
         builder.Services.AddScoped<ERP.Application.Inventory.Ledger.BalanceReader>();
+        builder.Services.AddScoped<ERP.Application.Inventory.Tracking.TrackingValidator>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.TenantScope>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.CostCalculator>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.IRevaluationRunner, ERP.Application.Inventory.Costing.RevaluationRunner>();

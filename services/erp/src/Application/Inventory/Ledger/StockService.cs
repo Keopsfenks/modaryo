@@ -2,6 +2,7 @@ using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Domain.Catalog;
+using ERP.Application.Inventory.Tracking;
 using ERP.Domain.Inventory;
 
 namespace ERP.Application.Inventory.Ledger;
@@ -11,7 +12,8 @@ internal sealed class StockService(
     IApplicationDbContext db,
     ICurrentTenant        tenant,
     IPeriodLock           periodLock,
-    StockLedger           ledger
+    StockLedger           ledger,
+    TrackingValidator     tracking
 ) : IStockService {
     public const string BackToBackModule = "siparise-gore-tedarik";
 
@@ -25,7 +27,9 @@ internal sealed class StockService(
         decimal?  UnitCost,
         Guid?     LineId,
         bool      Exempt,
-        MovementType Type
+        MovementType Type,
+        IReadOnlyList<LotInput>? Lots = null,
+        IReadOnlyList<string>?   Serials = null
     ) {
         public string Label => $"{Product.Code} - {Product.Name}";
     }
@@ -75,6 +79,15 @@ internal sealed class StockService(
         return db.LockStockAsync(keys, ct);
     }
 
+    /// <summary>Takipli (seri/lot) kalemler için ek kalem düzeyi kilidi: lot oluşturma ve serinin tek depoda bulunması.</summary>
+    private static IEnumerable<(Guid, Guid, Guid?)> WithItemLocks(IEnumerable<(Guid Warehouse, Guid Product, Guid? Variant)> keys,
+                                                                   IReadOnlyDictionary<Guid, Product> products) {
+        var list = keys.ToList();
+        return list.Select(k => (k.Warehouse, k.Product, k.Variant))
+                   .Concat(list.Where(k => products.TryGetValue(k.Product, out var p) && TrackingValidator.IsTracked(p))
+                               .Select(k => TrackingValidator.ItemKey(k.Product, k.Variant)));
+    }
+
     // ---- giriş / çıkış ---------------------------------------------------------------------------------------
 
     public async Task<IReadOnlyList<Guid>> ReceiveAsync(MovementType type, string sourceType, Guid sourceId, DateOnly date,
@@ -90,14 +103,17 @@ internal sealed class StockService(
             if (product.IsBundle)
                 throw InventoryErrors.BundleInbound();
 
+        foreach (var line in lines) tracking.ValidateInbound(products[line.ProductId], line.BaseQuantity, line.Lots, line.Serials);
+
         await periodLock.EnsureOpenAsync(date, ct);
-        await LockAsync(lines.Select(l => (l.WarehouseId, l.ProductId, l.VariantId)), ct);
+        await LockAsync(WithItemLocks(lines.Select(l => (l.WarehouseId, l.ProductId, l.VariantId)), products), ct);
 
         var context = await ledger.BeginAsync(ct);
         var ids     = new List<Guid>();
         foreach (var line in lines) {
             var movement = await ledger.InboundAsync(context, warehouses[line.WarehouseId], line.ProductId, line.VariantId, type, date,
                                                      line.BaseQuantity, line.UnitCost, sourceType, sourceId, line.SourceLineId, null, ct);
+            await tracking.ApplyInboundAsync(movement, products[line.ProductId], line.Lots, line.Serials, ct);
             ids.Add(movement.Id);
         }
 
@@ -121,7 +137,7 @@ internal sealed class StockService(
             var product = products[line.ProductId];
             if (!product.IsBundle) {
                 work.Add(new Work(warehouses[line.WarehouseId], product, line.VariantId, line.BaseQuantity, null, line.SourceLineId,
-                                  line.ExemptFromStockCheck, type));
+                                  line.ExemptFromStockCheck, type, line.Lots, line.Serials));
                 continue;
             }
 
@@ -132,8 +148,11 @@ internal sealed class StockService(
                                   MovementType.BundleIssue));
         }
 
+        foreach (var item in work) tracking.ValidateOutbound(item.Product, item.Quantity, item.Lots, item.Serials);
+
         await periodLock.EnsureOpenAsync(date, ct);
-        await LockAsync(work.Select(w => (w.Warehouse.Id, w.Product.Id, w.VariantId)), ct);
+        await LockAsync(WithItemLocks(work.Select(w => (w.Warehouse.Id, w.Product.Id, w.VariantId)),
+                                      work.Select(w => w.Product).DistinctBy(p => p.Id).ToDictionary(p => p.Id)), ct);
 
         var context = await ledger.BeginAsync(ct);
         var ids     = new List<Guid>();
@@ -149,6 +168,7 @@ internal sealed class StockService(
         var movement = await ledger.OutboundAsync(context, item.Warehouse, item.Product.Id, item.VariantId, item.Type, date,
                                                   item.Quantity, sourceType, sourceId, item.LineId, null, item.Exempt, item.Label,
                                                   null, null, ct);
+        await tracking.ApplyOutboundAsync(movement, item.Product, item.Lots, item.Serials, ct);
         await ledger.CheckMinAsync(watch, item.Warehouse, ct);
         return movement.Id;
     }
@@ -169,8 +189,11 @@ internal sealed class StockService(
             if (product.IsBundle)
                 throw InventoryErrors.BundleInbound();
 
+        foreach (var line in lines) tracking.ValidateOutbound(products[line.ProductId], line.BaseQuantity, line.Lots, line.Serials);
+
         await periodLock.EnsureOpenAsync(date, ct);
-        await LockAsync(lines.SelectMany(l => new[] { (l.FromWarehouseId, l.ProductId, l.VariantId), (l.ToWarehouseId, l.ProductId, l.VariantId) }), ct);
+        await LockAsync(WithItemLocks(lines.SelectMany(l => new[] { (l.FromWarehouseId, l.ProductId, l.VariantId), (l.ToWarehouseId, l.ProductId, l.VariantId) }),
+                                      products), ct);
 
         var context = await ledger.BeginAsync(ct);
         var ids     = new List<Guid>();
@@ -184,10 +207,12 @@ internal sealed class StockService(
             var outbound = await ledger.OutboundAsync(context, from, line.ProductId, line.VariantId, MovementType.TransferOut, date,
                                                       line.BaseQuantity, sourceType, sourceId, line.SourceLineId, null, false, label,
                                                       null, null, ct);
+            await tracking.ApplyOutboundAsync(outbound, product, line.Lots, line.Serials, ct);
             await ledger.CheckMinAsync(watch, from, ct);
-            await ledger.InboundAsync(context, to, line.ProductId, line.VariantId, MovementType.TransferIn, date, line.BaseQuantity,
-                                      outbound.UnitCost, sourceType, sourceId, line.SourceLineId,
-                                      Costing.CostReplay.TransferPrefix + outbound.Id, ct);
+            var inbound = await ledger.InboundAsync(context, to, line.ProductId, line.VariantId, MovementType.TransferIn, date,
+                                                    line.BaseQuantity, outbound.UnitCost, sourceType, sourceId, line.SourceLineId,
+                                                    Costing.CostReplay.TransferPrefix + outbound.Id, ct);
+            await tracking.ApplyTransferInAsync(inbound, outbound, product, ct);
             ids.Add(outbound.Id);
         }
 
@@ -204,10 +229,11 @@ internal sealed class StockService(
         // bu arada başka bir istek aynı kaynağı iptal etmiş olabilir.
         var keys = await db.StockMovements.AsNoTracking()
                            .Where(m => m.SourceType == sourceType && m.SourceId == sourceId && m.Quantity != 0m)
-                           .Select(m => new { m.WarehouseId, m.ProductId, m.VariantId }).Distinct().ToListAsync(ct);
+                           .Select(m => new { m.WarehouseId, m.ProductId, m.VariantId, Tracked = m.LotLines.Any() }).Distinct().ToListAsync(ct);
         if (keys.Count == 0) return;
 
-        await LockAsync(keys.Select(k => (k.WarehouseId, k.ProductId, k.VariantId)), ct);
+        await LockAsync(keys.Select(k => (k.WarehouseId, k.ProductId, k.VariantId))
+                            .Concat(keys.Where(k => k.Tracked).Select(k => TrackingValidator.ItemKey(k.ProductId, k.VariantId))), ct);
 
         var movements = await db.StockMovements.AsNoTracking()
                                 .Where(m => m.SourceType == sourceType && m.SourceId == sourceId)
@@ -240,8 +266,7 @@ internal sealed class StockService(
                                                     note, ct);
             }
 
-            foreach (var lot in original.LotLines)
-                written.LotLines.Add(new MovementLotLine { LotId = lot.LotId, SerialId = lot.SerialId, Quantity = -lot.Quantity });
+            await tracking.ApplyReversalAsync(written, original, product, ct);
         }
 
         await db.SaveChangesAsync(ct);
@@ -314,7 +339,8 @@ internal sealed class StockService(
 
     public async Task ConsumeAsync(string sourceType, Guid sourceId, Guid sourceLineId, decimal baseQuantity, CancellationToken ct,
                                    string? movementSourceType = null, Guid? movementSourceId = null, DateOnly? date = null,
-                                   bool exemptFromStockCheck = false) {
+                                   bool exemptFromStockCheck = false, IReadOnlyList<LotInput>? lots = null,
+                                   IReadOnlyList<string>? serials = null) {
         ValidateQuantity(baseQuantity);
         RequireBackToBack(exemptFromStockCheck);
 
@@ -354,7 +380,8 @@ internal sealed class StockService(
 
         var context = await ledger.BeginAsync(ct);
         var item = new Work(warehouses[first.WarehouseId], product, first.VariantId, baseQuantity, null, sourceLineId,
-                            exemptFromStockCheck, MovementType.SalesShipment);
+                            exemptFromStockCheck, MovementType.SalesShipment, lots, serials);
+        tracking.ValidateOutbound(product, baseQuantity, lots, serials);
         await IssueOneAsync(context, item, when, movementSourceType ?? sourceType, movementSourceId ?? sourceId, ct);
         await db.SaveChangesAsync(ct);
     }

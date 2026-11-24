@@ -1,3 +1,4 @@
+using ERP.Application.Inventory.Tracking.Queries;
 using ERP.Application.Inventory.Warehouses;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -14,6 +15,27 @@ public class Inventory : IEndpointGroup {
         groupBuilder.MapPost(ActivateWarehouse, "warehouses/{id:guid}/activate");
         groupBuilder.MapPost(DeactivateWarehouse, "warehouses/{id:guid}/deactivate");
         groupBuilder.MapDelete(DeleteWarehouse, "warehouses/{id:guid}");
+        groupBuilder.MapGet(ListLots, "tracking/lots");
+        groupBuilder.MapGet(SuggestLots, "tracking/lots/suggest");
+        groupBuilder.MapGet(ListSerials, "tracking/serials");
+    }
+
+    [EndpointSummary("Lotlar")]
+    [EndpointDescription("stok.read, seri-lot modülü (kapalıysa 403 module_disabled). Stoğu olan lotlar son kullanma tarihine göre; warehouseId verilmezse erişilebilir depoların toplamı.")]
+    public static async Task<Ok<IReadOnlyList<LotDto>>> ListLots(ISender sender, Guid productId, Guid? variantId, Guid? warehouseId) {
+        return TypedResults.Ok(await sender.Send(new ListLotsQuery(productId, variantId, warehouseId)));
+    }
+
+    [EndpointSummary("FEFO lot önerisi")]
+    [EndpointDescription("stok.read, seri-lot modülü. Son kullanma tarihi en yakın lottan başlayan çıkış önerisi; stok yetmezse eldeki kadarı döner.")]
+    public static async Task<Ok<IReadOnlyList<LotPickDto>>> SuggestLots(ISender sender, Guid productId, Guid? variantId, Guid warehouseId, decimal qty) {
+        return TypedResults.Ok(await sender.Send(new SuggestLotsQuery(productId, variantId, warehouseId, qty)));
+    }
+
+    [EndpointSummary("Seri numaraları")]
+    [EndpointDescription("stok.read, seri-lot modülü. inStock true: stokta olanlar, false: olmayanlar.")]
+    public static async Task<Ok<IReadOnlyList<SerialDto>>> ListSerials(ISender sender, Guid productId, Guid? variantId, Guid? warehouseId, bool? inStock) {
+        return TypedResults.Ok(await sender.Send(new ListSerialsQuery(productId, variantId, warehouseId, inStock)));
     }
 
     [EndpointSummary("Depolar")]
