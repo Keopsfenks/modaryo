@@ -4,4 +4,7 @@ namespace ERP.Application.Common.Interfaces;
 public interface IDocumentPdf {
     /// <summary>Faturanın A4 PDF'i. Taslak ise numarasız ve "TASLAK" filigranlıdır; iptalde "İPTAL" filigranı vardır.</summary>
     Task<byte[]> RenderInvoiceAsync(Guid invoiceId, CancellationToken ct);
+
+    /// <summary>Belge ayarlarının canlı önizlemesi için örnek veriyle (firma bilgileri, logo ve ayarlar gerçek) üretilen örnek fatura PDF'i.</summary>
+    Task<byte[]> RenderSampleAsync(CancellationToken ct);
 }

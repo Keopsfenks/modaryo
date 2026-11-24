@@ -14,6 +14,7 @@ public class Invoices : IEndpointGroup {
         groupBuilder.MapGet(List, "");
         groupBuilder.MapPost(Create, "");
         groupBuilder.MapGet(Codes, "codes");
+        groupBuilder.MapGet(SamplePdf, "sample-pdf");
         groupBuilder.MapPost(Preview, "preview");
         groupBuilder.MapGet(Get, "{id:guid}");
         groupBuilder.MapPut(Update, "{id:guid}");
@@ -42,6 +43,12 @@ public class Invoices : IEndpointGroup {
     [EndpointDescription("fatura.read. Satırda seçilebilen aktif tevkifat (code, name, tenths) ve istisna (code, name, group) kodları.")]
     public static async Task<Ok<InvoiceCodesDto>> Codes(ISender sender) {
         return TypedResults.Ok(await sender.Send(new ListInvoiceCodesQuery()));
+    }
+
+    [EndpointSummary("Örnek fatura PDF'i")]
+    [EndpointDescription("ayarlar.belgeler. Örnek kalemlerle, firma bilgileri/logo ve belge ayarları (vurgu rengi, alt not, IBAN) gerçek olarak basılmış A4 PDF. Belge ayarları sayfasındaki canlı önizleme için.")]
+    public static async Task<FileContentHttpResult> SamplePdf(ISender sender) {
+        return TypedResults.File(await sender.Send(new GetSampleInvoicePdfQuery()), "application/pdf", "ornek-fatura.pdf");
     }
 
     [EndpointSummary("Toplam önizleme")]

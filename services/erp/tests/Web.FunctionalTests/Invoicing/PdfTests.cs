@@ -142,4 +142,22 @@ public class PdfTests : TestBase {
         text.ShouldContain("YalnızYüzAmerikanDoları");
         text.ShouldContain("USD");
     }
+
+    [Test]
+    public async Task SamplePdf_UsesFirmAndDocumentSettings_AndNeedsAyarlarBelgeler() {
+        var env = await NewEnv();
+        await SetFirm(env, "Önizleme Ltd.", withLogo: false);
+
+        using var response = await env.Client.GetAsync($"{Url}/sample-pdf");
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var text = Text(await response.Content.ReadAsByteArrayAsync());
+
+        text.ShouldContain("ÖnizlemeLtd.");
+        text.ShouldContain("ÖrnekMüşteri");
+        text.ShouldContain(Iban);
+        text.ShouldNotContain("TASLAK");
+
+        using var denied = await (await OtherClient(env, "fatura.read")).GetAsync($"{Url}/sample-pdf");
+        denied.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
 }

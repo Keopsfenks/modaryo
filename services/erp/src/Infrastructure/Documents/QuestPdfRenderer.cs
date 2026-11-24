@@ -63,6 +63,33 @@ public sealed class QuestPdfRenderer(
         return await Task.Run(() => new InvoiceTemplate(model).GeneratePdf(), ct);
     }
 
+    public async Task<byte[]> RenderSampleAsync(CancellationToken ct) {
+        var firm     = await settings.GetAsync<CompanyProfileSettings>(ct);
+        var document = await settings.GetAsync<DocumentSettings>(ct);
+        var today    = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(3));
+
+        LineDto Line(int sort, string name, decimal qty, decimal price, int vat) {
+            var net = qty * price;
+            var tax = Math.Round(net * vat / 100m, 2, MidpointRounding.AwayFromZero);
+            return new LineDto(Guid.Empty, sort, null, null, name, "adet", 1m, qty, null, null, price, false, null, null, vat, null, null, null, null, null, net, 0m, 0m,
+                               net, 0m, net, tax, 0m, net + tax, net, 0m, tax, 0m, net + tax, null, null);
+        }
+
+        var lines = new List<LineDto> { Line(1, "Örnek ürün A", 10m, 100m, 20), Line(2, "Örnek hizmet B", 1m, 500m, 10) };
+        var vatSummary = lines.GroupBy(l => l.VatRate).Select(g => new VatSummaryDto(g.Key, g.Sum(l => l.Net), g.Sum(l => l.Vat))).ToList();
+        var totals = new TotalsDto(lines.Sum(l => l.Gross), 0m, lines.Sum(l => l.Net), 0m, lines.Sum(l => l.Vat), 0m, lines.Sum(l => l.Total));
+        var dto = new InvoiceDto(Guid.Empty, InvoiceKind.Sales, InvoiceStatus.Issued, InvoiceMode.Paper, null, Guid.Empty, null, "ORNEK2026000001", null, Guid.Empty,
+                                 "Örnek Müşteri A.Ş.", today, null, "TRY", 1m, RateType.ForexBuying, false, null, null, totals, totals, false, null, 30,
+                                 "Bu belge ayar önizlemesi için örnek verilerle üretilmiştir.", null, null, null, "invoice", 0u, null, lines,
+                                 [new DueDto(today.AddDays(30), totals.Payable)], vatSummary);
+
+        var buyer  = new PartyInfo("Örnek Müşteri A.Ş.", "V.D.: Örnek / VKN/TCKN: 1234567890", "Örnek Mah. 1. Sok. No 1, Kadıköy/İstanbul", null);
+        var ibans  = document.ShowIbans ? firm.Ibans.Select(i => (i.BankName, i.Iban, i.Currency)).ToList() : [];
+        var model  = new InvoicePdfModel(dto, FirmParty(firm), buyer, document.AccentColor, document.FooterNote, await LoadLogoAsync(firm.LogoFileId, ct), ibans,
+                                         new Dictionary<string, string>(), new Dictionary<string, string>());
+        return await Task.Run(() => new InvoiceTemplate(model).GeneratePdf(), ct);
+    }
+
     private static PartyInfo FirmParty(CompanyProfileSettings firm) {
         var tax = string.Join(" / ", new[] { firm.TaxOffice is { } o ? $"V.D.: {o}" : null, firm.TaxNumber is { } n ? $"VKN: {n}" : null }.Where(s => s is not null));
         var contact = string.Join(" | ", new[] { firm.Phone, firm.Email, firm.Website }.Where(s => !string.IsNullOrWhiteSpace(s)));

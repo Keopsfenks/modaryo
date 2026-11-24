@@ -24,3 +24,13 @@ public sealed class GetInvoicePdfQueryHandler(
         return new InvoicePdfFile(await pdf.RenderInvoiceAsync(request.Id, ct), InvoiceMail.FileName(head.Number, request.Id));
     }
 }
+
+/// <summary>Belge ayarları sayfasındaki canlı önizleme için örnek fatura PDF'i.</summary>
+[Authorize(Permission = InvoicingPermissions.SettingsDocuments)]
+public sealed record GetSampleInvoicePdfQuery : IRequest<byte[]>;
+
+public sealed class GetSampleInvoicePdfQueryHandler(IDocumentPdf pdf) : IRequestHandler<GetSampleInvoicePdfQuery, byte[]> {
+    public Task<byte[]> Handle(GetSampleInvoicePdfQuery request, CancellationToken ct) {
+        return pdf.RenderSampleAsync(ct);
+    }
+}

@@ -13,6 +13,7 @@ import {
     IconChecklist,
     IconClipboardCheck,
     IconClipboardList,
+    IconCurrencyDollar,
     IconFileDescription,
     IconFileInvoice,
     IconFileText,
@@ -98,6 +99,7 @@ export const navigation: NavSection[] = [
         items: [
             { title: "Cari Hesaplar", href: "/finans/cari-hesaplar", icon: IconWallet, permission: "cari.read", implemented: true },
             { title: "Vade Takibi", href: "/finans/vade-takibi", icon: IconCalendarDue, permission: "cari.read", implemented: true },
+            { title: "Döviz kurları", href: "/finans/kurlar", icon: IconCurrencyDollar, permission: "fatura.read", implemented: true },
             { title: "Kasa & Banka", href: "/finans/kasa-banka", icon: IconBuildingBank },
             { title: "Raporlar", href: "/finans/raporlar", icon: IconChartBar },
         ],
