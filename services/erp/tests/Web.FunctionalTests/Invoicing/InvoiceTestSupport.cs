@@ -34,9 +34,10 @@ internal static class InvoiceTestSupport {
         return TestEnvironment.Factory.ClientAsync(env.Tenant, null, null, null, permissions);
     }
 
-    public static async Task<Guid> CreateCari(HttpClient client, string code, bool customer, bool supplier, bool taxpayer = false, string currency = "TRY") {
+    public static async Task<Guid> CreateCari(HttpClient client, string code, bool customer, bool supplier, bool taxpayer = false, string currency = "TRY",
+                                                string? name = null) {
         using var response = await client.PostAsJsonAsync("/api/erp/current-accounts", new {
-            code, name = "Cari " + code, kind = "corporate", isCustomer = customer, isSupplier = supplier, isEInvoiceTaxpayer = taxpayer,
+            code, name = name ?? "Cari " + code, kind = "corporate", isCustomer = customer, isSupplier = supplier, isEInvoiceTaxpayer = taxpayer,
             currency, defaultDueDays = 30, taxNumber = (string?)null
         });
         response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());

@@ -63,6 +63,9 @@ public static class DependencyInjection {
         builder.Services.AddSingleton<ERP.Infrastructure.Rates.TcmbRateFetcher>();
         if (builder.Configuration.GetValue("Rates:FetchEnabled", true))
             builder.Services.AddHostedService(sp => sp.GetRequiredService<ERP.Infrastructure.Rates.TcmbRateFetcher>());
+        builder.Services.AddScoped<IDocumentPdf, ERP.Infrastructure.Documents.QuestPdfRenderer>();
+        builder.Services.AddOptions<ERP.Infrastructure.Documents.SmtpOptions>().Bind(builder.Configuration.GetSection(ERP.Infrastructure.Documents.SmtpOptions.Section));
+        builder.Services.AddSingleton<IDocumentMailer, ERP.Infrastructure.Documents.SmtpDocumentMailer>();
         builder.Services.AddSingleton<ERP.Infrastructure.Inventory.RevaluationWorker>();
         if (builder.Configuration.GetValue("Inventory:RevaluationEnabled", true))
             builder.Services.AddHostedService(sp => sp.GetRequiredService<ERP.Infrastructure.Inventory.RevaluationWorker>());

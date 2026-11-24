@@ -195,6 +195,30 @@ Cari hesaba her hareket eklendiğinde (hareket girişi ve kart açılışındaki
 | `due_date` | string veya `null` | Vade tarihi, `yyyy-MM-dd` |
 | `description` | string veya `null` | Açıklama |
 
+### `invoice.issued`
+
+Fatura kesildiğinde yayılır. Numara, defter/vade/stok yazımları ve olay aynı veritabanı işleminde oluşur; işlem geri alınırsa olay da oluşmaz.
+E-fatura/e-arşiv gönderimini yapacak servis `mode` alanıyla süzer; belge içeriğini ERP'den (iç API) okur.
+
+| `data` alanı | Tür | Anlam |
+|---|---|---|
+| `invoice_id` | UUID | Fatura |
+| `kind` | string (`Sales`, `Purchase`, `SalesReturn`, `PurchaseReturn`, `ExchangeDifference`) | Fatura türü (enum adı, PascalCase) |
+| `mode` | string (`Paper`, `EInvoice`, `EArchive`) | Kesim anında belirlenen belge modu |
+| `number` | string | Atanan fatura numarası (e-belge: `ABC2026000000001`, kâğıt: önek + sıra) |
+
+### `invoice.cancelled`
+
+Kesilmiş fatura iptal edildiğinde yayılır (defter, vade, eşleştirme ve stok geri alımıyla aynı işlemde). Numara kullanılmış kalır.
+
+| `data` alanı | Tür | Anlam |
+|---|---|---|
+| `invoice_id` | UUID | Fatura |
+| `kind` | string | `invoice.issued` ile aynı değerler |
+| `mode` | string | `invoice.issued` ile aynı değerler |
+| `number` | string | Faturanın numarası |
+| `reason` | string | İptal nedeni (2-200 karakter, kırpılmış) |
+
 ## Hata biçimi (ProblemDetails)
 
 Tüm servisler (.NET ve Go) hataları aynı gövdeyle döndürür. İçerik türü `application/problem+json`; Türkçe başlıklar kullanıcıya olduğu gibi gösterilir (frontend alan hatası yoksa `title`'ı gösterir, `code` ile dallanır).

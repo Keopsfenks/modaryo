@@ -1,5 +1,6 @@
 using ERP.Application.Invoicing;
 using ERP.Application.Invoicing.Commands;
+using ERP.Application.Invoicing.Documents;
 using ERP.Application.Invoicing.Queries;
 using ERP.Domain.Invoicing;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -18,6 +19,8 @@ public class Invoices : IEndpointGroup {
         groupBuilder.MapDelete(Delete, "{id:guid}");
         groupBuilder.MapPost(Issue, "{id:guid}/issue");
         groupBuilder.MapPost(Cancel, "{id:guid}/cancel");
+        groupBuilder.MapGet(Pdf, "{id:guid}/pdf");
+        groupBuilder.MapPost(Email, "{id:guid}/email");
     }
 
     [EndpointSummary("Faturalar")]
@@ -71,6 +74,22 @@ public class Invoices : IEndpointGroup {
     [EndpointDescription("fatura.cancel (alış türleri ayrıca fiyat.alis). Gövde: { reason } (2-200 karakter). Defter hareketi, vade satırları, eşleştirmeler ve stok tek işlemde geri alınır; numara kullanılmış kalır. 409: invoice_cancelled (zaten iptal), invoice_not_issued (taslak), invoice_has_payments, period_locked.")]
     public static async Task<NoContent> Cancel(ISender sender, Guid id, CancelBody body) {
         await sender.Send(new CancelInvoiceCommand(id, body.Reason));
+        return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("Fatura PDF'i")]
+    [EndpointDescription("fatura.read (alış türleri ayrıca fiyat.alis). A4 PDF; firma logosu, alıcı/satıcı, satırlar, KDV özeti, tevkifat, yazıyla tutar ve (ayara göre) IBAN'lar. Taslakta numarasız ve TASLAK filigranlı, iptalde İPTAL filigranlıdır.")]
+    public static async Task<FileContentHttpResult> Pdf(ISender sender, Guid id) {
+        var file = await sender.Send(new GetInvoicePdfQuery(id));
+        return TypedResults.File(file.Content, "application/pdf", file.FileName);
+    }
+
+    public sealed record EmailBody(List<string> To, List<string>? Cc, string? Subject, string? Body);
+
+    [EndpointSummary("Faturayı e-posta ile gönder")]
+    [EndpointDescription("fatura.issue (alış türleri ayrıca fiyat.alis). Gövde: { to[], cc[]?, subject?, body? }. Konu/metin verilmezse belge ayarlarındaki şablon kullanılır; {firma} {belgeNo} {alici} {tutar} {vade} değişkenleri doldurulur, metin düz metin sayılır. Fatura PDF olarak eklenir. 409: invoice_not_issued (taslak), invoice_cancelled; 502 mail_send_failed.")]
+    public static async Task<NoContent> Email(ISender sender, Guid id, EmailBody body) {
+        await sender.Send(new SendInvoiceEmailCommand(id, body.To, body.Cc, body.Subject, body.Body));
         return TypedResults.NoContent();
     }
 }

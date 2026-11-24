@@ -11,6 +11,8 @@
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>
         <PackageReference Include="AWSSDK.S3"/>
         <PackageReference Include="ClosedXML"/>
+        <PackageReference Include="MailKit"/>
+        <PackageReference Include="QuestPDF"/>
         <PackageReference Include="StackExchange.Redis"/>
     </ItemGroup>
 
