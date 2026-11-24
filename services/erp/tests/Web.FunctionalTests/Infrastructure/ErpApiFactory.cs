@@ -24,12 +24,16 @@ public class ErpApiFactory(
     /// <summary>Başka modüllerin kalem kullanımını taklit eden sahte sağlayıcı.</summary>
     public FakeItemUsageProvider ItemUsage { get; } = new();
 
+    /// <summary>TCMB'nin yerine geçen sahte kaynak: gerçek siteye hiçbir test gitmez.</summary>
+    public FakeTcmbSource Tcmb { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder) {
         builder.UseEnvironment("Development");
         builder.UseSetting($"ConnectionStrings:{Shared.Services.Database}", connectionString);
         builder.UseSetting("ConnectionStrings:Valkey",                      ValkeyConnectionString);
         builder.UseSetting("Files:S3:KeyPrefix", FileKeyPrefix);
         builder.UseSetting("Inventory:RevaluationEnabled", "false"); // testler PublishPendingAsync / PublicRunOnceAsync çağırır
+        builder.UseSetting("Rates:FetchEnabled", "false"); // testler sahte TCMB kaynağını POST /exchange-rates/fetch ile çalıştırır
         builder.UseSetting("Outbox:RelayEnabled", "false"); // testler PublishPendingAsync'i kendileri çağırır
         Platform.InternalProbes.Configure(builder);
         builder.ConfigureTestServices(services => {
@@ -40,6 +44,8 @@ public class ErpApiFactory(
                                           services.RemoveAll<IBranchDirectory>();
                                           services.AddSingleton<IBranchDirectory>(Branches);
                                           services.AddSingleton<IItemUsageProvider>(ItemUsage);
+                                          services.RemoveAll<ITcmbRateSource>();
+                                          services.AddSingleton<ITcmbRateSource>(Tcmb);
                                       });
     }
 

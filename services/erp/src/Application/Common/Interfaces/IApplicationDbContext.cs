@@ -102,6 +102,8 @@ public interface IApplicationDbContext {
 
     DbSet<ExchangeRate> ExchangeRates { get; }
 
+    DbSet<TenantRateOverride> TenantRateOverrides { get; }
+
     /// <summary>Firma + anahtar için sıradaki numarayı (1'den) tek SQL ifadesiyle ayırır; işlem geri alınırsa numara da geri gider.</summary>
     Task<int> NextDocumentNumberAsync(string key, CancellationToken cancellationToken);
 

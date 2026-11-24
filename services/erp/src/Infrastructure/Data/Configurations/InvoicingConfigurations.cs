@@ -191,3 +191,15 @@ public class ExchangeRateConfiguration : IEntityTypeConfiguration<ExchangeRate> 
         builder.HasIndex(e => new { e.Currency, e.Type, e.Date }).IsUnique();
     }
 }
+
+public class TenantRateOverrideConfiguration : IEntityTypeConfiguration<TenantRateOverride> {
+    public void Configure(EntityTypeBuilder<TenantRateOverride> builder) {
+        builder.ToTable("tenant_rate_overrides");
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.Currency).HasMaxLength(3).IsRequired();
+        builder.Property(e => e.Type).HasConversion<string>().HasMaxLength(20);
+        builder.Property(e => e.Rate).HasPrecision(18, 6);
+        builder.Property(e => e.ActorLabel).HasMaxLength(200).IsRequired();
+        builder.HasIndex(e => new { e.TenantId, e.Currency, e.Type, e.Date }).IsUnique();
+    }
+}

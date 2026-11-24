@@ -58,6 +58,11 @@ public static class DependencyInjection {
                                           sp.GetRequiredService<RelayDatabase>(),
                                           sp.GetRequiredService<TimeProvider>(),
                                           sp.GetRequiredService<ILogger<StoredAllocationsBackfill>>()));
+        builder.Services.AddScoped<IExchangeRates, ERP.Infrastructure.Rates.ExchangeRates>();
+        builder.Services.AddHttpClient<ITcmbRateSource, ERP.Infrastructure.Rates.TcmbClient>(client => client.Timeout = TimeSpan.FromSeconds(15));
+        builder.Services.AddSingleton<ERP.Infrastructure.Rates.TcmbRateFetcher>();
+        if (builder.Configuration.GetValue("Rates:FetchEnabled", true))
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<ERP.Infrastructure.Rates.TcmbRateFetcher>());
         builder.Services.AddSingleton<ERP.Infrastructure.Inventory.RevaluationWorker>();
         if (builder.Configuration.GetValue("Inventory:RevaluationEnabled", true))
             builder.Services.AddHostedService(sp => sp.GetRequiredService<ERP.Infrastructure.Inventory.RevaluationWorker>());

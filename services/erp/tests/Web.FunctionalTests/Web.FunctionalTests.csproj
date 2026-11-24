@@ -28,6 +28,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="Fixtures\*.xml" CopyToOutputDirectory="PreserveNewest"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <None Include="..\..\..\..\contracts\session-v1.example.json" Link="session-v1.example.json" CopyToOutputDirectory="PreserveNewest"/>
     </ItemGroup>
 

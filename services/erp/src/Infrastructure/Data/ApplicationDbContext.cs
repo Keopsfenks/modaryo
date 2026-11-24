@@ -123,6 +123,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
 
     public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
 
+    public DbSet<TenantRateOverride> TenantRateOverrides => Set<TenantRateOverride>();
+
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
