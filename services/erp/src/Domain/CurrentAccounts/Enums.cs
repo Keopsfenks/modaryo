@@ -13,7 +13,11 @@ public enum LedgerEntryType {
 
 public enum LedgerEntrySource {
     Manual,
-    Invoice
+    Invoice,
+    Payment,
+    Check,
+    Note,
+    Voucher
 }
 
 public enum DueDirection {
