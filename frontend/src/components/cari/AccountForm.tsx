@@ -28,6 +28,7 @@ import {
     type EntryDirection,
     type OpeningBalanceInput,
 } from "@/lib/api/erp";
+import { pricing, type CustomerGroupDto } from "@/lib/api/pricing";
 import { parseAmount, type Currency } from "@/lib/money";
 import { isValidTckn, isValidVkn } from "@/lib/taxNumber";
 import CurrencySelect from "./CurrencySelect";
@@ -49,6 +50,7 @@ type FormValues = {
     currency: Currency;
     defaultDueDays: string;
     creditLimit: string;
+    customerGroupId: string;
     addressTitle: string;
     addressLine: string;
     addressDistrict: string;
@@ -92,6 +94,7 @@ function initialValues(initial: CurrentAccountDto | undefined, defaultRole: Acco
         currency: initial?.currency ?? "TRY",
         defaultDueDays: String(initial?.defaultDueDays ?? 30),
         creditLimit: initial?.creditLimit == null ? "" : String(initial.creditLimit).replace(".", ","),
+        customerGroupId: initial?.customerGroupId ?? "",
         addressTitle: "",
         addressLine: "",
         addressDistrict: "",
@@ -170,6 +173,7 @@ function buildBody(v: FormValues, creating: boolean): CreateAccountInput {
         currency: v.currency,
         defaultDueDays: Number(v.defaultDueDays.trim()),
         creditLimit: optionalAmount(v.creditLimit),
+        customerGroupId: v.customerGroupId || null,
     };
     if (!creating) return body;
 
@@ -206,6 +210,12 @@ export default function AccountForm({ initial, defaultRole, onSaved }: AccountFo
     const [errors, setErrors] = useState<Errors>({});
     const [alert, setAlert] = useState<ApiError | null>(null);
     const [busy, setBusy] = useState(false);
+    const [groups, setGroups] = useState<CustomerGroupDto[]>([]);
+
+    useEffect(() => {
+        // fiyat.read yoksa uç 403 döner: alan gösterilmez, mevcut grup değeri değişmeden korunur.
+        pricing.customerGroups().then(setGroups, () => undefined);
+    }, []);
 
     useEffect(() => {
         if (!creating) return;
@@ -267,6 +277,7 @@ export default function AccountForm({ initial, defaultRole, onSaved }: AccountFo
                       currency: body.currency,
                       defaultDueDays: body.defaultDueDays,
                       creditLimit: body.creditLimit,
+                      customerGroupId: body.customerGroupId,
                   })
                 : await erp.createAccount(body);
             onSaved(saved);
@@ -356,6 +367,19 @@ export default function AccountForm({ initial, defaultRole, onSaved }: AccountFo
                 </Grid>
                 <Grid size={{ xs: 12, sm: 4 }}>{text("defaultDueDays", "Varsayılan vade (gün)", { slotProps: { htmlInput: { inputMode: "numeric" } } })}</Grid>
                 <Grid size={{ xs: 12, sm: 4 }}>{text("creditLimit", "Kredi limiti", { slotProps: { htmlInput: { inputMode: "decimal" } } })}</Grid>
+
+                {v.isCustomer && groups.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                        <TextField select id="customerGroupId" label="Müşteri grubu" fullWidth value={v.customerGroupId} onChange={(e) => set("customerGroupId", e.target.value)}>
+                            <MenuItem value="">Grup yok</MenuItem>
+                            {groups.map((g) => (
+                                <MenuItem key={g.id} value={g.id}>
+                                    {g.name}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                    </Grid>
+                )}
 
                 <Grid size={12}>{text("notes", "Notlar", { multiline: true, minRows: 2 })}</Grid>
 

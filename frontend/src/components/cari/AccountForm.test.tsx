@@ -158,3 +158,41 @@ describe("AccountForm", () => {
         expect(message).toHaveTextContent("C-0008");
     });
 });
+
+describe("AccountForm customer group", () => {
+    beforeEach(() => resetNavigation("/cari/yeni"));
+
+    it("AccountForm_CustomerGroupSelectSent", async () => {
+        mockNextCode();
+        const sent: { body?: Record<string, unknown> } = {};
+        mockCreate(sent);
+        server.use(http.get("*/api/erp/pricing/customer-groups", () => HttpResponse.json([{ id: "g1", name: "Bayi", salePriceListId: null, customerCount: 2 }])));
+        const { user } = renderWithTheme(<AccountForm defaultRole="customer" onSaved={vi.fn()} />);
+        await waitFor(() => expect(screen.getByLabelText("Kod")).toHaveValue("C-0007"));
+        await user.type(screen.getByLabelText(/ad \/ unvan/i), "Akın Tekstil");
+
+        await user.click(await screen.findByRole("combobox", { name: /müşteri grubu/i }));
+        await user.click(await screen.findByRole("option", { name: "Bayi" }));
+        await user.click(screen.getByRole("button", { name: /kaydet/i }));
+
+        await waitFor(() => expect(sent.body).toBeDefined());
+        expect(sent.body!.customerGroupId).toBe("g1");
+    });
+
+    it("AccountForm_UpdateKeepsExistingGroupWhenFieldHidden", async () => {
+        let body: Record<string, unknown> | undefined;
+        server.use(
+            http.get("*/api/erp/pricing/customer-groups", () => HttpResponse.json(problem(403, "Yetkiniz yok."), { status: 403 })),
+            http.put("*/api/erp/current-accounts/acc-1", async ({ request }) => {
+                body = (await request.json()) as Record<string, unknown>;
+                return HttpResponse.json(dto());
+            }),
+        );
+        const { user } = renderWithTheme(<AccountForm initial={dto({ customerGroupId: "g9" })} onSaved={vi.fn()} />);
+
+        await user.click(screen.getByRole("button", { name: /kaydet/i }));
+
+        await waitFor(() => expect(body).toBeDefined());
+        expect(body!.customerGroupId).toBe("g9");
+    });
+});

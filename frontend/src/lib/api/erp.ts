@@ -62,6 +62,8 @@ export type CurrentAccountDto = {
     balance: number;
     overdueAmount: number;
     hasMovements: boolean;
+    /** Fiyatlandırma müşteri grubu (fiyat.read yoksa da gelir, yalnızca kimlik). */
+    customerGroupId?: string | null;
     addresses: AddressDto[];
 };
 
@@ -95,6 +97,8 @@ export type UpdateAccountInput = {
     currency: Currency;
     defaultDueDays: number;
     creditLimit?: number | null;
+    /** Güncellemede her zaman gönderilir; boş bırakmak grubu kaldırır. */
+    customerGroupId?: string | null;
 };
 
 export type CreateAccountInput = UpdateAccountInput & {

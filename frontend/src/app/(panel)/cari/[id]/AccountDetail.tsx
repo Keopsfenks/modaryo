@@ -19,6 +19,7 @@ import AccountForm from "@/components/cari/AccountForm";
 import AccountHeader from "@/components/cari/AccountHeader";
 import AddressesTab from "@/components/cari/AddressesTab";
 import DueTab from "@/components/cari/DueTab";
+import CustomerPricesTab from "@/components/pricing/CustomerPricesTab";
 import MovementsTab from "@/components/cari/MovementsTab";
 import StatementTab from "@/components/cari/StatementTab";
 import DashboardCard from "@/components/dashboard/DashboardCard";
@@ -26,7 +27,7 @@ import { ApiError } from "@/lib/api/client";
 import { erp, type CurrentAccountDto } from "@/lib/api/erp";
 import { useSession } from "@/session/SessionProvider";
 
-const TABS = [
+const BASE_TABS = [
     { value: "genel", label: "Genel" },
     { value: "adresler", label: "Adresler" },
     { value: "hareketler", label: "Hareketler" },
@@ -35,9 +36,9 @@ const TABS = [
     { value: "acik-faturalar", label: "Açık faturalar" },
 ] as const;
 
-type TabValue = (typeof TABS)[number]["value"];
+const PRICES_TAB = { value: "ozel-fiyatlar", label: "Özel fiyatlar" } as const;
 
-const isTab = (value: string | null): value is TabValue => TABS.some((t) => t.value === value);
+type TabValue = (typeof BASE_TABS)[number]["value"] | typeof PRICES_TAB.value;
 
 /** Cari detay sayfası: başlık ve sekmeler. Seçili sekme ?sekme= parametresinde tutulur. */
 export default function AccountDetail({ id }: { id: string }) {
@@ -55,8 +56,11 @@ export default function AccountDetail({ id }: { id: string }) {
     const [busy, setBusy] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
 
+    const canSeePrices = hasPermission("fiyat.read");
+    const canManagePrices = hasPermission("fiyat.manage");
+    const tabs: readonly { value: TabValue; label: string }[] = account?.isCustomer && canSeePrices ? [...BASE_TABS, PRICES_TAB] : BASE_TABS;
     const sekme = searchParams.get("sekme");
-    const tab: TabValue = isTab(sekme) ? sekme : "genel";
+    const tab: TabValue = tabs.find((t) => t.value === sekme)?.value ?? "genel";
 
     useEffect(() => {
         if (!canRead) return;
@@ -127,7 +131,7 @@ export default function AccountDetail({ id }: { id: string }) {
             <FormAlert error={actionError} />
 
             <Tabs className="no-print" value={tab} onChange={changeTab} variant="scrollable" scrollButtons="auto" aria-label="Cari sekmeleri">
-                {TABS.map((t) => (
+                {tabs.map((t) => (
                     <Tab key={t.value} value={t.value} label={t.label} />
                 ))}
             </Tabs>
@@ -159,6 +163,7 @@ export default function AccountDetail({ id }: { id: string }) {
             {tab === "hareketler" && <MovementsTab account={account} canMove={canMove} onChanged={setAccount} />}
             {tab === "ekstre" && <StatementTab account={account} />}
             {tab === "vade" && <DueTab account={account} />}
+            {tab === "ozel-fiyatlar" && <CustomerPricesTab account={account} canManage={canManagePrices} />}
             {tab === "acik-faturalar" && (
                 <DashboardCard title="Açık faturalar">
                     <Typography color="text.secondary">Fatura modülü eklendiğinde bu carinin açık faturaları burada listelenecek.</Typography>

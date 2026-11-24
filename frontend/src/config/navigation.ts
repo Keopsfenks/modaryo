@@ -16,6 +16,7 @@ import {
     IconLayoutDashboard,
     IconPackage,
     IconSettings,
+    IconSpeakerphone,
     IconTag,
     IconTags,
     IconShoppingCart,
@@ -56,6 +57,8 @@ export const navigation: NavSection[] = [
         items: [
             { title: "Müşteriler", href: "/satis/musteriler", icon: IconUsers, permission: "cari.read", implemented: true },
             { title: "Fiyat listeleri", href: "/satis/fiyat-listeleri", icon: IconTags, permission: "fiyat.read", implemented: true },
+            { title: "Müşteri grupları", href: "/satis/musteri-gruplari", icon: IconUsersGroup, permission: "fiyat.read", implemented: true },
+            { title: "Kampanyalar", href: "/satis/kampanyalar", icon: IconSpeakerphone, permission: "fiyat.read", implemented: true },
             { title: "Teklifler", href: "/satis/teklifler", icon: IconFileText },
             { title: "Siparişler", href: "/satis/siparisler", icon: IconShoppingCart, badge: "12" },
             { title: "Faturalar", href: "/satis/faturalar", icon: IconFileInvoice },

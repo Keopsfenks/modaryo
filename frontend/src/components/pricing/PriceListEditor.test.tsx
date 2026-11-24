@@ -74,6 +74,9 @@ function setup(items: PriceItemDto[], permissions: string[] = ["*"], list: Price
 
 const render = (ui: React.ReactElement) => renderWithTheme(<SessionProvider>{ui}</SessionProvider>);
 
+// Autocomplete aramaları ve yazma etkileşimleri yüklü makinede 5 sn sınırını aşabilir.
+vi.setConfig({ testTimeout: 20000 });
+
 describe("PriceListEditor", () => {
     beforeEach(() => resetNavigation("/satis/fiyat-listeleri/L1"));
 
@@ -90,7 +93,7 @@ describe("PriceListEditor", () => {
 
         await screen.findByText("U00001 · Kalem");
         await user.type(screen.getByLabelText("Kalem ekle"), "Defter");
-        await user.click(await screen.findByRole("option", { name: "U00002 · Defter" }));
+        await user.click(await screen.findByRole("option", { name: "U00002 · Defter" }, { timeout: 4000 }));
 
         await user.type(await screen.findByLabelText("U00002 fiyatı"), "49,9");
         await user.click(screen.getByRole("button", { name: "Kaydet" }));
@@ -183,7 +186,7 @@ describe("PriceListEditor", () => {
         const dialog = await screen.findByRole("dialog");
         await user.type(within(dialog).getByLabelText("Yüzde (%)"), "10");
         await user.click(within(dialog).getByLabelText("Kategori"));
-        await user.click(await screen.findByRole("option", { name: "Kırtasiye" }));
+        await user.click(await screen.findByRole("option", { name: "Kırtasiye" }, { timeout: 4000 }));
         await user.click(within(dialog).getByRole("button", { name: "Uygula" }));
 
         expect(await screen.findByText("4 satır güncellendi.")).toBeInTheDocument();

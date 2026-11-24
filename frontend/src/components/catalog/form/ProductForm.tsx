@@ -9,6 +9,7 @@ import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import Alert from "@mui/material/Alert";
 import FormAlert from "@/components/auth/FormAlert";
+import ProductPricesTab from "@/components/pricing/ProductPricesTab";
 import {
     VAT_RATES,
     catalog,
@@ -37,6 +38,7 @@ const ALL_TABS = [
     { value: "tedarikciler", label: "Tedarikçiler" },
     { value: "gorseller", label: "Görseller" },
     { value: "ozel-alanlar", label: "Özel alanlar" },
+    { value: "fiyatlar", label: "Fiyatlar" },
 ] as const;
 
 type TabValue = (typeof ALL_TABS)[number]["value"];
@@ -132,7 +134,8 @@ export default function ProductForm({ product, defaultKind = "product", onSaved,
     }
 
     const service = v.kind === "service";
-    const tabs = ALL_TABS.filter((t) => !(service && t.value === "varyantlar"));
+    const canSeePrices = hasPermission("fiyat.read");
+    const tabs = ALL_TABS.filter((t) => !(service && t.value === "varyantlar") && !(t.value === "fiyatlar" && (creating || !canSeePrices)));
     const sekme = searchParams.get("sekme");
     const tab: TabValue = tabs.some((t) => t.value === sekme) ? (sekme as TabValue) : "genel";
 
@@ -158,7 +161,8 @@ export default function ProductForm({ product, defaultKind = "product", onSaved,
 
     async function submit(event: React.FormEvent) {
         event.preventDefault();
-        if (busy || !v || !lookups) return;
+        // Fiyatlar sekmesi salt okunur araçlar içerir; orada Enter tuşu kartı kaydetmez.
+        if (busy || !v || !lookups || tab === "fiyatlar") return;
         setSaved(false);
         setAlert(null);
         const found = validate(v, lookups.definitions);
@@ -245,7 +249,9 @@ export default function ProductForm({ product, defaultKind = "product", onSaved,
 
             </fieldset>
 
-            {tab !== "varyantlar" && canManage && (
+            {tab === "fiyatlar" && product && <ProductPricesTab product={product} />}
+
+            {tab !== "varyantlar" && tab !== "fiyatlar" && canManage && (
                 <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
                     <Button type="submit" variant="contained" disabled={busy}>
                         {busy ? "Kaydediliyor..." : "Kaydet"}
