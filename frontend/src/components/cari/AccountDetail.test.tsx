@@ -132,13 +132,36 @@ describe("AccountDetail", () => {
         expect(screen.getByRole("button", { name: "Etkinleştir" })).toBeInTheDocument();
     });
 
-    it("OpenInvoicesTab_ShowsInfo", async () => {
+    it("OpenInvoicesTab_ListsIssuedInvoicesWithOpenBalance", async () => {
         resetNavigation("/cari/acc-1", "sekme=acik-faturalar");
         setup();
+        server.use(
+            http.get("*/api/erp/current-accounts/acc-1/statement", () =>
+                HttpResponse.json({
+                    openingBalance: 0,
+                    rows: [
+                        { id: "e-1", date: "2026-03-01", type: "debitNote", documentNo: "F000001", description: null, debit: 120, credit: 0, dueDate: "2026-03-31", runningBalance: 120, cancelled: false, cancelReason: null, source: "invoice", sourceId: "inv-1" },
+                        { id: "e-2", date: "2026-03-02", type: "debitNote", documentNo: null, description: "Elle", debit: 50, credit: 0, dueDate: null, runningBalance: 170, cancelled: false, cancelReason: null, source: "manual", sourceId: null },
+                    ],
+                    totalDebit: 170,
+                    totalCredit: 0,
+                    closingBalance: 170,
+                    currency: "TRY",
+                }),
+            ),
+            http.get("*/api/erp/current-accounts/acc-1/due-items", () =>
+                HttpResponse.json([
+                    { entryId: "e-1", date: "2026-03-01", dueDate: "2026-03-31", direction: "receivable", remaining: 120, daysOverdue: 0 },
+                    { entryId: "e-2", date: "2026-03-02", dueDate: "2026-04-02", direction: "receivable", remaining: 50, daysOverdue: 0 },
+                ]),
+            ),
+        );
 
         render();
 
-        expect(await screen.findByText("Fatura modülü eklendiğinde bu carinin açık faturaları burada listelenecek.")).toBeInTheDocument();
+        const link = await screen.findByRole("link", { name: "F000001" });
+        expect(link).toHaveAttribute("href", "/satis/faturalar/inv-1");
+        expect(screen.getAllByRole("row")).toHaveLength(2);
     });
 
     it("Detail_NotFound", async () => {

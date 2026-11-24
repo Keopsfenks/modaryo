@@ -129,6 +129,9 @@ export type StatementRow = {
     runningBalance: number;
     cancelled: boolean;
     cancelReason: string | null;
+    /** Fatura hareketlerinde "invoice"; elle girişlerde "manual". */
+    source?: "manual" | "invoice";
+    sourceId?: string | null;
 };
 
 export type AddEntryResult = { entry: StatementRow; balance: number; creditLimitExceeded: boolean };

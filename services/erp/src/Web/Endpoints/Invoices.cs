@@ -13,6 +13,7 @@ public class Invoices : IEndpointGroup {
     public static void Map(RouteGroupBuilder groupBuilder) {
         groupBuilder.MapGet(List, "");
         groupBuilder.MapPost(Create, "");
+        groupBuilder.MapGet(Codes, "codes");
         groupBuilder.MapPost(Preview, "preview");
         groupBuilder.MapGet(Get, "{id:guid}");
         groupBuilder.MapPut(Update, "{id:guid}");
@@ -35,6 +36,12 @@ public class Invoices : IEndpointGroup {
     public static async Task<Created<InvoiceDto>> Create(ISender sender, InvoiceInput input) {
         var invoice = await sender.Send(new CreateDraftCommand(input));
         return TypedResults.Created($"/api/erp/invoices/{invoice.Id}", invoice);
+    }
+
+    [EndpointSummary("Tevkifat ve istisna kodları")]
+    [EndpointDescription("fatura.read. Satırda seçilebilen aktif tevkifat (code, name, tenths) ve istisna (code, name, group) kodları.")]
+    public static async Task<Ok<InvoiceCodesDto>> Codes(ISender sender) {
+        return TypedResults.Ok(await sender.Send(new ListInvoiceCodesQuery()));
     }
 
     [EndpointSummary("Toplam önizleme")]

@@ -13,12 +13,12 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
-import Typography from "@mui/material/Typography";
 import FormAlert from "@/components/auth/FormAlert";
 import AccountForm from "@/components/cari/AccountForm";
 import AccountHeader from "@/components/cari/AccountHeader";
 import AddressesTab from "@/components/cari/AddressesTab";
 import DueTab from "@/components/cari/DueTab";
+import OpenInvoicesTab from "@/components/invoicing/OpenInvoicesTab";
 import CustomerPricesTab from "@/components/pricing/CustomerPricesTab";
 import MovementsTab from "@/components/cari/MovementsTab";
 import StatementTab from "@/components/cari/StatementTab";
@@ -164,11 +164,7 @@ export default function AccountDetail({ id }: { id: string }) {
             {tab === "ekstre" && <StatementTab account={account} />}
             {tab === "vade" && <DueTab account={account} />}
             {tab === "ozel-fiyatlar" && <CustomerPricesTab account={account} canManage={canManagePrices} />}
-            {tab === "acik-faturalar" && (
-                <DashboardCard title="Açık faturalar">
-                    <Typography color="text.secondary">Fatura modülü eklendiğinde bu carinin açık faturaları burada listelenecek.</Typography>
-                </DashboardCard>
-            )}
+            {tab === "acik-faturalar" && <OpenInvoicesTab account={account} />}
 
             <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)}>
                 <DialogTitle>Cari silinsin mi?</DialogTitle>

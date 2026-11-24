@@ -32,6 +32,7 @@ export default function SidebarContent({ onNavigate }: SidebarContentProps) {
         .map((section) => ({ ...section, items: section.items.filter(
                 (item) =>
                     (!item.permission || hasPermission(item.permission)) &&
+                    (!item.alsoPermission || hasPermission(item.alsoPermission)) &&
                     (!item.module || hasModule(item.module)) &&
                     (item.href !== "/ayarlar" || canSeeSettings),
             ) }))

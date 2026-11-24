@@ -38,6 +38,8 @@ export type NavItem = {
     badge?: string;
     /** Bu izni olmayan kullanıcı öğeyi menüde görmez ("*" her izni karşılar). */
     permission?: string;
+    /** Ek olarak gereken ikinci izin (ör. alış faturaları: fatura.read + fiyat.alis). */
+    alsoPermission?: string;
     /** Bu modül firmada kapalıysa öğe menüde görünmez. */
     module?: string;
     /** Gerçek sayfası olan öğe; "Yakında" sayfası üretilmez. */
@@ -65,7 +67,7 @@ export const navigation: NavSection[] = [
             { title: "Kampanyalar", href: "/satis/kampanyalar", icon: IconSpeakerphone, permission: "fiyat.read", implemented: true },
             { title: "Teklifler", href: "/satis/teklifler", icon: IconFileText },
             { title: "Siparişler", href: "/satis/siparisler", icon: IconShoppingCart, badge: "12" },
-            { title: "Faturalar", href: "/satis/faturalar", icon: IconFileInvoice },
+            { title: "Faturalar", href: "/satis/faturalar", icon: IconFileInvoice, permission: "fatura.read", implemented: true },
         ],
     },
     {
@@ -73,6 +75,7 @@ export const navigation: NavSection[] = [
         items: [
             { title: "Tedarikçiler", href: "/satin-alma/tedarikciler", icon: IconBuildingStore, permission: "cari.read", implemented: true },
             { title: "Alış fiyatları", href: "/satin-alma/alis-fiyatlari", icon: IconTag, permission: "fiyat.alis", implemented: true },
+            { title: "Alış faturaları", href: "/satin-alma/faturalar", icon: IconFileInvoice, permission: "fatura.read", alsoPermission: "fiyat.alis", implemented: true },
             { title: "Satın Alma Siparişleri", href: "/satin-alma/siparisler", icon: IconTruckDelivery },
         ],
     },
