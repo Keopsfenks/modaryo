@@ -1,5 +1,6 @@
 using ERP.Application.CurrentAccounts;
 using ERP.Application.Pricing;
+using ERP.Application.Pricing.Campaigns;
 using ERP.Application.Pricing.CustomerPrices;
 using ERP.Application.Pricing.Groups;
 using ERP.Application.Pricing.History;
@@ -34,6 +35,11 @@ public class Pricing : IEndpointGroup {
         groupBuilder.MapDelete(DeleteCustomerPrice, "customers/{currentAccountId:guid}/prices/{id:guid}");
         groupBuilder.MapGet(ListHistory, "history");
         groupBuilder.MapGet(GetQuote, "quote");
+        groupBuilder.MapGet(ListCampaigns, "campaigns");
+        groupBuilder.MapPost(CreateCampaign, "campaigns");
+        groupBuilder.MapPut(UpdateCampaign, "campaigns/{id:guid}");
+        groupBuilder.MapDelete(DeleteCampaign, "campaigns/{id:guid}");
+        groupBuilder.MapPost(EvaluateCampaigns, "campaigns/evaluate");
     }
 
     [EndpointSummary("Fiyat listeleri")]
@@ -153,6 +159,36 @@ public class Pricing : IEndpointGroup {
         DateOnly? date = null) {
         return TypedResults.Ok(await sender.Send(new GetQuoteQuery(ParseKind(kind) ?? PriceListKind.Sale, currentAccountId, productId,
                                                                    variantId, unit, quantity, date)));
+    }
+
+    [EndpointSummary("Kampanyalar")]
+    [EndpointDescription("fiyat.read. Pasifler yalnızca includeInactive=true ile gelir.")]
+    public static async Task<Ok<IReadOnlyList<CampaignDto>>> ListCampaigns(ISender sender, bool includeInactive = false) {
+        return TypedResults.Ok(await sender.Send(new ListCampaignsQuery(includeInactive)));
+    }
+
+    [EndpointSummary("Kampanya oluştur")]
+    [EndpointDescription("fiyat.manage. kind: BuyXPayY (buyQty > payQty >= 1) | PercentOff (0 < percent <= 100). Kapsam: productIds, variantIds, categoryIds (kategori alt kategorileri de kapsar). İsteğe bağlı days + fromTime/toTime İstanbul saatidir.")]
+    public static async Task<Created<CampaignDto>> CreateCampaign(ISender sender, CreateCampaignCommand command) {
+        var campaign = await sender.Send(command);
+        return TypedResults.Created($"/api/erp/pricing/campaigns/{campaign.Id}", campaign);
+    }
+
+    [EndpointSummary("Kampanyayı güncelle")]
+    public static async Task<Ok<CampaignDto>> UpdateCampaign(ISender sender, Guid id, UpdateCampaignCommand command) {
+        return TypedResults.Ok(await sender.Send(command with { Id = id }));
+    }
+
+    [EndpointSummary("Kampanyayı sil")]
+    public static async Task<NoContent> DeleteCampaign(ISender sender, Guid id) {
+        await sender.Send(new DeleteCampaignCommand(id));
+        return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("Kampanya değerlendir")]
+    [EndpointDescription("fiyat.read. Gövde: { lines: [{ productId, variantId?, quantity, unitPrice }], at? }. Yanıt results satır sırasındadır; her satır için en iyi tek kampanya { campaignId, name, discountAmount } ya da null. Kampanyalar birikmez.")]
+    public static async Task<Ok<EvaluateCampaignsResult>> EvaluateCampaigns(ISender sender, EvaluateCampaignsQuery body) {
+        return TypedResults.Ok(await sender.Send(body));
     }
 
     internal static PriceListKind? ParseKind(string? kind) {

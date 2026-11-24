@@ -151,6 +151,11 @@ public static class CurrentAccountClock {
         return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), ResolveIstanbul()).DateTime);
     }
 
+    /// <summary>Verilen anın İstanbul duvar saati.</summary>
+    public static DateTime ToIstanbul(DateTimeOffset at) {
+        return TimeZoneInfo.ConvertTime(at, ResolveIstanbul()).DateTime;
+    }
+
     /// <summary>tzdata olmayan ana makinede çökmemesi için UTC+3'e düşer (Türkiye 2016'dan beri yaz saati uygulamıyor).</summary>
     private static TimeZoneInfo ResolveIstanbul() {
         try {
