@@ -18,6 +18,11 @@ public class FinanceDocument : BaseAuditableEntity, ITenantOwned {
     public Guid?               SalesOrderId      { get; set; }
     public Guid?               PurchaseOrderId   { get; set; }
     public string?             Description       { get; set; }
+
+    /// <summary>Masraf/gelir fişinde KDV oranı (tutar KDV dahildir) ve ekli belge.</summary>
+    public decimal?            VatRate           { get; set; }
+    public Guid?               AttachmentFileId  { get; set; }
+
     public DateTimeOffset?     CancelledAt       { get; set; }
     public string?             CancelledBy       { get; set; }
     public string?             CancelReason      { get; set; }

@@ -75,6 +75,54 @@ public static class TreasuryErrors {
         return new AppException(409, "document_kind_unsupported", "Bu belge türü buradan iptal edilemez.");
     }
 
+    public static AppException TransferCurrencyPair() {
+        return new AppException(400, "transfer_currency_pair", "Farklı para birimli virmanda hesaplardan biri TRY olmalıdır.");
+    }
+
+    public static AppException TransferRateRequired() {
+        return new AppException(400, "rate_required", "Hesapların para birimi farklı: kur girilmelidir.");
+    }
+
+    public static AppException CategoryKindMismatch(string message) {
+        return new AppException(400, "category_kind_mismatch", message);
+    }
+
+    public static AppException CategoryInUse() {
+        return new AppException(409, "category_in_use", "Belgede kullanılan kategori silinemez. Bunun yerine pasifleştirebilirsiniz.");
+    }
+
+    public static AppException CategorySystem() {
+        return new AppException(409, "category_system", "Sistem kategorisi silinemez.");
+    }
+
+    public static AppException CategoryNameTaken(string name) {
+        return new AppException(409, "name_taken", $"\"{name}\" kategorisi zaten var.");
+    }
+
+    public static AppException ExpenseTarget() {
+        return new AppException(400, "expense_target", "Kasa/banka hesabı ya da cari verilmelidir; ikisi birden verilemez.");
+    }
+
+    public static AppException CariRole(string message) {
+        return new AppException(400, "cari_role", message);
+    }
+
+    public static AppException AccountCurrencyMismatch(string message) {
+        return new AppException(400, "account_currency_mismatch", message);
+    }
+
+    public static AppException InvalidTransition() {
+        return new AppException(409, "invalid_instrument_transition", "Çek/senet bu duruma geçirilemez.");
+    }
+
+    public static AppException InstrumentNumberTaken() {
+        return new AppException(409, "instrument_number_taken", "Bu numaralı çek/senet zaten kayıtlı.");
+    }
+
+    public static AppException InstrumentNotDue() {
+        return new AppException(409, "instrument_not_due", "Verilen çek/senet vade tarihinden önce ödenemez.");
+    }
+
     public static AppException ModuleDisabled() {
         return new AppException(403, "module_disabled", "Bu modül firmanızda kapalı.");
     }

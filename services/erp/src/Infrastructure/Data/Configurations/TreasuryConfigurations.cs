@@ -60,6 +60,7 @@ public class FinanceDocumentConfiguration : IEntityTypeConfiguration<FinanceDocu
         builder.Property(e => e.Amount).HasPrecision(18, 2);
         builder.Property(e => e.Currency).HasMaxLength(3).IsRequired();
         builder.Property(e => e.Rate).HasPrecision(18, 6);
+        builder.Property(e => e.VatRate).HasPrecision(5, 2);
         builder.Property(e => e.Description).HasMaxLength(500);
         builder.Property(e => e.CancelReason).HasMaxLength(200);
 

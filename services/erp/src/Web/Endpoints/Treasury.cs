@@ -2,7 +2,10 @@ using ERP.Application.Treasury;
 using ERP.Application.Treasury.Accounts;
 using ERP.Application.Treasury.Allocations.Commands;
 using ERP.Application.Treasury.Allocations.Queries;
+using ERP.Application.Treasury.ExpenseCategories;
 using ERP.Application.Treasury.Payments.Commands;
+using ERP.Application.Treasury.Transfers;
+using ERP.Application.Treasury.Vouchers;
 using ERP.Domain.Treasury;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -26,6 +29,52 @@ public class Treasury : IEndpointGroup {
         groupBuilder.MapGet(GetOpenItems, "open-items");
         groupBuilder.MapPost(Allocate, "allocations");
         groupBuilder.MapDelete(Unallocate, "allocations/{id:guid}");
+        groupBuilder.MapPost(CreateAccountTransfer, "transfers");
+        groupBuilder.MapGet(ListExpenseCategories, "expense-categories");
+        groupBuilder.MapPost(CreateExpenseCategory, "expense-categories");
+        groupBuilder.MapPut(UpdateExpenseCategory, "expense-categories/{id:guid}");
+        groupBuilder.MapDelete(DeleteExpenseCategory, "expense-categories/{id:guid}");
+        groupBuilder.MapPost(CreateExpense, "expenses");
+    }
+
+    [EndpointSummary("Virman")]
+    [EndpointDescription("virman.manage. Tutar çıkış hesabının para biriminde. Para birimleri farklıysa kur (yabancı paranın TL karşılığı) zorunludur (400 rate_required); iki yabancı para arasında virman yoktur (400 transfer_currency_pair). Aynı hesap 400. Dönem kilitliyse 409. warnings: cash_negative.")]
+    public static async Task<Created<PostResult>> CreateAccountTransfer(ISender sender, CreateTransferCommand command) {
+        var result = await sender.Send(command);
+        return TypedResults.Created($"/api/erp/treasury/finance-documents/{result.Id}", result);
+    }
+
+    [EndpointSummary("Masraf/gelir kategorileri")]
+    [EndpointDescription("masraf.manage ya da finans.read. İlk kullanımda varsayılan kategoriler açılır (hesap kodları finans ayarlarından).")]
+    public static async Task<Ok<IReadOnlyList<ExpenseCategoryDto>>> ListExpenseCategories(ISender sender, bool? isIncome, bool? includeInactive) {
+        return TypedResults.Ok(await sender.Send(new ListExpenseCategoriesQuery(isIncome, includeInactive ?? true)));
+    }
+
+    [EndpointSummary("Kategori oluştur")]
+    [EndpointDescription("masraf.manage. Kod addan üretilir; aynı kod 409 name_taken.")]
+    public static async Task<Created<ExpenseCategoryDto>> CreateExpenseCategory(ISender sender, CreateExpenseCategoryCommand command) {
+        var category = await sender.Send(command);
+        return TypedResults.Created($"/api/erp/treasury/expense-categories/{category.Id}", category);
+    }
+
+    [EndpointSummary("Kategoriyi güncelle")]
+    [EndpointDescription("masraf.manage. Ad, hesap kodu ve etkinlik değişir.")]
+    public static async Task<Ok<ExpenseCategoryDto>> UpdateExpenseCategory(ISender sender, Guid id, UpdateExpenseCategoryCommand command) {
+        return TypedResults.Ok(await sender.Send(command with { Id = id }));
+    }
+
+    [EndpointSummary("Kategoriyi sil")]
+    [EndpointDescription("masraf.manage. Sistem kategorisi 409 category_system, belgede kullanılan 409 category_in_use.")]
+    public static async Task<NoContent> DeleteExpenseCategory(ISender sender, Guid id) {
+        await sender.Send(new DeleteExpenseCategoryCommand(id));
+        return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("Masraf/gelir fişi")]
+    [EndpointDescription("masraf.manage. kind: expense | income. Tutar KDV dahildir; netAmount/vatAmount ayrılır. accountId (hesap hareketi) ya da currentAccountId (masraf cariyi alacaklandırır, gelir borçlandırır) tam biri verilir (400 expense_target). Kategori türü fişe uymalıdır (400 category_kind_mismatch).")]
+    public static async Task<Created<ExpenseResult>> CreateExpense(ISender sender, CreateExpenseCommand command) {
+        var result = await sender.Send(command);
+        return TypedResults.Created($"/api/erp/treasury/finance-documents/{result.Id}", result);
     }
 
     [EndpointSummary("Tahsilat")]

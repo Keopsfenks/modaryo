@@ -179,16 +179,22 @@ public sealed class FinancePoster(
     /// <summary>Tahsilat/ödemeyi geri alır: hesap hareketi, defter hareketi ve (iptal edilen satıra dokunan) elle eşleştirmeler; numara kullanılmış kalır.</summary>
     public async Task CancelAsync(Guid documentId, string reason, CancellationToken ct) {
         // Kilit için yalnızca cari ve tür okunur (izlemesiz); durum kilit alındıktan sonra yeniden okunur.
-        var head = await db.FinanceDocuments.AsNoTracking().Where(d => d.Id == documentId).Select(d => new { d.Kind, d.CurrentAccountId, d.AccountId }).FirstOrDefaultAsync(ct)
+        var head = await db.FinanceDocuments.AsNoTracking().Where(d => d.Id == documentId).Select(d => new { d.Kind, d.CurrentAccountId, d.AccountId, d.TargetAccountId }).FirstOrDefaultAsync(ct)
                    ?? throw new NotFoundException(documentId.ToString(), "FinanceDocument");
-        if (head.Kind is not (FinanceDocumentKind.Collection or FinanceDocumentKind.Payment) || head.CurrentAccountId is not { } cariId)
-            throw TreasuryErrors.DocumentKindUnsupported();
+        var permission = head.Kind switch {
+                             FinanceDocumentKind.Collection                       => TreasuryPermissions.Collection,
+                             FinanceDocumentKind.Payment                          => TreasuryPermissions.Payment,
+                             FinanceDocumentKind.Transfer                         => TreasuryPermissions.Transfer,
+                             FinanceDocumentKind.Expense or FinanceDocumentKind.Income => TreasuryPermissions.Expense,
+                             _                                                    => throw TreasuryErrors.DocumentKindUnsupported()
+                         };
 
-        TreasuryAccess.RequireAny(session, head.Kind == FinanceDocumentKind.Collection ? TreasuryPermissions.Collection : TreasuryPermissions.Payment);
+        TreasuryAccess.RequireAny(session, permission);
         if (head.AccountId is { } headAccount) await AccountRules.FindAsync(db, tenant, headAccount, ct);
+        if (head.TargetAccountId is { } headTarget) await AccountRules.FindAsync(db, tenant, headTarget, ct);
 
         await using var tx = await db.BeginTransactionAsync(ct);
-        if (!await db.LockCurrentAccountAsync(cariId, ct)) throw new NotFoundException(cariId.ToString(), "CurrentAccount");
+        if (head.CurrentAccountId is { } cariId && !await db.LockCurrentAccountAsync(cariId, ct)) throw new NotFoundException(cariId.ToString(), "CurrentAccount");
 
         var document = await db.FinanceDocuments.FirstOrDefaultAsync(d => d.Id == documentId, ct)
                        ?? throw new NotFoundException(documentId.ToString(), "FinanceDocument");
@@ -213,7 +219,7 @@ public sealed class FinancePoster(
         await db.SaveChangesAsync(ct);
 
         // İptal edilen satıra dokunan eşleştirmeler silinir, kalan tutarlar sonraki satırlara kayar.
-        await auto.RebuildAsync(cariId, ct);
+        if (head.CurrentAccountId is { } rebuildCari) await auto.RebuildAsync(rebuildCari, ct);
         outbox.Enqueue("payment.cancelled", new {
                                                     documentId = document.Id,
                                                     kind       = document.Kind.ToString(),

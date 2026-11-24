@@ -3753,6 +3753,9 @@ namespace ERP.Infrastructure.Data.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<Guid?>("AttachmentFileId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("CancelReason")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -3828,6 +3831,10 @@ namespace ERP.Infrastructure.Data.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal?>("VatRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
 
                     b.HasKey("Id");
 
