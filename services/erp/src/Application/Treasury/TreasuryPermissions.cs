@@ -123,6 +123,18 @@ public static class TreasuryErrors {
         return new AppException(409, "instrument_not_due", "Verilen çek/senet vade tarihinden önce ödenemez.");
     }
 
+    public static AppException DifferenceAlreadySettled() {
+        return new AppException(409, "difference_already_settled", "Bu kur farkı daha önce işlenmiş.");
+    }
+
+    public static AppException DifferenceNotFound() {
+        return new AppException(400, "difference_not_found", "Seçilen tahsislerde işlenebilir bir kur farkı bulunamadı.");
+    }
+
+    public static AppException DifferenceNotApplicable(string message) {
+        return new AppException(400, "difference_not_applicable", message);
+    }
+
     public static AppException ModuleDisabled() {
         return new AppException(403, "module_disabled", "Bu modül firmanızda kapalı.");
     }

@@ -57,18 +57,30 @@ public sealed class CreateExpenseCommandValidator : AbstractValidator<CreateExpe
 
 public sealed class CreateExpenseCommandHandler(
     IApplicationDbContext db,
+    ExpensePoster         poster
+) : IRequestHandler<CreateExpenseCommand, ExpenseResult> {
+    public async Task<ExpenseResult> Handle(CreateExpenseCommand request, CancellationToken ct) {
+        await using var tx = await db.BeginTransactionAsync(ct);
+        var result = await poster.PostAsync(request, ct);
+        await tx.CommitAsync(ct);
+        return result;
+    }
+}
+
+/// <summary>Masraf/gelir fişini yazar; çağıran açık bir işlem içinde olmalı ve işlemi kendisi onaylamalıdır (kur farkı gideri aynı işlemde yazar).</summary>
+public sealed class ExpensePoster(
+    IApplicationDbContext db,
     ICurrentTenant        tenant,
     IPeriodLock           periodLock,
     ITenantSettings       settings,
     AutoAllocator         auto,
     IOutbox               outbox
-) : IRequestHandler<CreateExpenseCommand, ExpenseResult> {
-    public async Task<ExpenseResult> Handle(CreateExpenseCommand request, CancellationToken ct) {
+) {
+    public async Task<ExpenseResult> PostAsync(CreateExpenseCommand request, CancellationToken ct) {
         if ((request.AccountId is null) == (request.CurrentAccountId is null)) throw TreasuryErrors.ExpenseTarget();
 
         var expense = request.Kind == ExpenseKind.Expense;
 
-        await using var tx = await db.BeginTransactionAsync(ct);
         if (request.CurrentAccountId is { } lockId && !await db.LockCurrentAccountAsync(lockId, ct))
             throw new NotFoundException(lockId.ToString(), "CurrentAccount");
 
@@ -145,7 +157,6 @@ public sealed class CreateExpenseCommandHandler(
                                                    currency
                                                });
         await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
         return new ExpenseResult(document.Id, number, net, vat, warnings);
     }
 }

@@ -2,6 +2,9 @@ using ERP.Application.Treasury;
 using ERP.Application.Treasury.Accounts;
 using ERP.Application.Treasury.Allocations.Commands;
 using ERP.Application.Treasury.Allocations.Queries;
+using ERP.Application.Treasury.ExchangeDifferences;
+using ERP.Application.Treasury.ExchangeDifferences.Commands;
+using ERP.Application.Treasury.ExchangeDifferences.Queries;
 using ERP.Application.Treasury.ExpenseCategories;
 using ERP.Application.Treasury.Instruments;
 using ERP.Application.Treasury.Instruments.Commands;
@@ -45,6 +48,9 @@ public class Treasury : IEndpointGroup {
         groupBuilder.MapGet(GetInstrument, "instruments/{id:guid}");
         groupBuilder.MapGet(GetPortfolio, "instruments/portfolio");
         groupBuilder.MapGet(GetCalendar, "instruments/calendar");
+        groupBuilder.MapGet(ListExchangeDifferences, "exchange-differences");
+        groupBuilder.MapPost(CreateDifferenceInvoice, "exchange-differences/invoice");
+        groupBuilder.MapPost(CreateDifferenceExpense, "exchange-differences/expense");
     }
 
     [EndpointSummary("Virman")]
@@ -85,6 +91,26 @@ public class Treasury : IEndpointGroup {
     public static async Task<Created<ExpenseResult>> CreateExpense(ISender sender, CreateExpenseCommand command) {
         var result = await sender.Send(command);
         return TypedResults.Created($"/api/erp/treasury/finance-documents/{result.Id}", result);
+    }
+
+    [EndpointSummary("Kur farkları")]
+    [EndpointDescription("finans.read. TL carilerde yabancı para kaynaklı fatura ve ödeme tahsislerinin kur farkı: döviz tutarı x (alacak kuru - borç kuru). İşlenmiş ve sıfır farklar listelenmez. from/to tarih aralığı, currentAccountId isteğe bağlı.")]
+    public static async Task<Ok<IReadOnlyList<ExchangeDifferenceDto>>> ListExchangeDifferences(ISender sender, Guid? currentAccountId, DateOnly? from, DateOnly? to) {
+        return TypedResults.Ok(await sender.Send(new ListExchangeDifferencesQuery(currentAccountId, from, to)));
+    }
+
+    [EndpointSummary("Kur farkı faturası")]
+    [EndpointDescription("finans.manage. Pozitif kur farkından KDV dahil (vatRate varsayılan 20) ExchangeDifference satış faturası taslağı. İşlenmiş fark 409 difference_already_settled.")]
+    public static async Task<Created<DifferenceInvoiceResult>> CreateDifferenceInvoice(ISender sender, CreateDifferenceInvoiceCommand command) {
+        var result = await sender.Send(command);
+        return TypedResults.Created($"/api/erp/invoices/{result.InvoiceId}", result);
+    }
+
+    [EndpointSummary("Kur farkı gideri")]
+    [EndpointDescription("masraf.manage. Negatif kur farkından kur-farki kategorili gider fişi; accountId verilmezse cariyi alacaklandırır. İşlenmiş fark 409 difference_already_settled.")]
+    public static async Task<Created<DifferenceExpenseResult>> CreateDifferenceExpense(ISender sender, CreateDifferenceExpenseCommand command) {
+        var result = await sender.Send(command);
+        return TypedResults.Created($"/api/erp/treasury/finance-documents/{result.ExpenseId}", result);
     }
 
     [EndpointSummary("Çek/senet al")]
