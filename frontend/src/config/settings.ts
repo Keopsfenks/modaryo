@@ -1,6 +1,7 @@
 import {
     IconBuilding,
     IconBuildingStore,
+    IconBuildingWarehouse,
     IconCoin,
     IconHistory,
     IconPackage,
@@ -33,6 +34,7 @@ export const settingsCategories: SettingsCategory[] = [
     { key: "moduller", title: "Modüller", description: "Firmanızda açık olan modülleri yönetin.", href: "/ayarlar/moduller", icon: IconPuzzle, group: "Operasyon", permission: "ayarlar.moduller" },
     { key: "subeler", title: "Şubeler", description: "Şubeleri ve depolarını tanımlayın.", href: "/ayarlar/subeler", icon: IconBuildingStore, group: "Operasyon", permission: "ayarlar.subeler" },
     { key: "katalog", title: "Katalog", description: "Ürün kodu, KDV, birimler, barkod ve özel alanlar.", href: "/ayarlar/katalog", icon: IconPackage, group: "Operasyon", permission: "ayarlar.katalog" },
+    { key: "stok", title: "Stok", description: "Maliyet yöntemi ve eksi stok.", href: "/ayarlar/stok", icon: IconBuildingWarehouse, group: "Operasyon", permission: "ayarlar.stok" },
     { key: "finans", title: "Finans", description: "Vade, iskonto ve tahsilat varsayılanları.", href: "/ayarlar/finans", icon: IconCoin, group: "Finans", permission: "ayarlar.finans" },
     { key: "fiyat", title: "Fiyatlandırma", description: "Varsayılan fiyat listeleri, KDV gösterimi ve yuvarlama kuralı.", href: "/ayarlar/fiyatlandirma", icon: IconTag, group: "Finans", permission: "ayarlar.fiyat" },
     { key: "kullanicilar", title: "Kullanıcılar", description: "Firma üyeleri ve davetler.", href: "/ayarlar/kullanicilar", icon: IconUsers, group: "Kullanıcılar", permission: "members.read" },

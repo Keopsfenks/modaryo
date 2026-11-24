@@ -9,6 +9,7 @@ import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import Alert from "@mui/material/Alert";
 import FormAlert from "@/components/auth/FormAlert";
+import ProductStockTab from "@/components/inventory/ProductStockTab";
 import ProductPricesTab from "@/components/pricing/ProductPricesTab";
 import {
     VAT_RATES,
@@ -39,6 +40,7 @@ const ALL_TABS = [
     { value: "gorseller", label: "Görseller" },
     { value: "ozel-alanlar", label: "Özel alanlar" },
     { value: "fiyatlar", label: "Fiyatlar" },
+    { value: "stok", label: "Stok" },
 ] as const;
 
 type TabValue = (typeof ALL_TABS)[number]["value"];
@@ -135,7 +137,13 @@ export default function ProductForm({ product, defaultKind = "product", onSaved,
 
     const service = v.kind === "service";
     const canSeePrices = hasPermission("fiyat.read");
-    const tabs = ALL_TABS.filter((t) => !(service && t.value === "varyantlar") && !(t.value === "fiyatlar" && (creating || !canSeePrices)));
+    const canSeeStock = hasPermission("stok.read");
+    const tabs = ALL_TABS.filter(
+        (t) =>
+            !(service && t.value === "varyantlar") &&
+            !(t.value === "fiyatlar" && (creating || !canSeePrices)) &&
+            !(t.value === "stok" && (creating || service || !canSeeStock)),
+    );
     const sekme = searchParams.get("sekme");
     const tab: TabValue = tabs.some((t) => t.value === sekme) ? (sekme as TabValue) : "genel";
 
@@ -162,7 +170,7 @@ export default function ProductForm({ product, defaultKind = "product", onSaved,
     async function submit(event: React.FormEvent) {
         event.preventDefault();
         // Fiyatlar sekmesi salt okunur araçlar içerir; orada Enter tuşu kartı kaydetmez.
-        if (busy || !v || !lookups || tab === "fiyatlar") return;
+        if (busy || !v || !lookups || tab === "fiyatlar" || tab === "stok") return;
         setSaved(false);
         setAlert(null);
         const found = validate(v, lookups.definitions);
@@ -250,8 +258,9 @@ export default function ProductForm({ product, defaultKind = "product", onSaved,
             </fieldset>
 
             {tab === "fiyatlar" && product && <ProductPricesTab product={product} />}
+            {tab === "stok" && product && <ProductStockTab product={product} />}
 
-            {tab !== "varyantlar" && tab !== "fiyatlar" && canManage && (
+            {tab !== "varyantlar" && tab !== "fiyatlar" && tab !== "stok" && canManage && (
                 <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
                     <Button type="submit" variant="contained" disabled={busy}>
                         {busy ? "Kaydediliyor..." : "Kaydet"}

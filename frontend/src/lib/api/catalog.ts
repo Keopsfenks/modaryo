@@ -83,6 +83,9 @@ export type ProductDto = {
     soldByMeasure: boolean;
     measureUnit: string | null;
     tracksSerialLot: boolean;
+    /** Seri/lot takibi açıkken takip türü (P3); eski yanıtlarda yoktur. */
+    trackingMode?: "lot" | "serial" | null;
+    isBundle?: boolean;
     barcode: string | null;
     weightKg: number | null;
     widthCm: number | null;
@@ -242,7 +245,7 @@ export function flattenCategories(nodes: CategoryNode[], depth = 0): { node: Cat
 }
 
 /** Dosya yanıtını indirir (apiFetch JSON beklediği için ayrı). Hata gövdesi ApiError olur. */
-async function download(path: string, fileName: string): Promise<void> {
+export async function download(path: string, fileName: string): Promise<void> {
     let response: Response;
     try {
         response = await fetch(new URL(path, window.location.origin).toString(), { credentials: "same-origin" });
