@@ -28,6 +28,8 @@ public static class PriceResolver {
                     .Where(t => t.MinQty <= quantity)
                     .OrderByDescending(t => t.MinQty)
                     .FirstOrDefault();
+                // İlk kademe 1'den başladığı için ölçülü ürünlerde 1'in altındaki miktarlar (0,5 m²) ilk kademenin fiyatını alır.
+                if (tier is null && quantity > 0m) tier = candidate.Tiers.OrderBy(t => t.MinQty).FirstOrDefault();
                 if (tier is null) continue;
 
                 return new PriceQuote(

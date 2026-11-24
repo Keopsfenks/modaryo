@@ -169,6 +169,59 @@ describe("PriceListEditor", () => {
         expect(screen.getByLabelText("U00001 fiyatı")).toHaveValue("120");
     });
 
+    it("Editor_ConflictAcrossPages_KeepsVersionOfOffPageRow", async () => {
+        const a = itemDto({ id: "iA", productId: "pA", productCode: "U00001", productName: "Kalem", version: 3 });
+        const b = itemDto({ id: "iB", productId: "pB", productCode: "U00002", productName: "Defter", version: 5 });
+        const serverB = { current: b };
+        setup([a]);
+        server.use(
+            http.get("*/api/erp/pricing/lists/L1/items", ({ request }) => {
+                const url = new URL(request.url);
+                const search = url.searchParams.get("search");
+                if (search === "U00001") return HttpResponse.json({ items: [a], total: 1 });
+                if (search === "U00002") return HttpResponse.json({ items: [serverB.current], total: 1 });
+                const page = url.searchParams.get("page");
+                return HttpResponse.json({ items: [page === "2" ? serverB.current : a], total: 51 });
+            }),
+        );
+        const bodies: { rows: { productId: string; version?: number }[] }[] = [];
+        let first = true;
+        server.use(
+            http.put("*/api/erp/pricing/lists/L1/items", async ({ request }) => {
+                bodies.push((await request.json()) as (typeof bodies)[number]);
+                if (first) {
+                    first = false;
+                    return HttpResponse.json(problem(409, "Kayıt başkası tarafından değiştirildi.", "version_conflict"), { status: 409 });
+                }
+                return HttpResponse.json({ rows: [] });
+            }),
+        );
+        const { user } = render(<PriceListEditor id="L1" />);
+
+        const priceA = await screen.findByLabelText("U00001 fiyatı");
+        await user.clear(priceA);
+        await user.type(priceA, "120");
+        await user.click(screen.getByRole("button", { name: /next page|sonraki/i }));
+        const priceB = await screen.findByLabelText("U00002 fiyatı");
+        await user.clear(priceB);
+        await user.type(priceB, "70");
+
+        // Başka biri yalnızca B satırını değiştirdi; kullanıcı B sayfasında iken A sayfa dışında kalır.
+        serverB.current = itemDto({ id: "iB", productId: "pB", productCode: "U00002", productName: "Defter", version: 6 });
+        await user.click(screen.getByRole("button", { name: "Kaydet" }));
+
+        expect(await screen.findByText("Bu satır başka biri tarafından değiştirildi.")).toBeInTheDocument();
+        // Yalnızca değişen B işaretlenir; A işaretlenmez.
+        expect(screen.getAllByText("Bu satır başka biri tarafından değiştirildi.")).toHaveLength(1);
+
+        await user.click(screen.getByRole("button", { name: "Kaydet" }));
+
+        await waitFor(() => expect(bodies).toHaveLength(2));
+        const second = bodies[1].rows;
+        expect(second.find((r) => r.productId === "pA")?.version).toBe(3);
+        expect(second.find((r) => r.productId === "pB")?.version).toBe(6);
+    });
+
     it("BulkAdjust_SendsPercentAndCategory", async () => {
         setup([itemDto()]);
         let body: unknown;

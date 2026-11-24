@@ -7,7 +7,6 @@ public class PriceList : BaseAuditableEntity, ITenantOwned {
     public bool          VatIncluded       { get; set; }
     public DateOnly?     ValidFrom         { get; set; }
     public DateOnly?     ValidTo           { get; set; }
-    public bool          IsDefault         { get; set; }
 
     /// <summary>Tedarikçi cariye bağlı alış listeleri.</summary>
     public Guid?         SupplierId        { get; set; }

@@ -22,8 +22,10 @@ public sealed record PriceListDto(
     uint          Version,
     int           ItemCount
 ) {
-    public static PriceListDto From(PriceList l, int itemCount) {
-        return new PriceListDto(l.Id, l.Name, l.Kind, l.Currency, l.VatIncluded, l.ValidFrom, l.ValidTo, l.IsDefault,
+    /// <summary>IsDefault saklanmaz; fiyat ayarlarındaki varsayılan satış/alış listesi kimliklerinden türetilir.</summary>
+    public static PriceListDto From(PriceList l, int itemCount, ERP.Application.Settings.Categories.PricingSettings settings) {
+        var isDefault = l.Id == settings.DefaultSaleListId || l.Id == settings.DefaultPurchaseListId;
+        return new PriceListDto(l.Id, l.Name, l.Kind, l.Currency, l.VatIncluded, l.ValidFrom, l.ValidTo, isDefault,
                                 l.SupplierId, l.BaseListId, l.AdjustmentPercent, l.IsActive, l.Version, itemCount);
     }
 }

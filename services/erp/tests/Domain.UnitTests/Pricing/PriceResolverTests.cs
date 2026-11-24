@@ -62,6 +62,18 @@ public class PriceResolverTests {
     }
 
     [Test]
+    public void Resolver_FractionalQtyBelowOne_UsesFirstTier() {
+        var tiers = new[] { new PriceTier(1, 100m), new PriceTier(10, 90m) };
+        var rows  = new[] { C(PriceSource.DefaultList, 0m, tiers: tiers) };
+
+        var quote = PriceResolver.Resolve(rows, PriceResolver.SalePriority, 0.5m, Today);
+
+        quote!.UnitPrice.ShouldBe(100m);
+        quote.TierMinQty.ShouldBe(1m);
+        PriceResolver.Resolve(rows, PriceResolver.SalePriority, 0m, Today).ShouldBeNull();
+    }
+
+    [Test]
     public void Resolver_NoCandidate_ReturnsNull() {
         PriceResolver.Resolve([], PriceResolver.SalePriority, 1m, Today).ShouldBeNull();
 

@@ -29,7 +29,7 @@ public class QuoteTests : TestBase {
 
     private static async Task<HttpResponseMessage> Quote(HttpClient client, Guid product, Guid? customer = null, string unit = "adet",
                                                          string kind = "sale", string date = "2026-06-01", decimal qty = 1m) {
-        var url = $"{Base}/quote?kind={kind}&productId={product}&unit={unit}&quantity={qty}&date={date}"
+        var url = $"{Base}/quote?kind={kind}&productId={product}&unit={unit}&quantity={qty.ToString(System.Globalization.CultureInfo.InvariantCulture)}&date={date}"
                   + (customer is { } c ? $"&currentAccountId={c}" : "");
         return await client.GetAsync(url);
     }
@@ -39,6 +39,20 @@ public class QuoteTests : TestBase {
         await PutRows(client, list, Row(product, Tiers((1, price))));
         await SetSettings(client, 0, new { defaultSaleListId = list });
         return list;
+    }
+
+    [Test]
+    public async Task Quote_FractionalMeasureQuantity_UsesFirstTier() {
+        using var client  = await Client(Tenant);
+        var       product = await CreateProduct(client, "HALI", new { soldByMeasure = true, measureUnit = "m2", baseUnit = "m2" });
+        var       list    = await CreateList(client, "Perakende");
+        (await PutRows(client, list, Row(product, Tiers((1, 200m), (10, 180m)), unit: "m2"))).StatusCode.ShouldBe(HttpStatusCode.OK);
+        await SetSettings(client, 0, new { defaultSaleListId = list });
+
+        using var response = await Quote(client, product, unit: "m2", qty: 0.5m);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        (await response.JsonAsync()).GetProperty("unitPrice").GetDecimal().ShouldBe(200m);
     }
 
     [Test]

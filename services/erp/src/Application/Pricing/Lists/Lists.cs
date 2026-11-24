@@ -111,7 +111,8 @@ public sealed record ListPriceListsQuery(PriceListKind? Kind, bool IncludeInacti
 
 public sealed class ListPriceListsQueryHandler(
     IApplicationDbContext db,
-    ICurrentSession       session
+    ICurrentSession       session,
+    ITenantSettings       settings
 ) : IRequestHandler<ListPriceListsQuery, IReadOnlyList<PriceListDto>> {
     public async Task<IReadOnlyList<PriceListDto>> Handle(ListPriceListsQuery request, CancellationToken ct) {
         var query = db.PriceLists.AsNoTracking().AsQueryable();
@@ -124,7 +125,8 @@ public sealed class ListPriceListsQueryHandler(
         var counts = await db.PriceListItems.AsNoTracking().Where(i => ids.Contains(i.PriceListId))
                          .GroupBy(i => i.PriceListId).Select(g => new { Id = g.Key, Count = g.Count() })
                          .ToDictionaryAsync(x => x.Id, x => x.Count, ct);
-        return lists.Select(l => PriceListDto.From(l, counts.GetValueOrDefault(l.Id))).ToList();
+        var pricing = await settings.GetAsync<PricingSettings>(ct);
+        return lists.Select(l => PriceListDto.From(l, counts.GetValueOrDefault(l.Id), pricing)).ToList();
     }
 }
 
@@ -133,12 +135,13 @@ public sealed record GetPriceListQuery(Guid Id) : IRequest<PriceListDto>;
 
 public sealed class GetPriceListQueryHandler(
     IApplicationDbContext db,
-    ICurrentSession       session
+    ICurrentSession       session,
+    ITenantSettings       settings
 ) : IRequestHandler<GetPriceListQuery, PriceListDto> {
     public async Task<PriceListDto> Handle(GetPriceListQuery request, CancellationToken ct) {
         var list  = await PricingRules.LoadListAsync(db, session, request.Id, ct, false);
         var count = await db.PriceListItems.CountAsync(i => i.PriceListId == list.Id, ct);
-        return PriceListDto.From(list, count);
+        return PriceListDto.From(list, count, await settings.GetAsync<PricingSettings>(ct));
     }
 }
 
@@ -154,7 +157,8 @@ public sealed class CreatePriceListCommandValidator : AbstractValidator<CreatePr
 
 public sealed class CreatePriceListCommandHandler(
     IApplicationDbContext db,
-    ICurrentSession       session
+    ICurrentSession       session,
+    ITenantSettings       settings
 ) : IRequestHandler<CreatePriceListCommand, PriceListDto> {
     public async Task<PriceListDto> Handle(CreatePriceListCommand request, CancellationToken ct) {
         PricingRules.EnsureKindAccess(session, request.Kind!.Value);
@@ -163,7 +167,7 @@ public sealed class CreatePriceListCommandHandler(
         await PriceListRules.ApplyAsync(db, list, request, true, ct);
         db.PriceLists.Add(list);
         await db.SaveChangesAsync(ct);
-        return PriceListDto.From(list, 0);
+        return PriceListDto.From(list, 0, await settings.GetAsync<PricingSettings>(ct));
     }
 }
 
@@ -181,7 +185,8 @@ public sealed class UpdatePriceListCommandValidator : AbstractValidator<UpdatePr
 
 public sealed class UpdatePriceListCommandHandler(
     IApplicationDbContext db,
-    ICurrentSession       session
+    ICurrentSession       session,
+    ITenantSettings       settings
 ) : IRequestHandler<UpdatePriceListCommand, PriceListDto> {
     public async Task<PriceListDto> Handle(UpdatePriceListCommand request, CancellationToken ct) {
         var list = await PricingRules.LoadListAsync(db, session, request.Id, ct);
@@ -195,7 +200,7 @@ public sealed class UpdatePriceListCommandHandler(
         }
 
         var count = await db.PriceListItems.CountAsync(i => i.PriceListId == list.Id, ct);
-        return PriceListDto.From(list, count);
+        return PriceListDto.From(list, count, await settings.GetAsync<PricingSettings>(ct));
     }
 }
 

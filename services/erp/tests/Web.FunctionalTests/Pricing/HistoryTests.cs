@@ -37,6 +37,39 @@ public class HistoryTests : TestBase {
     }
 
     [Test]
+    public async Task VariantOverrideChange_WritesHistory() {
+        using var client  = await Client(Tenant);
+        var       product = await CreateProduct(client, "V1", new {
+            attributes = new[] { new { name = "Beden", values = new[] { "S" } } }
+        });
+        var created = await (await client.GetAsync($"/api/erp/catalog/products/{product}")).JsonAsync();
+        var variant = created.GetProperty("variants")[0];
+        var id      = variant.GetProperty("id").GetGuid();
+        var code    = variant.GetProperty("code").GetString();
+
+        async Task Put(object? sale, object? purchase) {
+            using var response = await client.PutAsJsonAsync($"/api/erp/catalog/products/{product}/variants/{id}",
+                                                             new { code, salePriceOverride = sale, purchasePriceOverride = purchase });
+            response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        }
+
+        await Put(Money(100m), null);
+        await Put(Money(80m), Money(40m));
+        await Put(Money(80m), Money(40m)); // değişmedi: yeni kayıt yok
+
+        var history = await History(client, $"?productId={product}&scope=card");
+
+        history.Length.ShouldBe(3);
+        history.ShouldAllBe(h => h.GetProperty("variantId").GetGuid() == id);
+        var sale = history.Where(h => h.GetProperty("kind").GetString() == "sale").ToArray();
+        sale.Length.ShouldBe(2);
+        sale.ShouldContain(h => h.GetProperty("before").ValueKind == JsonValueKind.Object
+                                && h.GetProperty("before").GetProperty("amount").GetDecimal() == 100m
+                                && h.GetProperty("after").GetProperty("amount").GetDecimal() == 80m);
+        history.Count(h => h.GetProperty("kind").GetString() == "purchase").ShouldBe(1);
+    }
+
+    [Test]
     public async Task PurchaseHistory_HiddenWithoutAlis() {
         using var admin   = await Client(Tenant);
         var       product = await CreateProduct(admin, "P1");

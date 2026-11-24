@@ -22,7 +22,8 @@ public sealed class UpdateVariantCommandHandler(
     IApplicationDbContext db,
     ItemUsage             usage,
     BarcodeRegistry       barcodes,
-    ICurrentSession       session
+    ICurrentSession       session,
+    ERP.Application.Pricing.PriceHistoryWriter priceHistory
 ) : IRequestHandler<UpdateVariantCommand, ProductDto> {
     public async Task<ProductDto> Handle(UpdateVariantCommand request, CancellationToken ct) {
         var product = await db.Products.Include(p => p.Variants).Include(p => p.Units)
@@ -49,10 +50,19 @@ public sealed class UpdateVariantCommandHandler(
                 || await db.ProductVariants.AnyAsync(v => v.Code == code && v.Id != variant.Id, ct)))
             throw CatalogErrors.CodeTaken(code);
 
+        // Varyant fiyat geçersiz kılmaları kartın etkin fiyatını değiştirir; geçmişe aynı işlemde yazılır.
+        if (variant.SalePriceOverride != request.SalePriceOverride)
+            priceHistory.Record(ERP.Application.Pricing.PriceHistoryWriter.ScopeCard, product.Id, product.Id, variant.Id, product.BaseUnit,
+                                variant.SalePriceOverride, request.SalePriceOverride, ERP.Domain.Pricing.PriceListKind.Sale);
+        // fiyat.alis izni yoksa alış fiyatı gönderilse de mevcut değer korunur.
+        var canSeePurchase = ERP.Application.Pricing.PurchaseVisibility.CanSee(session);
+        if (canSeePurchase && variant.PurchasePriceOverride != request.PurchasePriceOverride)
+            priceHistory.Record(ERP.Application.Pricing.PriceHistoryWriter.ScopeCard, product.Id, product.Id, variant.Id, product.BaseUnit,
+                                variant.PurchasePriceOverride, request.PurchasePriceOverride, ERP.Domain.Pricing.PriceListKind.Purchase);
+
         variant.Code                  = code;
         variant.SalePriceOverride     = request.SalePriceOverride;
-        // fiyat.alis izni yoksa alış fiyatı gönderilse de mevcut değer korunur.
-        if (ERP.Application.Pricing.PurchaseVisibility.CanSee(session)) variant.PurchasePriceOverride = request.PurchasePriceOverride;
+        if (canSeePurchase) variant.PurchasePriceOverride = request.PurchasePriceOverride;
         variant.Barcode               = barcode;
 
         // Kartın kendi barkodları (ürün, diğer varyantlar, birimler) ile yinelenme ve başka kartlarla çakışma.

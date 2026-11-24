@@ -275,28 +275,39 @@ export default function PriceListEditor({ id }: { id: string }) {
     }
 
     // Sürümü eskiyen satırları bulup işaretler; girilen değerler korunur, sürüm tazelenir (bilinçli yeniden kayıtla üzerine yazılır).
+    // Düzenlenen satırlar başka sayfalarda olabileceğinden sunucu durumu yalnızca geçerli sayfadan değil, satır başına kod araması ile alınır.
     async function handleConflict() {
-        let fresh: { items: PriceItemDto[]; total: number };
+        const versioned = Object.values(edits).filter((r) => r.version !== null);
+        const codes = [...new Set(versioned.map((r) => r.productCode))];
+        const serverRows = new Map<string, PriceItemDto>();
         try {
-            fresh = await reloadPage();
+            const [fresh, lookups] = await Promise.all([
+                reloadPage(),
+                Promise.all(codes.map((code) => pricing.listItems(id, { search: code, page: 1, pageSize: 200 }))),
+            ]);
+            for (const d of [...fresh.items, ...lookups.flatMap((l) => l.items)]) serverRows.set(rowKey(d.productId, d.variantId, d.unit), d);
         } catch (e) {
             setError(errorMessage(e));
             return;
         }
         const stale = new Set<string>();
+        const removed: Record<string, string> = {};
         const nextEdits = { ...edits };
-        for (const row of Object.values(edits)) {
-            if (row.version === null) continue;
-            const server = fresh.items.find((d) => rowKey(d.productId, d.variantId, d.unit) === row.key);
-            if (!server || server.version !== row.version) {
+        for (const row of versioned) {
+            const server = serverRows.get(row.key);
+            if (!server) {
+                // Satır bulunamadı: silinmiş olabilir. Sürüm korunur ki denetim atlanıp üzerine yazılmasın.
+                removed[row.key] = "Bu satır başka biri tarafından silinmiş olabilir; çıkarıp yeniden ekleyin ya da değişikliklerinizi atın.";
+            } else if (server.version !== row.version) {
                 stale.add(row.key);
-                nextEdits[row.key] = { ...row, version: server && !server.derived ? server.version : null };
+                nextEdits[row.key] = { ...row, version: server.derived ? null : server.version };
             }
         }
         setEdits(nextEdits);
         setConflicts(stale);
+        setRowErrors((prev) => ({ ...prev, ...removed }));
         setError(
-            stale.size > 0
+            stale.size > 0 || Object.keys(removed).length > 0
                 ? "Bazı satırlar siz düzenlerken başka biri tarafından değiştirildi. İşaretli satırları gözden geçirip yeniden kaydedin."
                 : "Liste siz düzenlerken değişti. Sayfa yenilendi; değişikliklerinizi kontrol edip yeniden kaydedin.",
         );

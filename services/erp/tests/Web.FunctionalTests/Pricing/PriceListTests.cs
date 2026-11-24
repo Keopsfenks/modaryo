@@ -28,6 +28,29 @@ public class PriceListTests : TestBase {
     }
 
     [Test]
+    public async Task Lists_IsDefaultDerivedFromSettings() {
+        using var client = await Client(Tenant);
+        var       first  = await CreateList(client, "A");
+        var       second = await CreateList(client, "B");
+        var       buy    = await CreateList(client, "C", "purchase");
+
+        async Task<Dictionary<Guid, bool>> Flags() {
+            var lists = await (await client.GetAsync($"{Base}/lists")).JsonAsync();
+            return lists.EnumerateArray().ToDictionary(l => l.GetProperty("id").GetGuid(), l => l.GetProperty("isDefault").GetBoolean());
+        }
+
+        (await Flags()).Values.ShouldAllBe(v => !v);
+        await SetSettings(client, 0, new { defaultSaleListId = second, defaultPurchaseListId = buy });
+
+        var flags = await Flags();
+        flags[first].ShouldBeFalse();
+        flags[second].ShouldBeTrue();
+        flags[buy].ShouldBeTrue();
+        (await (await client.GetAsync($"{Base}/lists/{second}")).JsonAsync()).GetProperty("isDefault").GetBoolean().ShouldBeTrue();
+        (await (await client.GetAsync($"{Base}/lists/{first}")).JsonAsync()).GetProperty("isDefault").GetBoolean().ShouldBeFalse();
+    }
+
+    [Test]
     public async Task InvalidTiers_Returns400InvalidTiers() {
         using var client  = await Client(Tenant);
         var       product = await CreateProduct(client, "P1");

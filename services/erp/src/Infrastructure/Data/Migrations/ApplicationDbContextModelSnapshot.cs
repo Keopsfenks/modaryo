@@ -1235,9 +1235,6 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsDefault")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("Kind")
                         .IsRequired()
                         .HasMaxLength(20)
