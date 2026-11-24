@@ -16,6 +16,8 @@ import {
     IconLayoutDashboard,
     IconPackage,
     IconSettings,
+    IconTag,
+    IconTags,
     IconShoppingCart,
     IconTruckDelivery,
     IconUsers,
@@ -53,6 +55,7 @@ export const navigation: NavSection[] = [
         title: "Satış",
         items: [
             { title: "Müşteriler", href: "/satis/musteriler", icon: IconUsers, permission: "cari.read", implemented: true },
+            { title: "Fiyat listeleri", href: "/satis/fiyat-listeleri", icon: IconTags, permission: "fiyat.read", implemented: true },
             { title: "Teklifler", href: "/satis/teklifler", icon: IconFileText },
             { title: "Siparişler", href: "/satis/siparisler", icon: IconShoppingCart, badge: "12" },
             { title: "Faturalar", href: "/satis/faturalar", icon: IconFileInvoice },
@@ -62,6 +65,7 @@ export const navigation: NavSection[] = [
         title: "Satın Alma",
         items: [
             { title: "Tedarikçiler", href: "/satin-alma/tedarikciler", icon: IconBuildingStore, permission: "cari.read", implemented: true },
+            { title: "Alış fiyatları", href: "/satin-alma/alis-fiyatlari", icon: IconTag, permission: "fiyat.alis", implemented: true },
             { title: "Satın Alma Siparişleri", href: "/satin-alma/siparisler", icon: IconTruckDelivery },
         ],
     },

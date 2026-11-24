@@ -177,6 +177,25 @@ export type CatalogOptions = { units: string[]; defaultVatRate: number; customFi
 
 export const VAT_RATES = [0, 1, 10, 20];
 
+/** Satılabilir kalem: varyantsız kart tek kalem, varyantlı kart varyant başına bir kalemdir (GET /items). */
+export type SellableItem = {
+    productId: string;
+    variantId: string | null;
+    kind: ProductKind;
+    code: string;
+    name: string;
+    baseUnit: string;
+    vatRate: number;
+    soldByMeasure: boolean;
+    measureUnit: string | null;
+    tracksSerialLot: boolean;
+    salePrice: Money4 | null;
+    /** fiyat.alis izni yoksa null. */
+    purchasePrice: Money4 | null;
+    units: UnitDto[];
+    isActive: boolean;
+};
+
 export type ImportRowResult = {
     rowNumber: number;
     /** "create" | "update" | "error" */
@@ -275,6 +294,7 @@ export const catalog = {
                 pageSize: q.pageSize,
             })}`,
         ),
+    searchItems: (search: string, limit = 20) => get<SellableItem[]>(`/items${queryString({ search, limit })}`),
     nextProductCode: () => get<{ code: string }>("/products/next-code"),
     getProduct: (id: string) => get<ProductDto>(`/products/${id}`),
     createProduct: (body: ProductInput) => send<ProductDto>("POST", "/products", body),

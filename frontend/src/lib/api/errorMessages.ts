@@ -33,6 +33,16 @@ export const errorMessages: Record<string, string> = {
     invalid_template: "Dosyada Kod veya Ad sütunu bulunamadı. Şablonu indirip kullanın.",
     too_many_rows: "Dosyada en fazla 5.000 satır olabilir.",
     empty_file: "Dosyada hiç satır yok.",
+    price_overlap: "Bu kalem, birim ve para biriminde tarihleri çakışan bir özel fiyat zaten var.",
+    invalid_tiers: "Kademeler geçersiz: ilk kademe 1'den başlamalı, miktarlar artmalı, fiyatlar negatif olmamalı.",
+    list_cycle: "Bu seçim listeler arasında döngü oluşturur.",
+    list_depth: "Türetilmiş listeler en fazla 3 düzey derinlikte olabilir.",
+    discount_limit_exceeded: "İskonto oranı yetki sınırınızı aşıyor.",
+    default_list_required_kind: "Varsayılan liste doğru türde olmalı: satış için satış listesi, alış için alış listesi.",
+    list_in_use: "Bu liste varsayılan, bir müşteri grubuna bağlı ya da başka bir listenin tabanı olduğu için silinemez.",
+    group_in_use: "Bu gruba bağlı müşteriler var; önce müşterilerin grubunu değiştirin.",
+    name_taken: "Bu ad zaten kullanılıyor.",
+    price_not_found: "Bu kalem için geçerli bir fiyat bulunamadı.",
     file_too_large: "Dosya çok büyük; en fazla 5 MB yüklenebilir.",
 };
 
