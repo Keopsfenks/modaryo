@@ -31,6 +31,50 @@ public static class TreasuryErrors {
         return new AppException(404, "branch_not_found", "Şube bulunamadı ya da pasif.");
     }
 
+    public static AppException AccountInactive() {
+        return new AppException(409, "account_inactive", "Pasif hesaba hareket girilemez.");
+    }
+
+    public static AppException AccountMethodMismatch(string message) {
+        return new AppException(400, "account_method_mismatch", message);
+    }
+
+    public static AppException RateRequired() {
+        return new AppException(400, "rate_required", "Hesap ve cari para birimi farklı: kur girilmeli (bu tarih için TCMB kuru da bulunamadı).");
+    }
+
+    public static AppException AllocationExceedsOpen(string message) {
+        return new AppException(400, "allocation_exceeds_open", message);
+    }
+
+    public static AppException AllocationOtherAccount() {
+        return new AppException(400, "allocation_other_account", "Eşleştirilen satırlar aynı cariye ait olmalıdır.");
+    }
+
+    public static AppException AllocationInvalid(string message) {
+        return new AppException(400, "allocation_invalid", message);
+    }
+
+    public static AppException AllocationDirection() {
+        return new AppException(400, "allocation_direction", "Eşleştirme borç ve alacak satırları arasında yapılabilir; aynı yöndeki satırlar eşleştirilemez.");
+    }
+
+    public static AppException AllocationLineCancelled() {
+        return new AppException(409, "allocation_line_cancelled", "İptal edilmiş bir hareketin satırı eşleştirilemez.");
+    }
+
+    public static AppException AllocationNotManual() {
+        return new AppException(409, "allocation_not_manual", "Yalnızca elle yapılan eşleştirmeler kaldırılabilir.");
+    }
+
+    public static AppException DocumentCancelled() {
+        return new AppException(409, "document_cancelled", "Belge zaten iptal edilmiş.");
+    }
+
+    public static AppException DocumentKindUnsupported() {
+        return new AppException(409, "document_kind_unsupported", "Bu belge türü buradan iptal edilemez.");
+    }
+
     public static AppException ModuleDisabled() {
         return new AppException(403, "module_disabled", "Bu modül firmanızda kapalı.");
     }

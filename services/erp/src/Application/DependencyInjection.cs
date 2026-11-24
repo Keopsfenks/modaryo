@@ -32,7 +32,9 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Invoicing.Series.SeriesResolver>();
         builder.Services.AddScoped<ERP.Application.Invoicing.Posting.CurrencyPosting>();
         builder.Services.AddScoped<ERP.Application.Invoicing.Posting.InvoicePoster>();
-        builder.Services.AddScoped<ERP.Application.Invoicing.Posting.IInvoicePaymentGuard, ERP.Application.Invoicing.Posting.NoInvoicePaymentGuard>();
+        builder.Services.AddScoped<ERP.Application.Invoicing.Posting.IInvoicePaymentGuard, ERP.Application.Treasury.InvoicePaymentGuard>();
+        builder.Services.AddScoped<ERP.Application.Treasury.Allocations.ManualAllocator>();
+        builder.Services.AddScoped<ERP.Application.Treasury.FinancePoster>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.CostCalculator>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.IRevaluationRunner, ERP.Application.Inventory.Costing.RevaluationRunner>();
         builder.Services.AddScoped<ERP.Application.Catalog.Excel.ImportEngine>();
