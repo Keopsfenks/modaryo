@@ -23,7 +23,7 @@ internal sealed record InvoicePdfModel(
     IReadOnlyDictionary<string, string> ExemptionNotes
 );
 
-/// <summary>A4 fatura şablonu. Yazı tipi: QuestPDF'in gömülü Lato'su (Türkçe İ ı Ş ş Ğ ğ Ç Ö Ü içerir).</summary>
+/// <summary>A4 fatura şablonu. Yazı tipi: QuestPDF'in gömülü Lato'su (Türkçe İ ı Ş ş Ğ ğ Ç Ö Ü içerir); eksik glifler için gömülü Noto Sans yedeği.</summary>
 internal sealed class InvoiceTemplate(InvoicePdfModel model) : IDocument {
     private const string Gray  = "#6B7280";
     private const string Light = "#F3F4F6";
@@ -41,7 +41,7 @@ internal sealed class InvoiceTemplate(InvoicePdfModel model) : IDocument {
         container.Page(page => {
             page.Size(PageSizes.A4);
             page.Margin(28);
-            page.DefaultTextStyle(t => t.FontSize(8.5f).FontColor("#111827"));
+            page.DefaultTextStyle(t => QuestPdfRenderer.BaseStyle(t).FontSize(8.5f).FontColor("#111827"));
 
             if (Invoice.Status == InvoiceStatus.Draft) Watermark(page, "TASLAK", Colors.Grey.Lighten2);
             else if (Invoice.Status == InvoiceStatus.Cancelled) Watermark(page, "İPTAL", Colors.Red.Lighten4);

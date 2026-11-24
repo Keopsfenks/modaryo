@@ -16,6 +16,10 @@ import { erp, type CurrentAccountDto } from "@/lib/api/erp";
 import { formatDate } from "@/lib/date";
 import { formatMoney } from "@/lib/money";
 
+/** Açık vade kalemleri tarihten bağımsız listelenir: ekstre varsayılanı (yıl başından bugüne) eski ya da ileri tarihli faturaları düşürürdü. */
+export const OPEN_FROM = "2000-01-01";
+export const OPEN_TO = "2100-12-31";
+
 type Row = { entryId: string; invoiceId: string; number: string; date: string; dueDate: string; remaining: number; overdue: boolean };
 
 /** Carinin kesilmiş faturalarından açık bakiyesi kalanlar: ekstredeki fatura hareketleri ile açık vade kalemlerinin birleşimi. */
@@ -25,7 +29,7 @@ export default function OpenInvoicesTab({ account }: { account: CurrentAccountDt
 
     useEffect(() => {
         let ignore = false;
-        Promise.all([erp.statement(account.id), erp.dueItems(account.id)]).then(
+        Promise.all([erp.statement(account.id, OPEN_FROM, OPEN_TO), erp.dueItems(account.id)]).then(
             ([statement, items]) => {
                 if (ignore) return;
                 const invoices = new Map(

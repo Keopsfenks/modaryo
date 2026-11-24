@@ -29,6 +29,9 @@ public sealed record LineInput {
     /// <summary>İade faturalarında iade edilen asıl fatura satırı.</summary>
     public Guid?             SourceLineId    { get; init; }
     public List<InvoiceLot>? Lots            { get; init; }
+
+    /// <summary>Seri takipli kalemlerde satır miktarı kadar seri numarası.</summary>
+    public List<string>?     Serials         { get; init; }
 }
 
 public sealed record InvoiceInput {
@@ -90,7 +93,8 @@ public sealed record LineDto(
     decimal                   WithheldTl,
     decimal                   TotalTl,
     Guid?                     SourceLineId,
-    IReadOnlyList<InvoiceLot>? Lots
+    IReadOnlyList<InvoiceLot>? Lots,
+    IReadOnlyList<string>?    Serials
 );
 
 public sealed record DueDto(DateOnly DueDate, decimal Amount);

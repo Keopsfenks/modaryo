@@ -39,18 +39,6 @@ public class SeriesTests : TestBase {
     }
 
     [Test]
-    public async Task Series_PaperPrefixFreeUpTo10AndMinWidth() {
-        using var client = await Admin();
-
-        using var tooLong = await Create(client, "ABCDEFGHIJK");
-        tooLong.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-
-        using var ok = await client.PostAsJsonAsync(Url, new { branchId = BranchA, kindGroup = "sales", mode = "Paper", prefix = "FTR-", year = 2026, minWidth = 8 });
-        ok.StatusCode.ShouldBe(HttpStatusCode.Created);
-        (await ok.JsonAsync()).GetProperty("nextPreview").GetString().ShouldBe("FTR-00000001");
-    }
-
-    [Test]
     public async Task Series_OneDefaultPerGroupBranchMode() {
         using var client = await Admin();
 
@@ -90,7 +78,9 @@ public class SeriesTests : TestBase {
         using var duplicate = await Create(client, "AAA", "EInvoice", branch: BranchB, year: 2026);
 
         duplicate.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await duplicate.ErrorCodeAsync()).ShouldBe("series_exists");
+        (await duplicate.ErrorCodeAsync()).ShouldBe("prefix_taken");
+        using var sameIdentity = await Create(client, "AAA", "EInvoice", year: 2026);
+        (await sameIdentity.ErrorCodeAsync()).ShouldBe("series_exists");
         using var nextYear = await Create(client, "AAA", "EInvoice", year: 2027);
         nextYear.StatusCode.ShouldBe(HttpStatusCode.Created);
     }

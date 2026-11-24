@@ -68,6 +68,7 @@ export type LineInput = {
     exemptionReason?: string | null;
     sourceLineId?: string | null;
     lots?: { lotNo: string; expiry: string | null; quantity: number; lotId?: string | null }[] | null;
+    serials?: string[] | null;
 };
 
 export type DueRowInput = { dueDate: string; amount: number };

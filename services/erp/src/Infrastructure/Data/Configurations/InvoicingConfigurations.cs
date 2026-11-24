@@ -116,6 +116,14 @@ public class InvoiceLineConfiguration : IEntityTypeConfiguration<InvoiceLine> {
                                   nameof(InvoiceLine.WithheldTl), nameof(InvoiceLine.TotalTl) })
             builder.Property(p).HasPrecision(18, 2);
 
+        var serials = builder.Property(e => e.Serials).HasColumnType("jsonb");
+        serials.HasConversion(v => v == null ? null : JsonSerializer.Serialize(v, Json),
+                              v => v == null ? null : (IReadOnlyList<string>?)JsonSerializer.Deserialize<List<string>>(v, Json));
+        serials.Metadata.SetValueComparer(new ValueComparer<IReadOnlyList<string>?>(
+                                              (a, b) => JsonSerializer.Serialize(a, Json) == JsonSerializer.Serialize(b, Json),
+                                              v => v == null ? 0 : JsonSerializer.Serialize(v, Json).GetHashCode(),
+                                              v => v == null ? null : (IReadOnlyList<string>?)JsonSerializer.Deserialize<List<string>>(JsonSerializer.Serialize(v, Json), Json)));
+
         var lots = builder.Property(e => e.Lots).HasColumnType("jsonb");
         lots.HasConversion(v => v == null ? null : JsonSerializer.Serialize(v, Json),
                            v => v == null ? null : (IReadOnlyList<InvoiceLot>?)JsonSerializer.Deserialize<List<InvoiceLot>>(v, Json));
@@ -155,8 +163,8 @@ public class DocumentSeriesConfiguration : IEntityTypeConfiguration<DocumentSeri
         // (Firma, şube, grup, mod) başına en çok bir varsayılan seri; uygulama kuralı veritabanında da güvence altında.
         builder.HasIndex(e => new { e.TenantId, e.BranchId, e.KindGroup, e.Mode }).IsUnique().HasFilter("\"IsDefault\"")
             .HasDatabaseName("IX_document_series_default");
-        // Numara tekilliği için önek, firmada grup/mod/yıl başına tekil.
-        builder.HasIndex(e => new { e.TenantId, e.KindGroup, e.Mode, e.Prefix, e.Year }).IsUnique();
+        // Numaralar firma genelinde tekil olduğundan önek+yıl, grup/mod/şubeden bağımsız olarak firmada tekildir.
+        builder.HasIndex(e => new { e.TenantId, e.Prefix, e.Year }).IsUnique().HasDatabaseName("IX_document_series_prefix_year");
     }
 }
 

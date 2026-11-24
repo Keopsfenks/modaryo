@@ -50,7 +50,7 @@ public class PdfTests : TestBase {
     [Test]
     public async Task Pdf_ContainsNumberTotalsAmountInWordsAndIbans() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         await SetFirm(env, "Örnek Tekstil A.Ş.", withLogo: true);
         var issued = await CreateAndIssue(env, Body(env)); // 2 x 50 (KDV %20) + 200 hizmet (KDV %10) = 300 + 40 KDV
 
@@ -58,7 +58,7 @@ public class PdfTests : TestBase {
         var text = Text(pdf);
 
         pdf.AsSpan(0, 5).ToArray().ShouldBe("%PDF-"u8.ToArray());
-        text.ShouldContain("F000001");
+        text.ShouldContain("FTR2026000000001");
         text.ShouldContain("340,00");
         text.ShouldContain("YalnızÜçYüzKırkTürkLirası");
         text.ShouldContain(Iban);
@@ -70,7 +70,7 @@ public class PdfTests : TestBase {
     [Test]
     public async Task Pdf_DraftHasTaslakWatermark() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var draft  = await Create(env, Body(env));
         var issued = await CreateAndIssue(env, Body(env));
 
@@ -78,7 +78,7 @@ public class PdfTests : TestBase {
         var issuedText = Text(await GetPdf(env.Client, issued.GetProperty("id").GetGuid()));
 
         draftText.ShouldContain("TASLAK");
-        draftText.ShouldNotContain("F00000");
+        draftText.ShouldNotContain("FTR2026");
         draftText.ShouldNotContain("FaturaNo");
         issuedText.ShouldNotContain("TASLAK");
     }
@@ -86,7 +86,7 @@ public class PdfTests : TestBase {
     [Test]
     public async Task Pdf_CancelledHasIptalWatermark_AndKeepsNumber() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var issued = await CreateAndIssue(env, Body(env));
         var id     = issued.GetProperty("id").GetGuid();
         (await PostingSupport.Cancel(env.Client, id)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -94,13 +94,13 @@ public class PdfTests : TestBase {
         var text = Text(await GetPdf(env.Client, id));
 
         text.ShouldContain("İPTAL");
-        text.ShouldContain("F000001");
+        text.ShouldContain("FTR2026000000001");
     }
 
     [Test]
     public async Task Pdf_TurkishCharactersRender() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var cari   = await CreateCari(env.Client, "M9", customer: true, supplier: false, name: "İŞÇĞÜÖı ışığı şğüöçi Ltd");
         var issued = await CreateAndIssue(env, Body(env, extra: new { currentAccountId = cari }));
 
@@ -119,7 +119,7 @@ public class PdfTests : TestBase {
     [Test]
     public async Task Pdf_PurchaseRequiresFiyatAlis_AndUnknownReturns404() {
         var env = await NewEnv();
-        await CreateSeries(env, "A", group: "purchase");
+        await CreateSeries(env, "ALS", group: "purchase");
         var issued = await CreateAndIssue(env, Body(env, "Purchase"));
         using var limited = await OtherClient(env, "fatura.read");
 
@@ -133,7 +133,7 @@ public class PdfTests : TestBase {
     [Test]
     public async Task Pdf_ForeignCurrencyShowsCodeAndWords() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var issued = await CreateAndIssue(env, Body(env, lines: [FreeLine("Danışmanlık", 1m, 100m, 0)], extra: new { currency = "USD", rate = 30m }));
 
         var text = Text(await GetPdf(env.Client, issued.GetProperty("id").GetGuid()));

@@ -13,7 +13,7 @@ public class CancelTests : TestBase {
     [Test]
     public async Task Cancel_RevertsLedgerDueLinesAndStock() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         await StockEnv.SetStock(env.Client, "fifo");
         var warehouse = await Warehouse(env);
         await Stock(env, warehouse, 10m, 10m);
@@ -53,18 +53,18 @@ public class CancelTests : TestBase {
         var after = await (await env.Client.GetAsync($"{Url}/{id}")).JsonAsync();
         after.GetProperty("status").GetString().ShouldBe("cancelled");
         after.GetProperty("cancelReason").GetString().ShouldBe("Yanlış cari");
-        after.GetProperty("number").GetString().ShouldBe("F000001"); // numara kullanılmış kalır
+        after.GetProperty("number").GetString().ShouldBe("FTR2026000000001"); // numara kullanılmış kalır
         (await StockEnv.OutboxCount(env.Tenant, "invoice.cancelled")).ShouldBe(1);
 
         // Numara yeniden verilmez.
         var next = await CreateAndIssue(env, Body(env, lines: [FreeLine()]));
-        next.GetProperty("number").GetString().ShouldBe("F000002");
+        next.GetProperty("number").GetString().ShouldBe("FTR2026000000002");
     }
 
     [Test]
     public async Task CancelTwice_Returns409() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var id = (await CreateAndIssue(env, Body(env))).GetProperty("id").GetGuid();
 
         (await Cancel(env.Client, id)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -78,7 +78,7 @@ public class CancelTests : TestBase {
     [Test]
     public async Task CancelDraft_Returns409_AndValidatesReason_AndPermission() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var draft = await Create(env, Body(env));
         var id    = draft.GetProperty("id").GetGuid();
 
@@ -99,7 +99,7 @@ public class CancelTests : TestBase {
     [Test]
     public async Task CancelPurchase_RequiresFiyatAlis() {
         var env = await NewEnv();
-        await CreateSeries(env, "AF", group: "purchase");
+        await CreateSeries(env, "ALF", group: "purchase");
         var id = (await CreateAndIssue(env, Body(env, "Purchase"))).GetProperty("id").GetGuid();
         using var client = await OtherClient(env, "fatura.read", "fatura.cancel");
 
@@ -111,7 +111,7 @@ public class CancelTests : TestBase {
     [Test]
     public async Task CancelInLockedPeriod_Returns409_AndChangesNothing() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var warehouse = await Warehouse(env);
         await Stock(env, warehouse, 10m);
         var id = (await CreateAndIssue(env, Body(env, lines: [ProductLine(env, 4m, 50m)], extra: new { affectsStock = true, warehouseId = warehouse }))).GetProperty("id").GetGuid();
@@ -128,8 +128,8 @@ public class CancelTests : TestBase {
     [Test]
     public async Task CancelPurchaseWhoseStockWasConsumed_FailsAndKeepsEverything() {
         var env = await NewEnv();
-        await CreateSeries(env, "AF", group: "purchase");
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "ALF", group: "purchase");
+        await CreateSeries(env, "FTR");
         var warehouse = await Warehouse(env);
         var purchase = await CreateAndIssue(env, Body(env, "Purchase", lines: [ProductLine(env, 5m, 10m)], extra: new { affectsStock = true, warehouseId = warehouse }));
         await CreateAndIssue(env, Body(env, lines: [ProductLine(env, 4m, 20m)], extra: new { affectsStock = true, warehouseId = warehouse }));
@@ -146,7 +146,7 @@ public class CancelTests : TestBase {
     [Test]
     public async Task ParallelCancels_ExactlyOneWins_EffectsReversedOnce() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var warehouse = await Warehouse(env);
         await Stock(env, warehouse, 10m);
         var id = (await CreateAndIssue(env, Body(env, lines: [ProductLine(env, 4m, 50m)], extra: new { affectsStock = true, warehouseId = warehouse }))).GetProperty("id").GetGuid();
@@ -165,7 +165,7 @@ public class CancelTests : TestBase {
     public async Task CancelRacingIssue_IsAllOrNothing() {
         for (var round = 0; round < 4; round++) {
             var env = await NewEnv(productCode: "R" + round);
-            await CreateSeries(env, "F");
+            await CreateSeries(env, "FTR");
             var warehouse = await Warehouse(env);
             await Stock(env, warehouse, 10m);
             var draft = await Create(env, Body(env, lines: [ProductLine(env, 4m, 50m)], extra: new { affectsStock = true, warehouseId = warehouse }));
@@ -200,7 +200,7 @@ public class CancelTests : TestBase {
     [Test]
     public async Task ParallelIssuesAndCancels_OnSharedStock_DoNotDeadlock_AndBalance() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var warehouse = await Warehouse(env);
         await Stock(env, warehouse, 100m);
         var issued = new List<Guid>();

@@ -113,6 +113,12 @@ public interface IApplicationDbContext {
     /// </summary>
     Task<long?> ReserveSeriesNumberAsync(Guid seriesId, CancellationToken cancellationToken);
 
+    /// <summary>
+    ///     Seri satırını INSERT ... ON CONFLICT DO NOTHING ile ekler (eşzamanlı oluşturmada işlem bozulmaz).
+    ///     Eklendiyse true; herhangi bir tekil indeks çakıştıysa false.
+    /// </summary>
+    Task<bool> TryInsertSeriesAsync(DocumentSeries series, CancellationToken cancellationToken);
+
     /// <summary>İzlenen tüm varlıkları bırakır (geri alınan bir işlemden sonra bağlamı temizlemek için).</summary>
     void ClearTracking();
 

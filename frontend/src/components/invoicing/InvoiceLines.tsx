@@ -166,7 +166,7 @@ export default function InvoiceLines({ lines, onChange, codes, purchase, current
                                                 size="small"
                                                 value={line.unit}
                                                 disabled={disabled}
-                                                onChange={(e) => patch(line.key, { unit: e.target.value, lots: [] })}
+                                                onChange={(e) => patch(line.key, { unit: e.target.value, lots: [], serials: [] })}
                                                 slotProps={nativeSelect(`${label} birim`)}
                                                 fullWidth
                                             >

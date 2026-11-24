@@ -48,6 +48,12 @@ public sealed class CancelInvoiceCommandHandler(
             if (invoice.Status != InvoiceStatus.Issued)
                 throw InvoiceErrors.Conflict("invoice_not_issued", "Yalnızca kesilmiş faturalar iptal edilebilir; taslak faturalar silinir.");
 
+            // İadeler asıl faturayla aynı cari kilidini alır: iptal ile iade kesimi birbirini aynı kilit altında görür. Yalnızca kesilmiş iadeler
+            // defter/stok etkisi taşır (taslaklar kesim anında original_cancelled ile reddedilir; iptal edilmiş iadeler sayılmaz).
+            if (!InvoiceRules.IsReturn(invoice.Kind)
+                && await db.Invoices.AnyAsync(i => i.ReturnOfInvoiceId == invoice.Id && i.Status == InvoiceStatus.Issued, ct))
+                throw InvoiceErrors.Conflict("invoice_has_returns", "Faturaya bağlı iade faturaları var; önce iadeleri iptal edin ya da silin.");
+
             if (await paymentGuard.HasManualAllocationsAsync(invoice.Id, ct))
                 throw InvoiceErrors.Conflict("invoice_has_payments", "Faturaya bağlı tahsilat/ödeme eşleştirmesi var; önce eşleştirmeleri kaldırın.");
 

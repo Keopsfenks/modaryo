@@ -6,6 +6,7 @@ using ERP.Application.Settings.Categories;
 using ERP.Domain.Invoicing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using DocumentSettings = ERP.Application.Settings.Categories.DocumentSettings;
@@ -19,12 +20,27 @@ public sealed class QuestPdfRenderer(
     IFileStorage               storage,
     ILogger<QuestPdfRenderer>  logger
 ) : IDocumentPdf {
+    /// <summary>Ana yazı tipi (QuestPDF'in gömülü Lato'su) ve eksik glifler için gömülü yedek (Noto Sans, SIL OFL 1.1).</summary>
+    internal const string PrimaryFont  = "Lato";
+    internal const string FallbackFont = "Noto Sans";
+
     static QuestPdfRenderer() {
         QuestPDF.Settings.License = LicenseType.Community;
-        // Yalnızca gömülü yazı tipi: çıktı sunucudaki yazı tiplerine bağlı olmaz; eksik glif sessizce kutuya dönmez, hata verir.
-        QuestPDF.Settings.UseSystemFonts                  = false;
-        QuestPDF.Settings.ThrowOnMissingTextGlyphs         = true;
-        QuestPDF.Settings.EnableCaching                    = true;
+        // Yalnızca gömülü yazı tipleri: çıktı sunucudaki yazı tiplerine bağlı olmaz.
+        QuestPDF.Settings.UseSystemFonts = false;
+        // Lato'da olmayan karakterler (emoji, CJK, Arapça, simgeler) önce Noto Sans'a düşer; onda da yoksa glif kutusu çizilir.
+        // Hiçbir karakter PDF üretimini düşürmesin: eksik glif hatası kapalıdır.
+        QuestPDF.Settings.ThrowOnMissingTextGlyphs = false;
+        QuestPDF.Settings.EnableCaching            = true;
+        var assembly = typeof(QuestPdfRenderer).Assembly;
+        foreach (var name in assembly.GetManifestResourceNames().Where(n => n.StartsWith("Font.NotoSans-", StringComparison.Ordinal)))
+            using (var stream = assembly.GetManifestResourceStream(name)!)
+                FontManager.RegisterFontFromStream(stream);
+    }
+
+    /// <summary>Tüm belge metni için varsayılan stil: Lato, eksik glifte Noto Sans.</summary>
+    internal static TextStyle BaseStyle(TextStyle style) {
+        return style.FontFamily(PrimaryFont, FallbackFont);
     }
 
     public async Task<byte[]> RenderInvoiceAsync(Guid invoiceId, CancellationToken ct) {
@@ -72,7 +88,7 @@ public sealed class QuestPdfRenderer(
             var net = qty * price;
             var tax = Math.Round(net * vat / 100m, 2, MidpointRounding.AwayFromZero);
             return new LineDto(Guid.Empty, sort, null, null, name, "adet", 1m, qty, null, null, price, false, null, null, vat, null, null, null, null, null, net, 0m, 0m,
-                               net, 0m, net, tax, 0m, net + tax, net, 0m, tax, 0m, net + tax, null, null);
+                               net, 0m, net, tax, 0m, net + tax, net, 0m, tax, 0m, net + tax, null, null, null);
         }
 
         var lines = new List<LineDto> { Line(1, "Örnek ürün A", 10m, 100m, 20), Line(2, "Örnek hizmet B", 1m, 500m, 10) };

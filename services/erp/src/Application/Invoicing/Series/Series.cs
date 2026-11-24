@@ -38,21 +38,16 @@ public static partial class SeriesRules {
         v.RuleFor(s => s.KindGroup).Must(g => KindGroups.Contains(g)).WithMessage("Belge grubu \"sales\" ya da \"purchase\" olmalıdır.");
         v.RuleFor(s => s.Mode).IsInEnum().WithMessage("Belge modu geçersiz.");
         v.RuleFor(s => s.Prefix).NotEmpty().WithMessage("Seri öneki zorunludur.");
-        // e-Belge: tam 3 karakter [A-Z0-9]; kâğıt: 1-10 karakter, boşluksuz.
-        v.RuleFor(s => s).Must(s => s.Mode == InvoiceMode.Paper || EBelgePrefix().IsMatch(s.Prefix ?? string.Empty))
-            .WithName("Prefix").WithMessage("e-Belge serisinin öneki 3 karakter (A-Z, 0-9) olmalıdır.");
-        v.RuleFor(s => s).Must(s => s.Mode != InvoiceMode.Paper || PaperPrefix().IsMatch(s.Prefix ?? string.Empty))
-            .WithName("Prefix").WithMessage("Kâğıt serisinin öneki 1-10 karakter olmalı ve boşluk içermemelidir.");
+        // Tüm modlarda numara {3 karakter önek}{yıl}{9 hane} = 16 karakter: önek tam 3 karakter [A-Z0-9].
+        v.RuleFor(s => s).Must(s => SeriesPrefix().IsMatch(s.Prefix ?? string.Empty))
+            .WithName("Prefix").WithMessage("Seri öneki 3 karakter (A-Z, 0-9) olmalıdır.");
         v.RuleFor(s => s.Year).InclusiveBetween(2000, 2100).When(s => s.Year is not null).WithMessage("Yıl geçersiz.");
         v.RuleFor(s => s.MinWidth).InclusiveBetween(1, 12).When(s => s.MinWidth is not null)
             .WithMessage("Sıra genişliği 1 ile 12 arasında olmalıdır.");
     }
 
     [GeneratedRegex("^[A-Z0-9]{3}$")]
-    private static partial Regex EBelgePrefix();
-
-    [GeneratedRegex(@"^\S{1,10}$")]
-    private static partial Regex PaperPrefix();
+    private static partial Regex SeriesPrefix();
 
     public static SeriesDto ToDto(DocumentSeries s) {
         return new SeriesDto(s.Id, s.KindGroup, s.BranchId, s.Mode, s.Prefix, s.Year, s.NextNumber, s.MinWidth, s.IsDefault, s.IsActive,
@@ -60,8 +55,7 @@ public static partial class SeriesRules {
     }
 
     public static string NormalizePrefix(InvoiceMode mode, string prefix) {
-        var p = prefix.Trim();
-        return mode == InvoiceMode.Paper ? p : p.ToUpperInvariant();
+        return prefix.Trim().ToUpperInvariant();
     }
 
     /// <summary>
@@ -75,6 +69,18 @@ public static partial class SeriesRules {
             .ExecuteUpdateAsync(set => set.SetProperty(s => s.IsDefault, false), ct);
     }
 
+    /// <summary>
+    ///     Önek firmada tek bir (grup, şube, mod) kimliğine aittir; yalnızca yıl değişir. Aynı kimlik+yıl zaten varsa 409 series_exists,
+    ///     önek başka bir kimlikte kullanılıyorsa 409 prefix_taken. (Veritabanı da (firma, önek, yıl) tekilliğini ayrıca güvence altına alır.)
+    /// </summary>
+    public static async Task EnsurePrefixFreeAsync(IApplicationDbContext db, string kindGroup, Guid branchId, InvoiceMode mode, string prefix, int year,
+                                                   Guid? exceptId, CancellationToken ct) {
+        var rows = await db.DocumentSeries.AsNoTracking().Where(s => s.Prefix == prefix && (exceptId == null || s.Id != exceptId))
+                           .Select(s => new { s.KindGroup, s.BranchId, s.Mode, s.Year }).ToListAsync(ct);
+        if (rows.Any(r => r.KindGroup != kindGroup || r.BranchId != branchId || r.Mode != mode)) throw InvoicingErrors.PrefixTaken(prefix);
+        if (rows.Any(r => r.Year == year)) throw InvoicingErrors.SeriesExists(prefix);
+    }
+
     /// <summary>Kaydeder; benzersizlik ihlalini anlamlı hataya çevirir (önek çakışması ya da eşzamanlı varsayılan değişimi).</summary>
     public static async Task SaveAsync(IApplicationDbContext db, Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction tx, string prefix,
                                        CancellationToken ct) {
@@ -83,9 +89,11 @@ public static partial class SeriesRules {
             await tx.CommitAsync(ct);
         } catch (DbUpdateException ex) when (InvoicingErrors.IsUniqueViolation(ex)) {
             db.ClearTracking();
-            throw InvoicingErrors.ConstraintName(ex) == InvoicingErrors.DefaultSeriesIndex
-                      ? InvoicingErrors.SeriesDefaultConflict()
-                      : InvoicingErrors.SeriesExists(prefix);
+            throw InvoicingErrors.ConstraintName(ex) switch {
+                InvoicingErrors.DefaultSeriesIndex => InvoicingErrors.SeriesDefaultConflict(),
+                InvoicingErrors.PrefixYearIndex    => InvoicingErrors.PrefixTaken(prefix),
+                _                                  => InvoicingErrors.SeriesExists(prefix)
+            };
         }
     }
 }
@@ -129,14 +137,13 @@ public sealed class CreateSeriesCommandHandler(
 
         var prefix = SeriesRules.NormalizePrefix(request.Mode, request.Prefix);
         var year   = request.Year ?? DateTime.UtcNow.Year;
-        if (await db.DocumentSeries.AnyAsync(s => s.KindGroup == request.KindGroup && s.Mode == request.Mode && s.Prefix == prefix && s.Year == year, ct))
-            throw InvoicingErrors.SeriesExists(prefix);
+        await SeriesRules.EnsurePrefixFreeAsync(db, request.KindGroup, request.BranchId, request.Mode, prefix, year, null, ct);
 
         var hasDefault = await db.DocumentSeries.AnyAsync(s => s.IsDefault && s.KindGroup == request.KindGroup
                                                                && s.BranchId == request.BranchId && s.Mode == request.Mode, ct);
         var series = new DocumentSeries {
             KindGroup = request.KindGroup, BranchId = request.BranchId, Mode = request.Mode, Prefix = prefix, Year = year,
-            MinWidth  = request.Mode == InvoiceMode.Paper ? request.MinWidth ?? 6 : 9,
+            MinWidth  = 9,
             IsActive  = request.IsActive,
             // Grubun ilk serisi otomatik varsayılan olur.
             IsDefault = request.IsActive && (request.IsDefault || !hasDefault)
@@ -176,16 +183,14 @@ public sealed class UpdateSeriesCommandHandler(
         if (identityChanged) {
             // Numara alınmış serinin kimliği değişmez; numaralı belgelerle tutarlılık bozulur.
             if (series.NextNumber > 1) throw InvoicingErrors.SeriesInUse();
-            if (await db.DocumentSeries.AnyAsync(s => s.Id != series.Id && s.KindGroup == request.KindGroup && s.Mode == request.Mode
-                                                      && s.Prefix == prefix && s.Year == year, ct))
-                throw InvoicingErrors.SeriesExists(prefix);
+            await SeriesRules.EnsurePrefixFreeAsync(db, request.KindGroup, series.BranchId, request.Mode, prefix, year, series.Id, ct);
         }
 
         series.KindGroup = request.KindGroup;
         series.Mode      = request.Mode;
         series.Prefix    = prefix;
         series.Year      = year;
-        series.MinWidth  = request.Mode == InvoiceMode.Paper ? request.MinWidth ?? series.MinWidth : 9;
+        series.MinWidth  = 9;
         series.IsActive  = request.IsActive;
         // Varsayılan seri PUT ile kaldırılamaz; başka seri varsayılan yapılınca düşer. Pasif seri varsayılan olamaz.
         series.IsDefault = request.IsActive && (request.IsDefault || series.IsDefault);

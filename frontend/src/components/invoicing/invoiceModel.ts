@@ -34,6 +34,8 @@ export type InvoiceLineDraft = {
     tracksSerialLot: boolean;
     trackingMode: "lot" | "serial" | null;
     lots: LotInput[];
+    /** Seri takipli kalemler için seri numaraları (satır ızgarasında girişi yok; kayıtlı taslaktan taşınır). */
+    serials: string[];
     sourceLineId: string | null;
     error?: string | null;
 };
@@ -67,6 +69,7 @@ export function newInvoiceLine(item: SellableItem): InvoiceLineDraft {
         tracksSerialLot: item.tracksSerialLot,
         trackingMode: item.tracksSerialLot ? "lot" : null,
         lots: [],
+        serials: [],
         sourceLineId: null,
         error: null,
     };
@@ -100,6 +103,7 @@ export function lineFromDto(dto: LineDto, product?: Partial<Omit<SellableItem, "
         tracksSerialLot: product?.tracksSerialLot ?? false,
         trackingMode: product?.tracksSerialLot ? "lot" : null,
         lots: (dto.lots ?? []).map((l) => ({ lotNo: l.lotNo, expiry: l.expiry, quantity: l.quantity, lotId: l.lotId ?? null })),
+        serials: dto.serials ?? [],
         sourceLineId: dto.sourceLineId ?? null,
         error: null,
     };
@@ -164,6 +168,7 @@ export function toLineInput(line: InvoiceLineDraft, includeLots: boolean): LineI
         exemptionReason: line.exemptionCode ? line.exemptionReason.trim() || null : null,
         sourceLineId: line.sourceLineId,
         lots: includeLots && line.tracksSerialLot && line.trackingMode === "lot" && line.lots.length > 0 ? line.lots : null,
+        serials: line.serials.length > 0 ? line.serials : null,
     };
 }
 

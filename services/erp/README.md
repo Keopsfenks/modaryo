@@ -98,3 +98,25 @@ Key design decisions are documented as [Architecture Decision Records](docs/deci
 
 To learn more about the template go to the [project website](https://cleanarchitecture.jasontaylor.dev). Here you can
 find additional guidance, request new features, report a bug, and discuss the template with other users.
+## Third-party notices
+
+- **QuestPDF** (invoice PDFs) is used under the QuestPDF Community licence (`QuestPDF.Settings.License = LicenseType.Community`;
+  free for organisations below the revenue threshold of the licence, otherwise a commercial licence is required).
+  The default font, Lato, ships inside the QuestPDF package (SIL Open Font Licence 1.1).
+- **Noto Sans** Regular and Bold (`src/Infrastructure/Documents/Fonts/NotoSans-*.ttf`) are embedded as the fallback font for
+  glyphs Lato lacks (emoji, CJK, Arabic, symbols). Copyright 2022 The Noto Project Authors, licensed under the
+  SIL Open Font License 1.1; the licence text is in `src/Infrastructure/Documents/Fonts/OFL.txt`.
+  Source: `@expo-google-fonts/noto-sans` 0.4.2 (npm). Characters missing in both fonts render as the font's missing-glyph box
+  (`ThrowOnMissingTextGlyphs` is off), so a character can never make PDF generation fail.
+
+## Invoice numbering and default series
+
+- Every invoice number has the same 16-character form for all modes (paper, e-Fatura, e-Arşiv): `{3-char prefix}{yyyy}{9-digit sequence}`,
+  e.g. `ABC2026000000001`. The prefix is 3 characters of `A-Z0-9`.
+- A prefix is unique per tenant across modes, kind groups and branches (`409 prefix_taken`); only the year differs between
+  rows of one series (unique index `IX_document_series_prefix_year` on tenant + prefix + year).
+- When a series has no row for the invoice's year, issuing finds or creates the same-prefix row for that year (sequence from 1).
+- When a branch has no default **paper** series for a kind group, issuing provisions one lazily (like `DefaultWarehouseService`).
+  Prefixes are deterministic: the tenant's default branch gets `SAT` (sales) and `ALS` (purchase); other branches get `S` / `A`
+  plus two base-36 characters derived from the branch id, probing the next candidate when taken. e-Fatura / e-Arşiv series are
+  never provisioned automatically (their prefixes are registered with GİB), so they still return `409 series_missing`.

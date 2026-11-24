@@ -164,6 +164,26 @@ describe("AccountDetail", () => {
         expect(screen.getAllByRole("row")).toHaveLength(2);
     });
 
+    it("OpenInvoicesTab_RequestsTheStatementWithoutTheDefaultYearWindow", async () => {
+        resetNavigation("/cari/acc-1", "sekme=acik-faturalar");
+        setup();
+        const seen: URL[] = [];
+        server.use(
+            http.get("*/api/erp/current-accounts/acc-1/statement", ({ request }) => {
+                seen.push(new URL(request.url));
+                return HttpResponse.json({ openingBalance: 0, rows: [], totalDebit: 0, totalCredit: 0, closingBalance: 0, currency: "TRY" });
+            }),
+            http.get("*/api/erp/current-accounts/acc-1/due-items", () => HttpResponse.json([])),
+        );
+
+        render();
+
+        await screen.findByText("Açık bakiyesi olan fatura yok.");
+        // Varsayılan pencere (1 Ocak - bugün) açık eski/ileri tarihli faturaları düşürür: geniş aralık istenir.
+        expect(seen[0].searchParams.get("from")).toBe("2000-01-01");
+        expect(seen[0].searchParams.get("to")).toBe("2100-12-31");
+    });
+
     it("Detail_NotFound", async () => {
         server.use(
             http.get(`${IDENTITY}/auth/session`, () => HttpResponse.json(sessionInfo())),

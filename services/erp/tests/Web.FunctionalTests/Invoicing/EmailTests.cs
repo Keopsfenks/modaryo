@@ -32,7 +32,7 @@ public class EmailTests : TestBase {
     [Test]
     public async Task Email_SendsWithPdfAttachmentToMailpit() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var issued  = await CreateAndIssue(env, Body(env));
         var id      = issued.GetProperty("id").GetGuid();
         var subject = "Fatura " + Guid.NewGuid().ToString("N");
@@ -48,20 +48,20 @@ public class EmailTests : TestBase {
         message.Value.GetProperty("Cc")[0].GetProperty("Address").GetString().ShouldBe("muhasebe@example.com");
         message.Value.GetProperty("From").GetProperty("Address").GetString().ShouldBe("belge@modaryo.local");
         var attachment = message.Value.GetProperty("Attachments")[0];
-        attachment.GetProperty("FileName").GetString().ShouldBe("F000001.pdf");
+        attachment.GetProperty("FileName").GetString().ShouldBe("FTR2026000000001.pdf");
         attachment.GetProperty("ContentType").GetString().ShouldBe("application/pdf");
         // Gövde düz metin olarak ele alınır: HTML etiketleri kaçırılır.
         message.Value.GetProperty("HTML").GetString()!.ShouldContain("&lt;b&gt;");
 
         var bytes = await Http.GetByteArrayAsync($"{Mailpit}/message/{message.Value.GetProperty("ID").GetString()}/part/{attachment.GetProperty("PartID").GetString()}");
         bytes.AsSpan(0, 5).ToArray().ShouldBe("%PDF-"u8.ToArray());
-        PdfTests.Text(bytes).ShouldContain("F000001");
+        PdfTests.Text(bytes).ShouldContain("FTR2026000000001");
     }
 
     [Test]
     public async Task Email_TemplateVariablesReplaced() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var firm = "Şablon " + Guid.NewGuid().ToString("N")[..10] + " A.Ş.";
         await SetFirmName(env, firm);
         using (var settings = await OtherClient(env, "ayarlar.belgeler")) {
@@ -80,10 +80,10 @@ public class EmailTests : TestBase {
         using var response = await env.Client.PostAsJsonAsync($"{Url}/{issued.GetProperty("id").GetGuid()}/email", new { to = new[] { "alici@example.com" } });
 
         response.StatusCode.ShouldBe(HttpStatusCode.NoContent, await response.Content.ReadAsStringAsync());
-        var message = await FindMessage($"{firm} - F000001 numaralı fatura");
+        var message = await FindMessage($"{firm} - FTR2026000000001 numaralı fatura");
         message.ShouldNotBeNull();
         var html = message.Value.GetProperty("HTML").GetString()!;
-        html.ShouldContain("Sayın Cari M1, F000001 numaralı 340,00 TL tutarlı faturanız 09.04.2026 vadelidir.");
+        html.ShouldContain("Sayın Cari M1, FTR2026000000001 numaralı 340,00 TL tutarlı faturanız 09.04.2026 vadelidir.");
         html.ShouldContain(System.Net.WebUtility.HtmlEncode(firm));
         html.ShouldNotContain("{");
     }
@@ -91,7 +91,7 @@ public class EmailTests : TestBase {
     [Test]
     public async Task Email_DraftAndCancelled_Return409() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var draft  = await Create(env, Body(env));
         var issued = await CreateAndIssue(env, Body(env));
         (await PostingSupport.Cancel(env.Client, issued.GetProperty("id").GetGuid())).StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -107,7 +107,7 @@ public class EmailTests : TestBase {
     [Test]
     public async Task Email_ValidatesRecipients_AndPermission() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var issued = await CreateAndIssue(env, Body(env));
         var url    = $"{Url}/{issued.GetProperty("id").GetGuid()}/email";
         using var limited = await OtherClient(env, "cari.read");

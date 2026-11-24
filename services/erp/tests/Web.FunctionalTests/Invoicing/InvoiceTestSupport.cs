@@ -18,11 +18,11 @@ internal static class InvoiceTestSupport {
 
     public sealed record Env(Guid Tenant, HttpClient Client, Guid Branch, Guid Customer, Guid Supplier, Guid Product);
 
-    public static async Task<Env> NewEnv(string[]? permissions = null, decimal? maxDiscount = null, string productCode = "P1") {
+    public static async Task<Env> NewEnv(string[]? permissions = null, decimal? maxDiscount = null, string productCode = "P1", string[]? modules = null) {
         var tenant = Guid.CreateVersion7();
         var branch = Guid.CreateVersion7();
         TestEnvironment.Factory.Branches.Seed(tenant, [new BranchRef(branch, "MRK", "Merkez", true, true)]);
-        var client   = await TestEnvironment.Factory.ClientAsync(tenant, null, null, maxDiscount, permissions ?? AllPermissions);
+        var client   = await TestEnvironment.Factory.ClientAsync(tenant, modules, null, maxDiscount, permissions ?? AllPermissions);
         var customer = await CreateCari(client, "M1", customer: true, supplier: false);
         var supplier = await CreateCari(client, "T1", customer: false, supplier: true);
         var product  = await CreateProduct(client, productCode, new { vatRate = 20, baseUnit = "adet" });

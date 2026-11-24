@@ -28,6 +28,7 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Inventory.Tracking.TrackingValidator>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.TenantScope>();
         builder.Services.AddScoped<ERP.Application.Invoicing.InvoiceBuilder>();
+        builder.Services.AddScoped<ERP.Application.Invoicing.Series.SeriesResolver>();
         builder.Services.AddScoped<ERP.Application.Invoicing.Posting.CurrencyPosting>();
         builder.Services.AddScoped<ERP.Application.Invoicing.Posting.InvoicePoster>();
         builder.Services.AddScoped<ERP.Application.Invoicing.Posting.IInvoicePaymentGuard, ERP.Application.Invoicing.Posting.NoInvoicePaymentGuard>();

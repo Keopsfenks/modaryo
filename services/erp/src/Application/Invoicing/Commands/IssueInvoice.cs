@@ -2,6 +2,7 @@ using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.Invoicing.Posting;
+using ERP.Application.Invoicing.Series;
 using ERP.Application.Settings;
 using ERP.Application.Settings.Categories;
 using ERP.Domain.CurrentAccounts;
@@ -20,6 +21,7 @@ public sealed class IssueInvoiceCommandHandler(
     ITenantSettings       settings,
     InvoiceBuilder        builder,
     InvoicePoster         poster,
+    SeriesResolver        seriesResolver,
     TimeProvider          clock
 ) : IRequestHandler<IssueInvoiceCommand, InvoiceDto> {
     public async Task<InvoiceDto> Handle(IssueInvoiceCommand request, CancellationToken ct) {
@@ -47,14 +49,20 @@ public sealed class IssueInvoiceCommandHandler(
             if (current is null) throw new NotFoundException(request.Id.ToString(), "Invoice");
             if (current != InvoiceStatus.Draft) throw InvoiceErrors.NotDraft(current.Value);
 
-            // Taslağın hazırlandığı andan beri geçen sürede başka iadeler kesilmiş olabilir.
-            if (InvoiceRules.IsReturn(invoice.Kind) && invoice.ReturnOfInvoiceId is { } originalId)
+            // Taslağın hazırlandığı andan beri asıl fatura iptal edilmiş ya da başka iadeler kesilmiş olabilir (iptal de aynı cari kilidini alır).
+            if (InvoiceRules.IsReturn(invoice.Kind) && invoice.ReturnOfInvoiceId is { } originalId) {
+                var originalStatus = await db.Invoices.AsNoTracking().Where(i => i.Id == originalId).Select(i => (InvoiceStatus?)i.Status).FirstOrDefaultAsync(ct);
+                if (originalStatus is null) throw new NotFoundException(originalId.ToString(), "Invoice");
+                if (originalStatus == InvoiceStatus.Cancelled) throw InvoiceErrors.Conflict("original_cancelled", "Asıl fatura iptal edilmiş; iade faturası kesilemez.");
+                if (originalStatus != InvoiceStatus.Issued) throw InvoiceErrors.Conflict("return_of_not_issued", "İade yalnızca kesilmiş faturaya yapılabilir.");
                 await builder.EnsureReturnQuantitiesAsync(originalId, invoice.Lines, invoice.Id, ct);
+            }
 
-            var series = await FindSeriesAsync(invoice, mode, ct);
+            var series = await seriesResolver.ResolveAsync(InvoiceRules.GroupOf(invoice.Kind), invoice.BranchId, mode, invoice.Date.Year, ct);
             // UPDATE ... RETURNING: satır kilidi işlem sonuna dek tutulur; aynı seride paralel kesimler sıraya girer, geri alınan numara geri gelir.
             var sequence = await db.ReserveSeriesNumberAsync(series.Id, ct)
                            ?? throw InvoicingErrors.SeriesMissing();
+            if (sequence > DocumentSeries.MaxSequence) throw InvoicingErrors.SeriesExhausted(series.Prefix);
 
             invoice.SeriesId      = series.Id;
             invoice.Number        = series.Format(sequence);
@@ -79,24 +87,6 @@ public sealed class IssueInvoiceCommandHandler(
         }
 
         return InvoiceRules.ToDto(invoice, cari.Name);
-    }
-
-    /// <summary>
-    ///     Varsayılan seri (grup, şube, mod); yılı belge yılıyla uyuşmuyorsa aynı öneke sahip o yılın aktif serisi.
-    ///     Yoksa 409 series_missing.
-    /// </summary>
-    private async Task<DocumentSeries> FindSeriesAsync(Invoice invoice, InvoiceMode mode, CancellationToken ct) {
-        var group = InvoiceRules.GroupOf(invoice.Kind);
-        var year  = invoice.Date.Year;
-        var def = await db.DocumentSeries.AsNoTracking()
-                      .FirstOrDefaultAsync(s => s.IsDefault && s.IsActive && s.KindGroup == group && s.BranchId == invoice.BranchId && s.Mode == mode, ct);
-        if (def is null) throw InvoicingErrors.SeriesMissing();
-        if (def.Year == year) return def;
-
-        return await db.DocumentSeries.AsNoTracking()
-                   .FirstOrDefaultAsync(s => s.IsActive && s.KindGroup == group && s.BranchId == invoice.BranchId && s.Mode == mode
-                                             && s.Prefix == def.Prefix && s.Year == year, ct)
-               ?? throw InvoiceErrors.Conflict("series_missing", $"Varsayılan serinin {year} yılı için kaydı yok; {def.Prefix} önekiyle {year} serisi tanımlayın.");
     }
 
     private async Task<AddressSnapshot> SnapshotAsync(CurrentAccount cari, CancellationToken ct) {

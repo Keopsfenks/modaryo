@@ -1742,13 +1742,14 @@ namespace ERP.Infrastructure.Data.Migrations
 
                     b.HasIndex("TenantId");
 
+                    b.HasIndex("TenantId", "Prefix", "Year")
+                        .IsUnique()
+                        .HasDatabaseName("IX_document_series_prefix_year");
+
                     b.HasIndex("TenantId", "BranchId", "KindGroup", "Mode")
                         .IsUnique()
                         .HasDatabaseName("IX_document_series_default")
                         .HasFilter("\"IsDefault\"");
-
-                    b.HasIndex("TenantId", "KindGroup", "Mode", "Prefix", "Year")
-                        .IsUnique();
 
                     b.ToTable("document_series", (string)null);
                 });
@@ -2755,6 +2756,9 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 6)
                         .HasColumnType("numeric(18,6)");
+
+                    b.Property<string>("Serials")
+                        .HasColumnType("jsonb");
 
                     b.Property<int>("Sort")
                         .HasColumnType("integer");

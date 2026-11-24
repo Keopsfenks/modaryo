@@ -26,18 +26,6 @@ public class IssueTests : TestBase {
     }
 
     [Test]
-    public async Task Issue_PaperSeriesNumber() {
-        var env = await NewEnv();
-        await CreateSeries(env, "FTR-", minWidth: 8);
-
-        var issued = await CreateAndIssue(env, Body(env));
-
-        issued.GetProperty("number").GetString().ShouldBe("FTR-00000001");
-        issued.GetProperty("mode").GetString().ShouldBe("paper");
-        issued.GetProperty("scenario").ValueKind.ShouldBe(JsonValueKind.Null);
-    }
-
-    [Test]
     public async Task Issue_EBelgeEnabledNonTaxpayer_UsesEArchive() {
         var env = await NewEnv();
         await EnableEBelge(env.Client);
@@ -54,18 +42,19 @@ public class IssueTests : TestBase {
     [Test]
     public async Task Issue_PurchaseUsesPurchaseSeries_AndKeepsSupplierNumber() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
-        await CreateSeries(env, "AF", group: "purchase");
+        await CreateSeries(env, "FTR");
+        await CreateSeries(env, "ALF", group: "purchase");
 
         var issued = await CreateAndIssue(env, Body(env, "Purchase", extra: new { externalNumber = "TED-77" }));
 
-        issued.GetProperty("number").GetString().ShouldBe("AF000001");
+        issued.GetProperty("number").GetString().ShouldBe("ALF2026000000001");
         issued.GetProperty("externalNumber").GetString().ShouldBe("TED-77");
     }
 
     [Test]
-    public async Task Issue_NoSeries_Returns409SeriesMissing() {
+    public async Task Issue_NoEBelgeSeries_Returns409SeriesMissing() {
         var env   = await NewEnv();
+        await EnableEBelge(env.Client);
         var draft = await Create(env, Body(env));
 
         using var response = await env.Client.PostAsync($"{Url}/{draft.GetProperty("id").GetGuid()}/issue", null);
@@ -75,23 +64,19 @@ public class IssueTests : TestBase {
     }
 
     [Test]
-    public async Task Issue_SeriesOfAnotherYear_FallsBackToSamePrefixOfThatYear_ElseMissing() {
+    public async Task Issue_SeriesOfAnotherYear_RollsOverToSamePrefixOfThatYear() {
         var env = await NewEnv();
-        await CreateSeries(env, "F", year: 2025);
+        await CreateSeries(env, "FTR", year: 2025);
 
-        var draft = await Create(env, Body(env));
-        using var missing = await env.Client.PostAsync($"{Url}/{draft.GetProperty("id").GetGuid()}/issue", null);
-        await Fail(missing, HttpStatusCode.Conflict, "series_missing");
+        var issued = await CreateAndIssue(env, Body(env));
 
-        await CreateSeries(env, "F", year: 2026);
-        var issued = await Issue(env.Client, draft.GetProperty("id").GetGuid());
-        issued.GetProperty("number").GetString().ShouldBe("F000001");
+        issued.GetProperty("number").GetString().ShouldBe("FTR2026000000001");
     }
 
     [Test]
     public async Task UpdateIssued_Returns409NotDraft() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var issued = await CreateAndIssue(env, Body(env));
         var id     = issued.GetProperty("id").GetGuid();
 
@@ -106,7 +91,7 @@ public class IssueTests : TestBase {
     [Test]
     public async Task IssueInLockedPeriod_Returns409() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         await LockPeriod(env.Client, "2026-03-31");
         var draft = await Create(env, Body(env));
 
@@ -115,13 +100,13 @@ public class IssueTests : TestBase {
         await Fail(response, HttpStatusCode.Conflict, "period_locked");
         // Numara harcanmadı.
         var series = await (await env.Client.GetAsync(SeriesUrl)).JsonAsync();
-        series[0].GetProperty("nextPreview").GetString().ShouldBe("F000001");
+        series[0].GetProperty("nextPreview").GetString().ShouldBe("FTR2026000000001");
     }
 
     [Test]
     public async Task Issue_RequiresIssuePermission_AndActiveCari() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var draft = await Create(env, Body(env));
         var id    = draft.GetProperty("id").GetGuid();
         using var manager = await OtherClient(env, "fatura.read", "fatura.manage");
@@ -138,7 +123,7 @@ public class IssueTests : TestBase {
     [Test]
     public async Task Return_ExceedsOriginal_Returns400() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var original = await CreateAndIssue(env, Body(env, lines: [ProductLine(env, 5m, 10m)]));
         var lineId   = original.GetProperty("lines")[0].GetProperty("id").GetGuid();
         var originalId = original.GetProperty("id").GetGuid();
@@ -168,7 +153,7 @@ public class IssueTests : TestBase {
     [Test]
     public async Task Return_ConcurrentDraftsCannotBothIssueBeyondOriginal() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var original   = await CreateAndIssue(env, Body(env, lines: [ProductLine(env, 5m, 10m)]));
         var lineId     = original.GetProperty("lines")[0].GetProperty("id").GetGuid();
         var originalId = original.GetProperty("id").GetGuid();

@@ -42,5 +42,6 @@ public class InvoiceLine : BaseEntity, ITenantOwned {
 
     public Guid?                      SourceLineId { get; set; }
     public IReadOnlyList<InvoiceLot>? Lots         { get; set; }
+    public IReadOnlyList<string>?     Serials      { get; set; }
     public Guid                       TenantId     { get; set; }
 }

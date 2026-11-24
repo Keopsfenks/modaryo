@@ -158,11 +158,12 @@ public sealed class InvoicePoster(
 
             var baseQuantity = Math.Round(line.Quantity * line.Factor, 6, MidpointRounding.AwayFromZero);
             if (baseQuantity <= 0m) continue;
+            InvoiceRules.EnsureTrackingEntered(product, line.Lots, line.Serials, $"{line.Sort}. satır");
 
             // Alış: satır net TL maliyeti (KDV hariç, ÖTV dahil) / temel birim miktarı.
             decimal? unitCost = purchase ? Math.Round((line.NetTl + line.OtvTl) / baseQuantity, 6, MidpointRounding.AwayFromZero) : null;
             var      lots     = line.Lots?.Select(l => new LotInput(l.LotNo, l.Expiry, l.Quantity, l.LotId)).ToList();
-            plan.Lines.Add(new StockLine(warehouse, product.Id, line.VariantId, baseQuantity, unitCost, lots, null, line.Id));
+            plan.Lines.Add(new StockLine(warehouse, product.Id, line.VariantId, baseQuantity, unitCost, lots, line.Serials, line.Id));
 
             if (product.IsBundle) {
                 foreach (var component in product.BundleComponents) {

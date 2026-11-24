@@ -13,7 +13,7 @@ public class PostingTests : TestBase {
     [Test]
     public async Task IssueSales_DebitsCariWithDocumentNo() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
 
         var issued = await CreateAndIssue(env, Body(env));
 
@@ -22,7 +22,7 @@ public class PostingTests : TestBase {
         entry.Credit.ShouldBe(0m);
         entry.Source.ShouldBe(LedgerEntrySource.Invoice);
         entry.SourceId.ShouldBe(issued.GetProperty("id").GetGuid());
-        entry.DocumentNo.ShouldBe("F000001");
+        entry.DocumentNo.ShouldBe("FTR2026000000001");
         entry.Date.ShouldBe(Day);
         entry.Currency.ShouldBe("TRY");
         entry.SourceCurrency.ShouldBeNull();
@@ -39,7 +39,7 @@ public class PostingTests : TestBase {
     [Test]
     public async Task IssuePurchase_CreditsCari() {
         var env = await NewEnv();
-        await CreateSeries(env, "AF", group: "purchase");
+        await CreateSeries(env, "ALF", group: "purchase");
 
         await CreateAndIssue(env, Body(env, "Purchase"));
 
@@ -53,8 +53,8 @@ public class PostingTests : TestBase {
     [Test]
     public async Task IssueReturns_ReverseTheDirection() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
-        await CreateSeries(env, "AF", group: "purchase");
+        await CreateSeries(env, "FTR");
+        await CreateSeries(env, "ALF", group: "purchase");
         var sale     = await CreateAndIssue(env, Body(env, lines: [ProductLine(env, 2m, 50m)]));
         var purchase = await CreateAndIssue(env, Body(env, "Purchase", lines: [ProductLine(env, 2m, 50m)]));
         var saleLine     = sale.GetProperty("lines")[0].GetProperty("id").GetGuid();
@@ -72,7 +72,7 @@ public class PostingTests : TestBase {
     [Test]
     public async Task IssueWithSchedule_CreatesThreeDueLines() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var schedule = new[] {
             new { dueDate = "2026-05-10", amount = 100m }, new { dueDate = "2026-04-10", amount = 120m }, new { dueDate = "2026-06-10", amount = 120m }
         };
@@ -89,7 +89,7 @@ public class PostingTests : TestBase {
     [Test]
     public async Task ScheduleMismatch_Returns400() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
 
         using var response = await env.Client.PostAsJsonAsync(Url, Body(env, extra: new { dueSchedule = new[] { new { dueDate = "2026-05-10", amount = 339m } } }));
 
@@ -100,7 +100,7 @@ public class PostingTests : TestBase {
     [Test]
     public async Task Posting_UsdInvoiceToTryCari_AndTryInvoiceToUsdCari() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         // USD fatura (kur 30), TL cari: TL karşılığı yazılır.
         var usd = await CreateAndIssue(env, Body(env, lines: [FreeLine(price: 100m, vatRate: 20)], extra: new { currency = "USD", rate = 30m }));
         Dec(usd, "totals", "payable").ShouldBe(120m);
@@ -130,7 +130,7 @@ public class PostingTests : TestBase {
     [Test]
     public async Task IssueSalesAffectsStock_IssuesStockAtCost() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var warehouse = await Warehouse(env);
         await Stock(env, warehouse, 10m, 10m);
 
@@ -148,7 +148,7 @@ public class PostingTests : TestBase {
     [Test]
     public async Task IssueSalesAffectsStock_InsufficientStock_RollsEverythingBack() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var warehouse = await Warehouse(env);
         await Stock(env, warehouse, 1m);
         var draft = await Create(env, Body(env, lines: [ProductLine(env, 4m, 50m)], extra: new { affectsStock = true, warehouseId = warehouse }));
@@ -162,13 +162,13 @@ public class PostingTests : TestBase {
         (await StockOf(env, warehouse)).Physical.ShouldBe(1m);
         (await (await env.Client.GetAsync($"{Url}/{id}")).JsonAsync()).GetProperty("status").GetString().ShouldBe("draft");
         // Numara harcanmadı.
-        (await (await env.Client.GetAsync(SeriesUrl)).JsonAsync())[0].GetProperty("nextPreview").GetString().ShouldBe("F000001");
+        (await (await env.Client.GetAsync(SeriesUrl)).JsonAsync())[0].GetProperty("nextPreview").GetString().ShouldBe("FTR2026000000001");
     }
 
     [Test]
     public async Task IssuePurchaseAffectsStock_ReceivesAtNetTlCost() {
         var env = await NewEnv();
-        await CreateSeries(env, "AF", group: "purchase");
+        await CreateSeries(env, "ALF", group: "purchase");
         var warehouse = await Warehouse(env);
 
         // 4 adet x 25 USD, %10 iskonto, %20 KDV: net 90 USD = 2700 TL; birim maliyet 675 TL (KDV hariç).
@@ -185,7 +185,7 @@ public class PostingTests : TestBase {
     [Test]
     public async Task IssueServiceLinesOnly_DoNotTouchStock() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var warehouse = await Warehouse(env);
 
         await CreateAndIssue(env, Body(env, lines: [FreeLine()], extra: new { affectsStock = true, warehouseId = warehouse }));
@@ -196,13 +196,13 @@ public class PostingTests : TestBase {
     [Test]
     public async Task CariStatementShowsInvoiceNumberAndSourceLink() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         var issued = await CreateAndIssue(env, Body(env));
 
         using var response = await env.Client.GetAsync($"/api/erp/current-accounts/{env.Customer}/statement?from=2026-01-01&to=2026-12-31");
         var row = (await response.JsonAsync()).GetProperty("rows")[0];
 
-        row.GetProperty("documentNo").GetString().ShouldBe("F000001");
+        row.GetProperty("documentNo").GetString().ShouldBe("FTR2026000000001");
         row.GetProperty("source").GetString().ShouldBe("invoice");
         row.GetProperty("sourceId").GetGuid().ShouldBe(issued.GetProperty("id").GetGuid());
 
@@ -215,7 +215,7 @@ public class PostingTests : TestBase {
     [Test]
     public async Task IssueEnqueuesInvoiceIssuedEvent() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
 
         var issued = await CreateAndIssue(env, Body(env));
 
@@ -223,7 +223,7 @@ public class PostingTests : TestBase {
         var message = db.OutboxMessages.Where(m => m.Type == "invoice.issued").ToList().Single();
         using var json = JsonDocument.Parse(message.PayloadJson);
         json.RootElement.GetProperty("invoice_id").GetGuid().ShouldBe(issued.GetProperty("id").GetGuid());
-        json.RootElement.GetProperty("number").GetString().ShouldBe("F000001");
+        json.RootElement.GetProperty("number").GetString().ShouldBe("FTR2026000000001");
         json.RootElement.GetProperty("kind").GetString().ShouldBe("Sales");
         json.RootElement.GetProperty("mode").GetString().ShouldBe("Paper");
     }

@@ -60,6 +60,25 @@ public static class InvoiceRules {
         return Math.Round(value, decimals, MidpointRounding.AwayFromZero);
     }
 
+    public static IReadOnlyList<string>? NormalizeSerials(IEnumerable<string>? serials) {
+        var list = serials?.Select(x => x?.Trim() ?? string.Empty).Where(x => x.Length > 0).ToList();
+        return list is { Count: > 0 } ? list : null;
+    }
+
+    /// <summary>
+    ///     Stok etkili faturada seri/lot takipli kalem için seri numaraları (seri takibi) ya da lot bilgisi (lot takibi) girilmiş olmalıdır.
+    ///     Hizmet, set ve takipsiz kalemler etkilenmez; sayı/miktar denetimi stok katmanında yapılır.
+    /// </summary>
+    public static void EnsureTrackingEntered(Domain.Catalog.Product product, IReadOnlyList<InvoiceLot>? lots, IReadOnlyList<string>? serials, string label) {
+        if (!product.TracksSerialLot || product.IsBundle || product.Kind == Domain.Catalog.ProductKind.Service) return;
+
+        var serial  = product.TrackingMode == Domain.Inventory.TrackingMode.Serial;
+        var entered = serial ? serials is { Count: > 0 } : lots is { Count: > 0 };
+        if (!entered)
+            throw InvoiceErrors.Bad("tracking_required",
+                                    $"{label}: \"{product.Code} - {product.Name}\" seri/lot takipli bir kalem; stok etkili faturada {(serial ? "seri numaraları" : "lot bilgisi")} girilmelidir.");
+    }
+
     public static TotalsDto Totals(Invoice i) {
         return new TotalsDto(i.Gross, i.Discount, i.Net, i.Otv, i.Vat, i.Withheld, i.Payable);
     }
@@ -72,7 +91,7 @@ public static class InvoiceRules {
         return new LineDto(l.Id, l.Sort, l.ProductId, l.VariantId, l.Description, l.Unit, l.Factor, l.Quantity, l.Width, l.Length, l.UnitPrice,
                            l.VatIncluded, l.DiscountPercent, l.DiscountAmount, l.VatRate, l.WithholdingCode, l.ExemptionCode, l.ExemptionReason,
                            l.OtvPercent, l.OtvPerUnit, l.Gross, l.LineDiscount, l.DocDiscount, l.Net, l.Otv, l.VatBase, l.Vat, l.Withheld, l.Total,
-                           l.NetTl, l.OtvTl, l.VatTl, l.WithheldTl, l.TotalTl, l.SourceLineId, l.Lots);
+                           l.NetTl, l.OtvTl, l.VatTl, l.WithheldTl, l.TotalTl, l.SourceLineId, l.Lots, l.Serials);
     }
 
     public static IReadOnlyList<VatSummaryDto> VatSummary(IEnumerable<InvoiceLine> lines) {
@@ -200,7 +219,7 @@ public sealed class InvoiceBuilder(
         await EnsureWarehouseAsync(input, ct);
         var original = await LoadReturnOriginalAsync(input, cari, ct);
 
-        var lines = await ResolveLinesAsync(input, ct);
+        var lines = await ResolveLinesAsync(input, preview, ct);
         var calc  = Calculate(lines.Select(r => r.Calc).ToList(), input);
         var built = new List<InvoiceLine>();
         for (var i = 0; i < lines.Count; i++) {
@@ -353,7 +372,7 @@ public sealed class InvoiceBuilder(
 
     private sealed record Resolved(InvoiceLine Line, CalcLine Calc);
 
-    private async Task<List<Resolved>> ResolveLinesAsync(InvoiceInput input, CancellationToken ct) {
+    private async Task<List<Resolved>> ResolveLinesAsync(InvoiceInput input, bool preview, CancellationToken ct) {
         var productIds = input.Lines.Where(l => l.ProductId is not null).Select(l => l.ProductId!.Value).Distinct().ToList();
         var products   = await db.Products.AsNoTracking().Include(p => p.Units).Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
         var variantIds = input.Lines.Where(l => l.VariantId is not null).Select(l => l.VariantId!.Value).Distinct().ToList();
@@ -375,6 +394,10 @@ public sealed class InvoiceBuilder(
 
             if (l.VariantId is { } vid && (product is null || !variants.TryGetValue(vid, out var variant) || variant.ProductId != product.Id))
                 throw InvoiceErrors.Bad("variant_invalid", $"{label}: varyant kaleme ait değil.");
+
+            // Önizleme toplamları gösterir; seri/lot eksikliği taslak kaydında ve kesimde reddedilir.
+            if (input.AffectsStock && !preview && product is not null)
+                InvoiceRules.EnsureTrackingEntered(product, l.Lots, InvoiceRules.NormalizeSerials(l.Serials), label);
 
             var description = !string.IsNullOrWhiteSpace(l.Description) ? l.Description.Trim() : product?.Name;
             if (string.IsNullOrWhiteSpace(description)) throw InvoiceErrors.Bad("description_required", $"{label}: açıklama ya da kalem gerekli.");
@@ -403,7 +426,8 @@ public sealed class InvoiceBuilder(
                 DiscountAmount = l.DiscountAmount, VatRate = vatRate, WithholdingCode = string.IsNullOrEmpty(wCode) ? null : wCode,
                 ExemptionCode = string.IsNullOrEmpty(eCode) ? null : eCode,
                 ExemptionReason = string.IsNullOrEmpty(eCode) ? null : l.ExemptionReason?.Trim(), OtvPercent = l.OtvPercent,
-                OtvPerUnit = l.OtvPerUnit, SourceLineId = l.SourceLineId, Lots = l.Lots?.Count > 0 ? l.Lots : null
+                OtvPerUnit = l.OtvPerUnit, SourceLineId = l.SourceLineId, Lots = l.Lots?.Count > 0 ? l.Lots : null,
+                Serials = InvoiceRules.NormalizeSerials(l.Serials)
             };
             var calc = new CalcLine(quantity, l.UnitPrice, l.VatIncluded, l.DiscountPercent, l.DiscountAmount, vatRate, l.OtvPercent, l.OtvPerUnit,
                                     withheld?.Tenths, !string.IsNullOrEmpty(eCode));

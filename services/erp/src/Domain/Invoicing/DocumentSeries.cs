@@ -15,9 +15,12 @@ public class DocumentSeries : BaseEntity, ITenantOwned {
 
     public bool IsEBelge => Mode != InvoiceMode.Paper;
 
+    /// <summary>Sıra 9 haneye sığdığı sürece numara 16 karakterdir.</summary>
+    public const long MaxSequence = 999_999_999;
+
     /// <summary>
-    ///     Numara biçimi. e-Belge: {önek}{yyyy}{9 haneli sıra} (16 karakter); kâğıt: önek + en az MinWidth haneli sıra.
+    ///     Numara biçimi (tüm modlarda aynı): {3 karakter önek}{yyyy}{9 haneli sıra} = 16 karakter (örn. ABC2026000000001),
+    ///     e-Fatura biçimine uygun. Yıl serinin yılıdır; yeni yılda aynı önekle yeni bir seri satırı açılır ve sıra 1'den başlar.
     /// </summary>
-    public string Format(long sequence) =>
-        IsEBelge ? $"{Prefix}{Year:D4}{sequence:D9}" : $"{Prefix}{sequence.ToString().PadLeft(MinWidth, '0')}";
+    public string Format(long sequence) => $"{Prefix}{Year:D4}{sequence:D9}";
 }

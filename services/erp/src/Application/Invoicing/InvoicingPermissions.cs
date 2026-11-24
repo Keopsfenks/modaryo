@@ -21,6 +21,17 @@ public static class InvoicingErrors {
         return new AppException(409, "series_exists", $"\"{prefix}\" öneki bu yıl için aynı türde başka bir seride kullanılıyor.");
     }
 
+    public static AppException PrefixTaken(string prefix) {
+        return new AppException(409, "prefix_taken", $"\"{prefix}\" öneki firmada başka bir seri (belge grubu, mod ya da şube) tarafından kullanılıyor; numaralar firma genelinde tekildir.");
+    }
+
+    public static AppException SeriesExhausted(string prefix) {
+        return new AppException(409, "series_exhausted", $"\"{prefix}\" serisinin yıllık numara sınırı doldu; yeni bir önek tanımlayın.");
+    }
+
+    /// <summary>(Firma, önek, yıl) tekilliğini sağlayan indeksin adı.</summary>
+    public const string PrefixYearIndex = "IX_document_series_prefix_year";
+
     public static AppException SeriesInUse() {
         return new AppException(409, "series_in_use", "Numara alınmış bir serinin öneki ve yılı değiştirilemez.");
     }

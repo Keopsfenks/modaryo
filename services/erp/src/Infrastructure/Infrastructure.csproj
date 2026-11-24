@@ -18,6 +18,7 @@
 
     <ItemGroup>
         <EmbeddedResource Include="Data\Seed\*.json" LogicalName="Seed.%(Filename)%(Extension)"/>
+        <EmbeddedResource Include="Documents\Fonts\*.ttf" LogicalName="Font.%(Filename)%(Extension)"/>
     </ItemGroup>
 
     <ItemGroup>

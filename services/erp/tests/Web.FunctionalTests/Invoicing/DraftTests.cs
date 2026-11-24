@@ -89,7 +89,7 @@ public class DraftTests : TestBase {
     [Test]
     public async Task Preview_MatchesIssuedTotals() {
         var env = await NewEnv();
-        await CreateSeries(env, "F");
+        await CreateSeries(env, "FTR");
         // KDV %20/%10/%1 karışık, bölünmeyen net değerler ve %7 belge iskontosu.
         var lines = new object[] {
             FreeLine("A", 3m, 33.33m, 20), FreeLine("B", 7m, 14.29m, 10), FreeLine("C", 11m, 9.07m, 1)

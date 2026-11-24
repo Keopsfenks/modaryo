@@ -215,6 +215,18 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
         return rows.Count == 0 ? null : rows[0];
     }
 
+    public async Task<bool> TryInsertSeriesAsync(DocumentSeries series, CancellationToken cancellationToken) {
+        var tenantId = CurrentTenantId ?? throw new InvalidOperationException("Aktif firma yok.");
+        var mode     = series.Mode.ToString();
+        var rows = await Database.ExecuteSqlAsync($"""
+                                                   INSERT INTO document_series ("Id", "TenantId", "KindGroup", "BranchId", "Mode", "Prefix", "Year", "NextNumber", "MinWidth", "IsDefault", "IsActive")
+                                                   VALUES ({series.Id}, {tenantId}, {series.KindGroup}, {series.BranchId}, {mode}, {series.Prefix}, {series.Year}, {series.NextNumber},
+                                                           {series.MinWidth}, {series.IsDefault}, {series.IsActive})
+                                                   ON CONFLICT DO NOTHING
+                                                   """, cancellationToken);
+        return rows > 0;
+    }
+
     public async Task<int> NextDocumentNumberAsync(string key, CancellationToken cancellationToken) {
         var tenantId = CurrentTenantId ?? throw new InvalidOperationException("Aktif firma yok.");
         var rows = await Database.SqlQuery<int>($"""
