@@ -1,4 +1,6 @@
 using ERP.Application.Purchasing.Orders;
+using ERP.Application.Purchasing.Quarantine;
+using ERP.Application.Purchasing.Returns;
 using ERP.Application.Purchasing.Receipts;
 using ERP.Domain.Purchasing;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -23,6 +25,10 @@ public class Purchasing : IEndpointGroup {
         groupBuilder.MapGet(ListReceipts, "receipts");
         groupBuilder.MapGet(GetReceipt, "receipts/{id:guid}");
         groupBuilder.MapPost(CancelReceipt, "receipts/{id:guid}/cancel");
+        groupBuilder.MapGet(ListQuarantine, "quarantine");
+        groupBuilder.MapPost(ReleaseQuarantine, "quarantine/release");
+        groupBuilder.MapPost(RejectQuarantine, "quarantine/reject");
+        groupBuilder.MapPost(CreateReturn, "returns");
     }
 
     [EndpointSummary("Satın alma siparişleri")]
@@ -118,5 +124,29 @@ public class Purchasing : IEndpointGroup {
     [EndpointDescription("satinalma.receive. Gövde: { reason }. Stok girişini tersler, sipariş gelen miktarını düşürür. 409: receipt_cancelled, receipt_invoiced (faturalanmış), receipt_processed (karantina/iade görmüş).")]
     public static async Task<Ok<ReceiptDto>> CancelReceipt(ISender sender, Guid id, ReasonBody body) {
         return TypedResults.Ok(await sender.Send(new CancelReceiptCommand(id, body.Reason)));
+    }
+
+    [EndpointSummary("Karantinadaki miktarlar")]
+    [EndpointDescription("satinalma.read. Süzgeç: branchId. Mal kabul satırı başına karantinadaki açık miktar (openQuantity satır biriminde, openBaseQuantity temel birimde). Fiyat içermez.")]
+    public static async Task<Ok<IReadOnlyList<QuarantineRowDto>>> ListQuarantine(ISender sender, Guid? branchId) {
+        return TypedResults.Ok(await sender.Send(new ListQuarantineQuery(branchId)));
+    }
+
+    [EndpointSummary("Karantinadan serbest bırak")]
+    [EndpointDescription("satinalma.quarantine. Gövde: { receiptLineId, quantity (satır biriminde), targetWarehouseId (normal depo) }. Açık miktar P3 transferiyle hedef depoya taşınır; siparişli kabulde bekleyen rezervasyonlar hedef depoya geçer. 409: quarantine_not_enabled, quarantine_not_held, quarantine_exceeds_open; 400 target_not_normal.")]
+    public static async Task<Ok<QuarantineResultDto>> ReleaseQuarantine(ISender sender, ReleaseInput input) {
+        return TypedResults.Ok(await sender.Send(new ReleaseQuarantineCommand(input)));
+    }
+
+    [EndpointSummary("Karantinadan reddet")]
+    [EndpointDescription("satinalma.quarantine. Gövde: { receiptLineId, quantity (satır biriminde), action: \"damaged\" | \"return\" }. damaged: şubenin hasarlı deposuna transfer (409 damaged_warehouse_missing). return: tedarikçiye iade (stok çıkışı; mal kabule bağlı kesilmiş alış faturası varsa iade faturası taslağı, yanıtta returnId / invoiceId).")]
+    public static async Task<Ok<QuarantineResultDto>> RejectQuarantine(ISender sender, RejectInput input) {
+        return TypedResults.Ok(await sender.Send(new RejectQuarantineCommand(input)));
+    }
+
+    [EndpointSummary("Alış iadesi")]
+    [EndpointDescription("satinalma.manage. Gövde: { receiptId, lines[{ receiptLineId, quantity (satır biriminde), lots?, serials? }], date, reason, createInvoice }. Stok çıkışı (PurchaseReturn) yazar; kaynak depo önce karantinadaki açık miktar, kalanı mal kabulün hedef deposudur. createInvoice: mal kabule bağlı kesilmiş alış faturasına bağlı iade faturası taslağı (AffectsStock=false); fatura yoksa 409 purchase_invoice_required. 400 return_exceeds_received.")]
+    public static async Task<Ok<ReturnResultDto>> CreateReturn(ISender sender, ReturnInput input) {
+        return TypedResults.Ok(await sender.Send(new CreateReturnCommand(input)));
     }
 }
