@@ -220,12 +220,20 @@ public sealed class InvoiceBuilder(
         var original = await LoadReturnOriginalAsync(input, cari, ct);
 
         var lines = await ResolveLinesAsync(input, preview, ct);
+
+        // Mal kabulden kesilen alış faturalarında satır bağı (mal kabul satırı) taslak düzenlenirken de korunur; geçersiz bağ atılır.
+        var receiptLineIds = new HashSet<Guid>();
+        if (original is null && input.Kind == InvoiceKind.Purchase) {
+            var wanted = lines.Where(r => r.Line.SourceLineId != null).Select(r => r.Line.SourceLineId!.Value).ToList();
+            if (wanted.Count > 0) receiptLineIds = (await db.GoodsReceiptLines.AsNoTracking().Where(g => wanted.Contains(g.Id)).Select(g => g.Id).ToListAsync(ct)).ToHashSet();
+        }
+
         var calc  = Calculate(lines.Select(r => r.Calc).ToList(), input);
         var built = new List<InvoiceLine>();
         for (var i = 0; i < lines.Count; i++) {
             var line = lines[i].Line;
             var r    = calc.Lines[i];
-            if (original is null) line.SourceLineId = null;
+            if (original is null && !(line.SourceLineId is { } linked && receiptLineIds.Contains(linked))) line.SourceLineId = null;
             line.Sort = i + 1;
             line.Gross = r.Gross; line.LineDiscount = r.LineDiscount; line.DocDiscount = r.DocDiscount; line.Net = r.Net; line.Otv = r.Otv;
             line.VatBase = r.VatBase; line.Vat = r.Vat; line.Withheld = r.Withheld; line.Total = r.Total;

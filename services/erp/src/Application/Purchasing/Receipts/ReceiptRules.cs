@@ -45,9 +45,10 @@ public static class ReceiptRules {
         return receipt;
     }
 
-    public static Task<bool> IsInvoicedAsync(IApplicationDbContext db, Guid receiptId, CancellationToken ct) {
-        return db.Invoices.AnyAsync(i => i.SourceType == InvoiceSource && i.SourceId == receiptId && i.Kind == InvoiceKind.Purchase
-                                         && i.Status != InvoiceStatus.Cancelled, ct);
+    public static async Task<bool> IsInvoicedAsync(IApplicationDbContext db, Guid receiptId, CancellationToken ct) {
+        var lineIds = await db.GoodsReceiptLines.AsNoTracking().Where(l => l.GoodsReceiptId == receiptId).Select(l => l.Id).ToListAsync(ct);
+        return await db.Invoices.AnyAsync(i => i.SourceType == InvoiceSource && i.Kind == InvoiceKind.Purchase && i.Status != InvoiceStatus.Cancelled
+                                               && (i.SourceId == receiptId || i.Lines.Any(l => l.SourceLineId != null && lineIds.Contains(l.SourceLineId.Value))), ct);
     }
 
     /// <summary>Sipariş durumunu satırların gelen ve kapatılan miktarlarından yeniden hesaplar (kapalı/iptal siparişe dokunmaz).</summary>

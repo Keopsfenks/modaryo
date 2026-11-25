@@ -1,3 +1,4 @@
+using ERP.Application.Purchasing.Invoices;
 using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
@@ -212,8 +213,9 @@ public sealed class PoMapper(
 
         var receipts = await db.GoodsReceipts.AsNoTracking().Where(r => r.PurchaseOrderId == po.Id).OrderBy(r => r.Date).ThenBy(r => r.Number)
                                .Select(r => new PoReceiptRefDto(r.Id, r.Number, r.Date, r.Status)).ToListAsync(ct);
-        var invoices = await db.Invoices.AsNoTracking().Where(i => i.SourceType == "purchase-order" && i.SourceId == po.Id).OrderBy(i => i.Date)
-                               .Select(i => new { i.Id, i.Number, i.Date, i.Status }).ToListAsync(ct);
+        // Fatura bağı mal kabul üzerindendir: fatura kaynağı "purchase-receipt"; sipariş, mal kabuller üzerinden bulunur.
+        var receiptIds = receipts.Select(r => r.Id).ToList();
+        var invoices   = (await ReceiptInvoiceLinks.InvoicesAsync(db, receiptIds, ct)).Select(i => new { i.Id, i.Number, i.Date, i.Status }).ToList();
         var matchRows = await MatchRowsAsync(po, showPrices, ct);
 
         return new PoDto(po.Id, po.Number, po.Status, po.SupplierId, supplier, po.BranchId, po.Date, po.ExpectedDate, po.Currency, po.Rate, po.Notes,
@@ -233,20 +235,24 @@ public sealed class PoMapper(
                               .Where(l => l.PurchaseOrderLineId != null && lineIds.Contains(l.PurchaseOrderLineId.Value))
                               .Join(db.GoodsReceipts.Where(r => r.Status == GoodsReceiptStatus.Posted && r.Currency == po.Currency), l => l.GoodsReceiptId, r => r.Id,
                                     (l, _) => new { Line = l.PurchaseOrderLineId!.Value, l.Quantity, l.UnitPrice }).ToListAsync(ct);
-        var invoiceRows = await db.InvoiceLines.AsNoTracking().Where(l => l.ProductId != null)
-                              .Join(db.Invoices.Where(i => i.SourceType == "purchase-order" && i.SourceId == po.Id && i.Status == InvoiceStatus.Issued),
-                                    l => l.InvoiceId, i => i.Id, (l, i) => new { l.ProductId, l.VariantId, l.Quantity, l.Factor, l.UnitPrice, i.Currency }).ToListAsync(ct);
+        var receiptIds  = await db.GoodsReceipts.AsNoTracking().Where(r => r.PurchaseOrderId == po.Id && r.Status == GoodsReceiptStatus.Posted).Select(r => r.Id).ToListAsync(ct);
+        var linkedLines = new List<(Guid PoLine, InvoiceLine Line, string Currency)>();
+        foreach (var invoice in (await ReceiptInvoiceLinks.InvoicesAsync(db, receiptIds, ct)).Where(i => i.Status == InvoiceStatus.Issued))
+            foreach (var link in await ReceiptInvoiceLinks.ResolveAsync(db, invoice, false, ct))
+                if (link.ReceiptLine.PurchaseOrderLineId is { } poLineId && lineIds.Contains(poLineId))
+                    linkedLines.Add((poLineId, link.Line, invoice.Currency));
 
         var rows = new List<MatchRowDto>();
         foreach (var line in po.Lines.OrderBy(l => l.Sort)) {
             var received = receiptRows.Where(r => r.Line == line.Id).ToList();
-            var invoiced = invoiceRows.Where(r => r.ProductId == line.ProductId && r.VariantId == line.VariantId).ToList();
-            var invoicedQty = invoiced.Sum(r => r.Quantity * r.Factor) / line.Factor;
+            var invoiced    = linkedLines.Where(r => r.PoLine == line.Id).ToList();
+            var invoicedQty = invoiced.Sum(r => r.Line.Quantity * r.Line.Factor) / line.Factor;
             var receiptQty  = received.Where(r => r.UnitPrice is not null).Sum(r => r.Quantity);
             decimal? receiptPrice = receiptQty > 0m ? received.Where(r => r.UnitPrice is not null).Sum(r => r.Quantity * r.UnitPrice!.Value) / receiptQty : null;
+            // Fiyat karşılaştırması yalnızca sipariş para biriminde kesilmiş faturalar arasında, iskonto sonrası net fiyatla yapılır.
             var sameCurrency = invoiced.Where(r => r.Currency == po.Currency).ToList();
-            var invoiceQty   = sameCurrency.Sum(r => r.Quantity * r.Factor) / line.Factor;
-            decimal? invoicePrice = invoiceQty > 0m ? sameCurrency.Sum(r => r.Quantity * r.UnitPrice) / sameCurrency.Sum(r => r.Quantity * r.Factor) * line.Factor : null;
+            var invoiceBase  = sameCurrency.Sum(r => r.Line.Quantity * r.Line.Factor);
+            decimal? invoicePrice = invoiceBase > 0m ? sameCurrency.Sum(r => r.Line.Net) / invoiceBase * line.Factor : null;
 
             var row = ThreeWayMatch.Evaluate(line.Id, line.Quantity, line.ReceivedQuantity, invoicedQty, line.UnitPrice, receiptPrice, invoicePrice, variance);
             rows.Add(new MatchRowDto(row.PoLineId, row.Ordered, row.Received, row.Invoiced, showPrices ? row.PoPrice : null,

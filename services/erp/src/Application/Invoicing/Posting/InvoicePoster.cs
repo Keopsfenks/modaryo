@@ -23,7 +23,8 @@ public sealed class InvoicePoster(
     IStockService         stock,
     ICurrentSession       session,
     TimeProvider          clock,
-    IOutbox               outbox
+    IOutbox               outbox,
+    IEnumerable<IInvoicePostHook> hooks
 ) {
     public const string StockSource = "invoice";
 
@@ -49,7 +50,10 @@ public sealed class InvoicePoster(
 
         // Stok kilitleri: tüm anahtarlar tek seferde, bakiye okumalarından önce.
         var plan = invoice.AffectsStock ? await PlanStockAsync(invoice, ct) : new StockPlan([], []);
-        if (plan.Lines.Count > 0) await db.LockStockAsync(plan.Keys, ct);
+        // Eklentilerin (maliyet düzeltmesi vb.) stok anahtarları da aynı tek kilit çağrısında alınır.
+        var lockKeys = new List<(Guid, Guid, Guid?)>(plan.Keys);
+        foreach (var hook in hooks) lockKeys.AddRange((await hook.StockKeysAsync(invoice, false, ct)).Select(k => (k.WarehouseId, k.ProductId, k.VariantId)));
+        if (lockKeys.Count > 0) await db.LockStockAsync(lockKeys, ct);
 
         var posted = await currency.ConvertAsync(invoice, cari.Currency, ct);
         var dues   = BuildDueLines(invoice, posted.Amount);
@@ -92,6 +96,7 @@ public sealed class InvoicePoster(
         }
 
         if (plan.Lines.Count > 0) await PostStockAsync(invoice, plan, ct);
+        foreach (var hook in hooks) await hook.OnIssuedAsync(invoice, ct);
 
         outbox.Enqueue("invoice.issued", new { invoiceId = invoice.Id, kind = invoice.Kind.ToString(), mode = invoice.Mode.ToString(), number = invoice.Number });
     }
@@ -100,9 +105,10 @@ public sealed class InvoicePoster(
         // Stok kilitleri tek seferde, defter değişikliklerinden önce.
         var keys = await db.StockMovements.AsNoTracking().Where(m => m.SourceType == StockSource && m.SourceId == invoice.Id && m.Quantity != 0m)
                            .Select(m => new { m.WarehouseId, m.ProductId, m.VariantId, Tracked = m.LotLines.Any() }).Distinct().ToListAsync(ct);
-        if (keys.Count > 0)
-            await db.LockStockAsync(keys.Select(k => (k.WarehouseId, k.ProductId, k.VariantId))
-                                        .Concat(keys.Where(k => k.Tracked).Select(k => TrackingValidator.ItemKey(k.ProductId))), ct);
+        var lockKeys = keys.Select(k => (k.WarehouseId, k.ProductId, k.VariantId))
+                           .Concat(keys.Where(k => k.Tracked).Select(k => TrackingValidator.ItemKey(k.ProductId))).ToList();
+        foreach (var hook in hooks) lockKeys.AddRange((await hook.StockKeysAsync(invoice, true, ct)).Select(k => (k.WarehouseId, k.ProductId, k.VariantId)));
+        if (lockKeys.Count > 0) await db.LockStockAsync(lockKeys, ct);
 
         if (invoice.LedgerEntryId is { } entryId) {
             var entry = await db.LedgerEntries.FirstOrDefaultAsync(e => e.Id == entryId, ct) ?? throw new NotFoundException(entryId.ToString(), "LedgerEntry");
@@ -118,6 +124,7 @@ public sealed class InvoicePoster(
         }
 
         if (keys.Count > 0) await stock.ReverseAsync(StockSource, invoice.Id, invoice.Date, ct);
+        foreach (var hook in hooks) await hook.OnCancelledAsync(invoice, ct);
 
         outbox.Enqueue("invoice.cancelled", new { invoiceId = invoice.Id, kind = invoice.Kind.ToString(), mode = invoice.Mode.ToString(), number = invoice.Number, reason });
     }

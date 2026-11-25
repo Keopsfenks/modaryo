@@ -1,3 +1,6 @@
+using ERP.Application.Invoicing;
+using ERP.Application.Purchasing.Invoices;
+using ERP.Application.Purchasing.Invoices.Commands;
 using ERP.Application.Purchasing.Orders;
 using ERP.Application.Purchasing.Quarantine;
 using ERP.Application.Purchasing.Returns;
@@ -25,6 +28,8 @@ public class Purchasing : IEndpointGroup {
         groupBuilder.MapGet(ListReceipts, "receipts");
         groupBuilder.MapGet(GetReceipt, "receipts/{id:guid}");
         groupBuilder.MapPost(CancelReceipt, "receipts/{id:guid}/cancel");
+        groupBuilder.MapPost(CreateInvoiceDraft, "receipts/invoice-draft");
+        groupBuilder.MapGet(PriceStats, "price-stats");
         groupBuilder.MapGet(ListQuarantine, "quarantine");
         groupBuilder.MapPost(ReleaseQuarantine, "quarantine/release");
         groupBuilder.MapPost(RejectQuarantine, "quarantine/reject");
@@ -148,5 +153,18 @@ public class Purchasing : IEndpointGroup {
     [EndpointDescription("satinalma.manage. Gövde: { receiptId, lines[{ receiptLineId, quantity (satır biriminde), lots?, serials? }], date, reason, createInvoice }. Stok çıkışı (PurchaseReturn) yazar; kaynak depo önce karantinadaki açık miktar, kalanı mal kabulün hedef deposudur. createInvoice: mal kabule bağlı kesilmiş alış faturasına bağlı iade faturası taslağı (AffectsStock=false); fatura yoksa 409 purchase_invoice_required. 400 return_exceeds_received.")]
     public static async Task<Ok<ReturnResultDto>> CreateReturn(ISender sender, ReturnInput input) {
         return TypedResults.Ok(await sender.Send(new CreateReturnCommand(input)));
+    }
+
+    [EndpointSummary("Mal kabullerden alış faturası taslağı")]
+    [EndpointDescription("satinalma.manage + fatura.manage + fiyat.alis. Gövde: { receiptIds[], externalNumber, date? }. Mal kabullerin henüz faturalanmamış miktarlarından P4 alış faturası taslağı (kaynak purchase-receipt; stok etkilemez). Fiyat sipariş satırından gelir; kur fatura tarihinde çözülür. 409 nothing_to_invoice, receipt_cancelled; 400 supplier_mismatch, currency_mismatch. Fatura kesilince maliyet farkı mal kabul tarihine düzeltme olarak yazılır, iptalde geri alınır.")]
+    public static async Task<Created<InvoiceDto>> CreateInvoiceDraft(ISender sender, InvoiceDraftInput input) {
+        var invoice = await sender.Send(new CreateInvoiceFromReceiptsCommand(input));
+        return TypedResults.Created($"/api/erp/invoices/{invoice.Id}", invoice);
+    }
+
+    [EndpointSummary("Alış fiyat takibi")]
+    [EndpointDescription("satinalma.read + fiyat.alis. Süzgeçler: productId, variantId. Kesilmiş alış faturalarından kalem ve birim başına son, en düşük ve en yüksek TL birim fiyat (12 ay) ve son alış tarihi.")]
+    public static async Task<Ok<IReadOnlyList<PriceStatDto>>> PriceStats(ISender sender, Guid? productId, Guid? variantId) {
+        return TypedResults.Ok(await sender.Send(new GetPriceStatsQuery(productId, variantId)));
     }
 }

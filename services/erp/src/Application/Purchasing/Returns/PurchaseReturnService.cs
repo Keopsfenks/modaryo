@@ -96,9 +96,8 @@ public sealed class PurchaseReturnService(
     /// <summary>Alış iade faturası taslağı: mal kabulün kesilmiş alış faturasına (kaynak "purchase-receipt") bağlanır; satır fiyatları asıl faturadan gelir.</summary>
     private async Task<(Guid?, string?)> CreateInvoiceDraftAsync(GoodsReceipt receipt, List<(GoodsReceiptLine Line, decimal Base)> planned, DateOnly date, Guid returnId,
                                                                  bool optional, CancellationToken ct) {
-        var original = await db.Invoices.AsNoTracking().Include(i => i.Lines)
-                               .Where(i => i.SourceType == ReceiptRules.InvoiceSource && i.SourceId == receipt.Id && i.Kind == InvoiceKind.Purchase && i.Status == InvoiceStatus.Issued)
-                               .OrderByDescending(i => i.Date).FirstOrDefaultAsync(ct);
+        var original = (await ERP.Application.Purchasing.Invoices.ReceiptInvoiceLinks.InvoicesAsync(db, [receipt.Id], ct))
+                       .Where(i => i.Status == InvoiceStatus.Issued).OrderByDescending(i => i.Date).FirstOrDefault();
         if (original is null) {
             if (optional) return (null, null);
             throw PurchasingErrors.Conflict("purchase_invoice_required", "İade faturası için mal kabule bağlı kesilmiş bir alış faturası gerekir.");
@@ -106,7 +105,8 @@ public sealed class PurchaseReturnService(
 
         var lines = new List<ERP.Application.Invoicing.LineInput>();
         foreach (var (line, baseQty) in planned) {
-            var source = original.Lines.FirstOrDefault(l => l.ProductId == line.ProductId && l.VariantId == line.VariantId)
+            var source = original.Lines.FirstOrDefault(l => l.SourceLineId == line.Id)
+                         ?? original.Lines.FirstOrDefault(l => l.ProductId == line.ProductId && l.VariantId == line.VariantId)
                          ?? throw PurchasingErrors.Conflict("purchase_invoice_required", "Alış faturasında iade edilen kalem bulunamadı.");
             lines.Add(new ERP.Application.Invoicing.LineInput {
                 ProductId = source.ProductId, VariantId = source.VariantId, Description = source.Description, Unit = source.Unit,
