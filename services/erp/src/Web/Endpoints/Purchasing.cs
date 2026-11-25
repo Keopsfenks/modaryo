@@ -33,6 +33,7 @@ public class Purchasing : IEndpointGroup {
         groupBuilder.MapPost(CancelReceipt, "receipts/{id:guid}/cancel");
         groupBuilder.MapPost(CreateInvoiceDraft, "receipts/invoice-draft");
         groupBuilder.MapGet(PriceStats, "price-stats");
+        groupBuilder.MapPost(PreviewLandedCost, "landed-costs/preview");
         groupBuilder.MapPost(CreateLandedCost, "landed-costs");
         groupBuilder.MapGet(ListLandedCosts, "landed-costs");
         groupBuilder.MapGet(GetLandedCost, "landed-costs/{id:guid}");
@@ -183,6 +184,12 @@ public class Purchasing : IEndpointGroup {
     [EndpointDescription("satinalma.read + fiyat.alis. Süzgeçler: productId, variantId. Kesilmiş alış faturalarından kalem ve birim başına son, en düşük ve en yüksek TL birim fiyat (12 ay) ve son alış tarihi.")]
     public static async Task<Ok<IReadOnlyList<PriceStatDto>>> PriceStats(ISender sender, Guid? productId, Guid? variantId) {
         return TypedResults.Ok(await sender.Send(new GetPriceStatsQuery(productId, variantId)));
+    }
+
+    [EndpointSummary("Masraf dağıtımı önizlemesi")]
+    [EndpointDescription("satinalma.manage + fiyat.alis. Oluşturma ile aynı gövde ve doğrulama (409 weight_missing dahil); hiçbir kayıt yazılmaz. Dönen belgede numara boş, kimlik boştur; allocations her mal kabul satırının payını ve masraf türü kırılımını verir.")]
+    public static async Task<Ok<LandedCostDto>> PreviewLandedCost(ISender sender, LandedCostInput input) {
+        return TypedResults.Ok(await sender.Send(new PreviewLandedCostCommand(input)));
     }
 
     [EndpointSummary("Masraf dağıtımı oluştur")]

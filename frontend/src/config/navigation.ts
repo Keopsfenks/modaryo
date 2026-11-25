@@ -20,6 +20,8 @@ import {
     IconCoins,
     IconCurrencyDollar,
     IconCurrencyEuro,
+    IconReportMoney,
+    IconShip,
     IconFileDescription,
     IconFileInvoice,
     IconFileExport,
@@ -95,6 +97,9 @@ export const navigation: NavSection[] = [
             { title: "Satın Alma Siparişleri", href: "/satin-alma/siparisler", icon: IconTruckDelivery, permission: "satinalma.read", implemented: true },
             { title: "Mal kabul", href: "/satin-alma/mal-kabul", icon: IconPackageImport, permission: "satinalma.read", implemented: true },
             { title: "Karantina", href: "/satin-alma/karantina", icon: IconShieldCheck, permission: "satinalma.read", requiresQuarantine: true, implemented: true },
+            { title: "Masraf dağıtımı", href: "/satin-alma/masraf-dagitimi", icon: IconReportMoney, permission: "satinalma.read", alsoPermission: "fiyat.alis", implemented: true },
+            { title: "İthalat dosyaları", href: "/satin-alma/ithalat", icon: IconShip, permission: "satinalma.read", module: "ithalat", implemented: true },
+            { title: "Sipariş önerileri", href: "/satin-alma/oneriler", icon: IconClipboardList, permission: "satinalma.read", implemented: true },
         ],
     },
     {

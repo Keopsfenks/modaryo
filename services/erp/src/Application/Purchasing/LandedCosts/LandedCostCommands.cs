@@ -72,7 +72,16 @@ public sealed class CreateLandedCostCommandHandler(
     LandedCostMapper      mapper
 ) : IRequestHandler<CreateLandedCostCommand, LandedCostDto> {
     public async Task<LandedCostDto> Handle(CreateLandedCostCommand request, CancellationToken ct) {
-        var input = request.Input;
+        var input  = request.Input;
+        var landed = await BuildAsync(input, ct);
+        landed.Number = await DocumentNumbers.NextAsync(db, "MD", input.Date, ct);
+        db.LandedCosts.Add(landed);
+        await db.SaveChangesAsync(ct);
+        return await mapper.ToDtoAsync(landed, ct);
+    }
+
+    /// <summary>Doğrulama ve dağıtım hesabı; kayıt yazmaz. Önizleme ve oluşturma aynı yolu kullanır.</summary>
+    internal async Task<LandedCost> BuildAsync(LandedCostInput input, CancellationToken ct) {
 
         // Hedef mal kabuller: verilenler + ithalat dosyasına bağlı olanlar.
         var receiptIds = (input.ReceiptIds ?? []).ToList();
@@ -148,16 +157,35 @@ public sealed class CreateLandedCostCommandHandler(
             Status = LandedCostStatus.Draft, Date = input.Date, Key = input.Key, ImportFileId = input.ImportFileId, TotalTl = sources.Sum(s => s.AmountTl),
             Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(), Sources = sources, Targets = targetRows
         };
-        landed.Number = await DocumentNumbers.NextAsync(db, "MD", input.Date, ct);
-        db.LandedCosts.Add(landed);
-        await db.SaveChangesAsync(ct);
-        return await mapper.ToDtoAsync(landed, ct);
+        return landed;
     }
 
     internal static void EnsureSourceInvoice(Invoice invoice) {
         if (invoice.Kind != InvoiceKind.Purchase) throw PurchasingErrors.Bad("landed_cost_source_invalid", "Masraf kaynağı bir alış faturası olmalıdır.");
         if (invoice.Status == InvoiceStatus.Cancelled) throw PurchasingErrors.Conflict("landed_cost_source_cancelled", "İptal edilmiş fatura masraf kaynağı olamaz.");
         if (invoice.Status != InvoiceStatus.Issued) throw PurchasingErrors.Conflict("landed_cost_source_not_issued", "Yalnızca kesilmiş fatura masraf kaynağı olabilir.");
+    }
+}
+
+/// <summary>Masraf dağıtımı önizlemesi: oluşturma ile aynı doğrulama ve dağıtım, hiçbir şey yazılmaz (numara boş, kimlik boş).</summary>
+[Authorize(Permission = PurchasingPermissions.Manage)]
+[Authorize(Permission = PurchasingPermissions.PurchasePrice)]
+public sealed record PreviewLandedCostCommand(LandedCostInput Input) : IRequest<LandedCostDto>;
+
+public sealed class PreviewLandedCostCommandValidator : AbstractValidator<PreviewLandedCostCommand> {
+    public PreviewLandedCostCommandValidator() {
+        RuleFor(c => new CreateLandedCostCommand(c.Input)).SetValidator(new CreateLandedCostCommandValidator());
+    }
+}
+
+public sealed class PreviewLandedCostCommandHandler(
+    IApplicationDbContext db,
+    ICurrentTenant        tenant,
+    LandedCostMapper      mapper
+) : IRequestHandler<PreviewLandedCostCommand, LandedCostDto> {
+    public async Task<LandedCostDto> Handle(PreviewLandedCostCommand request, CancellationToken ct) {
+        var landed = await new CreateLandedCostCommandHandler(db, tenant, mapper).BuildAsync(request.Input, ct);
+        return await mapper.ToDtoAsync(landed, ct);
     }
 }
 

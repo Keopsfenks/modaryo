@@ -43,6 +43,27 @@ public class LandedCostTests : TestBase {
     }
 
     [Test]
+    public async Task Preview_AllocatesWithoutWriting() {
+        var s  = await InvoiceMatchTests.Received(3m, 10m, receiveQuantity: 1m);
+        var r1 = s.Receipt.GetProperty("id").GetGuid();
+        var r2 = await InvoiceMatchTests.ReceiveMore(s, 1m);
+        var r3 = await InvoiceMatchTests.ReceiveMore(s, 1m);
+
+        using var response = await s.Env.Client.PostAsJsonAsync($"{Api}/landed-costs/preview",
+            new { date = Day.AddDays(1).ToString("yyyy-MM-dd"), key = "amount", receiptIds = new[] { r1, r2, r3 }, sources = new[] { Manual(100m) } });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var preview = await response.JsonAsync();
+        preview.GetProperty("allocations").EnumerateArray().Sum(a => a.GetProperty("allocatedTl").GetDecimal()).ShouldBe(100m);
+        await using var db = PricingTestSupport.Db(s.Env.Tenant);
+        (await db.LandedCosts.CountAsync()).ShouldBe(0);
+
+        using var weight = await s.Env.Client.PostAsJsonAsync($"{Api}/landed-costs/preview",
+            new { date = Day.AddDays(1).ToString("yyyy-MM-dd"), key = "weight", receiptIds = new[] { r1 }, sources = new[] { Manual(100m) } });
+        await Fail(weight, HttpStatusCode.Conflict, "weight_missing");
+    }
+
+    [Test]
     public async Task WeightKey_WithWeights_Allocates() {
         var s = await InvoiceMatchTests.Received(10m, 10m);
         await using (var db = PricingTestSupport.Db(s.Env.Tenant)) {

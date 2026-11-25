@@ -258,6 +258,110 @@ export type PurchasingSettings = {
 
 export type PriceStat = { productId: string; variantId: string | null; unit: string; lastUnitPriceTl: number; minUnitPriceTl: number; maxUnitPriceTl: number; lastPurchaseDate: string };
 
+export type AllocationKey = "amount" | "quantity" | "weight";
+export type CostType = "navlun" | "gumruk" | "sigorta" | "diger";
+export type LandedCostStatus = "draft" | "posted" | "cancelled";
+
+export const ALLOCATION_KEY_LABELS: Record<AllocationKey, string> = { amount: "Tutar", quantity: "Miktar", weight: "Ağırlık" };
+export const COST_TYPE_LABELS: Record<CostType, string> = { navlun: "Navlun", gumruk: "Gümrük", sigorta: "Sigorta", diger: "Diğer" };
+export const COST_TYPES = Object.keys(COST_TYPE_LABELS) as CostType[];
+export const LANDED_STATUS_LABELS: Record<LandedCostStatus, string> = { draft: "Taslak", posted: "İşlendi", cancelled: "İptal" };
+
+export type LandedSourceInput = { invoiceId?: string | null; manualAmountTl?: number | null; description?: string | null; costType: CostType };
+
+export type LandedCostInput = {
+    date: string;
+    key: AllocationKey;
+    receiptIds?: string[];
+    importFileId?: string | null;
+    notes?: string | null;
+    sources: LandedSourceInput[];
+};
+
+export type LandedSourceDto = { id: string; invoiceId: string | null; description: string; costType: CostType | null; amountTl: number };
+
+export type LandedAllocationDto = {
+    receiptId: string;
+    receiptNumber: string;
+    receiptLineId: string;
+    productId: string;
+    productCode: string;
+    productName: string;
+    baseQuantity: number;
+    weightKgPerUnit: number | null;
+    tlValue: number;
+    allocatedTl: number;
+    byCostType: Record<string, number>;
+};
+
+export type LandedCostDto = {
+    id: string;
+    number: string;
+    status: LandedCostStatus;
+    date: string;
+    key: AllocationKey;
+    importFileId: string | null;
+    notes: string | null;
+    cancelReason: string | null;
+    totalTl: number;
+    sources: LandedSourceDto[];
+    allocations: LandedAllocationDto[];
+    byCostType: Record<string, number>;
+};
+
+export type LandedCostRow = { id: string; number: string; status: LandedCostStatus; date: string; key: AllocationKey; totalTl: number; importFileId: string | null };
+
+export type Incoterm = "EXW" | "FCA" | "FOB" | "CIF" | "DAP" | "DDP";
+export const INCOTERMS: Incoterm[] = ["EXW", "FCA", "FOB", "CIF", "DAP", "DDP"];
+export type ImportFileStatus = "open" | "closed";
+export type ImportLinkKind = "purchaseOrder" | "goodsReceipt" | "purchaseInvoice" | "landedCost" | "attachment";
+export const IMPORT_LINK_LABELS: Record<ImportLinkKind, string> = {
+    purchaseOrder: "Sipariş",
+    goodsReceipt: "Mal kabul",
+    purchaseInvoice: "Alış faturası",
+    landedCost: "Masraf dağıtımı",
+    attachment: "Ek dosya",
+};
+
+export type ImportFileInput = { supplierId: string; originCountry: string; incoterm: Incoterm; currency: string; notes?: string | null };
+export type ImportLinkDto = { id: string; kind: ImportLinkKind; refId: string; label: string | null };
+export type ImportFileDto = {
+    id: string;
+    number: string;
+    status: ImportFileStatus;
+    supplierId: string;
+    supplierName: string;
+    originCountry: string;
+    incoterm: string;
+    currency: string;
+    notes: string | null;
+    links: ImportLinkDto[];
+};
+export type ImportFileRow = { id: string; number: string; status: ImportFileStatus; supplierId: string; supplierName: string; originCountry: string; incoterm: string; currency: string };
+export type ImportSummary = {
+    importFileId: string;
+    goodsValueTl: number;
+    costsByType: { costType: string; amountTl: number }[];
+    totalCostTl: number;
+    landedTotalTl: number;
+    items: { productId: string; productCode: string; productName: string; variantId: string | null; baseQuantity: number; goodsValueTl: number; allocatedCostTl: number; landedUnitCostTl: number }[];
+};
+
+export type SuggestionLine = {
+    productId: string;
+    productCode: string;
+    productName: string;
+    variantId: string | null;
+    warehouseId: string;
+    available: number;
+    onOrder: number;
+    minQty: number;
+    suggestedQty: number;
+    lastPrice: number | null;
+};
+export type SuggestionGroup = { supplierId: string | null; supplierName: string; lines: SuggestionLine[] };
+export type SuggestionOrderInput = { groups: { supplierId: string; lines: { productId: string; variantId?: string | null; warehouseId: string; quantity: number }[] }[] };
+
 function qs(params: Record<string, string | number | boolean | undefined>): string {
     const search = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") search.set(k, String(v));
@@ -292,6 +396,28 @@ export const purchasing = {
             apiFetch<QuarantineResult>(`${BASE}/quarantine/release`, { method: "POST", body }),
         reject: (body: { receiptLineId: string; quantity: number; action: "damaged" | "return" }) =>
             apiFetch<QuarantineResult>(`${BASE}/quarantine/reject`, { method: "POST", body }),
+    },
+    landedCosts: {
+        list: (q: { status?: LandedCostStatus; importFileId?: string } = {}) => apiFetch<LandedCostRow[]>(`${BASE}/landed-costs${qs({ ...q })}`),
+        get: (id: string) => apiFetch<LandedCostDto>(`${BASE}/landed-costs/${id}`),
+        preview: (body: LandedCostInput) => apiFetch<LandedCostDto>(`${BASE}/landed-costs/preview`, { method: "POST", body }),
+        create: (body: LandedCostInput) => apiFetch<LandedCostDto>(`${BASE}/landed-costs`, { method: "POST", body }),
+        post: (id: string) => apiFetch<LandedCostDto>(`${BASE}/landed-costs/${id}/post`, { method: "POST" }),
+        cancel: (id: string, reason: string) => apiFetch<LandedCostDto>(`${BASE}/landed-costs/${id}/cancel`, { method: "POST", body: { reason } }),
+    },
+    importFiles: {
+        list: (status?: ImportFileStatus) => apiFetch<ImportFileRow[]>(`${BASE}/import-files${qs({ status })}`),
+        get: (id: string) => apiFetch<ImportFileDto>(`${BASE}/import-files/${id}`),
+        create: (body: ImportFileInput) => apiFetch<ImportFileDto>(`${BASE}/import-files`, { method: "POST", body }),
+        update: (id: string, body: ImportFileInput) => apiFetch<ImportFileDto>(`${BASE}/import-files/${id}`, { method: "PUT", body }),
+        link: (id: string, kind: "po" | "receipt" | "invoice" | "landedCost" | "attachment", refId: string) =>
+            apiFetch<ImportFileDto>(`${BASE}/import-files/${id}/link`, { method: "POST", body: { kind, id: refId } }),
+        close: (id: string) => apiFetch<ImportFileDto>(`${BASE}/import-files/${id}/close`, { method: "POST" }),
+        summary: (id: string) => apiFetch<ImportSummary>(`${BASE}/import-files/${id}/summary`),
+    },
+    suggestions: {
+        get: (branchId?: string) => apiFetch<{ groups: SuggestionGroup[] }>(`${BASE}/suggestions${qs({ branchId })}`),
+        createOrders: (body: SuggestionOrderInput) => apiFetch<PoDto[]>(`${BASE}/suggestions/create-orders`, { method: "POST", body }),
     },
     createReturn: (body: ReturnInput) => apiFetch<ReturnResult>(`${BASE}/returns`, { method: "POST", body }),
     priceStats: (productId: string, variantId?: string | null) => apiFetch<PriceStat[]>(`${BASE}/price-stats${qs({ productId, variantId: variantId ?? undefined })}`),
