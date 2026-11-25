@@ -200,7 +200,9 @@ public sealed class InternalAuthMiddleware(
                 return;
         }
 
-        var owner    = reservation.OwnerToken;
+        var owner = reservation.OwnerToken;
+        // İşleyiciler kaydı kendi işlemlerinde tamamlayabilsin (bkz. IIdempotencyContext).
+        context.RequestServices.GetService<IdempotencyContext>()?.Begin(store, caller, key, owner);
         var original = context.Response.Body;
         await using var buffer = new MemoryStream();
         context.Response.Body = buffer;

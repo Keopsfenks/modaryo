@@ -126,6 +126,7 @@ public class JournalVoucherConfiguration : IEntityTypeConfiguration<JournalVouch
         builder.Property(e => e.Description).HasMaxLength(500).IsRequired();
         builder.Property(e => e.SourceType).HasMaxLength(50).IsRequired();
         builder.Property(e => e.ExternalCaller).HasMaxLength(50);
+        builder.Property(e => e.CancelReason).HasMaxLength(200);
 
         var lines = builder.Property(e => e.Lines).HasColumnType("jsonb");
         lines.HasConversion(v => JsonSerializer.Serialize(v, Json),
@@ -137,6 +138,9 @@ public class JournalVoucherConfiguration : IEntityTypeConfiguration<JournalVouch
 
         builder.HasIndex(e => new { e.TenantId, e.Number }).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.SourceType, e.SourceId });
+        // Dış servisin aynı kaynak için ikinci (farklı idempotency anahtarlı) fişi: iptal edilmedikçe tek fiş.
+        builder.HasIndex(e => new { e.TenantId, e.ExternalCaller, e.SourceType, e.SourceId }).IsUnique()
+            .HasFilter("\"ExternalCaller\" IS NOT NULL AND \"SourceId\" IS NOT NULL AND NOT \"IsCancelled\"");
         builder.HasIndex(e => new { e.TenantId, e.Date });
     }
 }

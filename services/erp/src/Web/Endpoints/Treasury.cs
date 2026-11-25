@@ -7,6 +7,9 @@ using ERP.Application.Treasury.ExchangeDifferences.Commands;
 using ERP.Application.Treasury.ExchangeDifferences.Queries;
 using ERP.Application.Treasury.ExpenseCategories;
 using ERP.Application.Treasury.Instruments;
+using ERP.Application.Treasury.Journal;
+using ERP.Application.Treasury.Journal.Commands;
+using ERP.Application.Treasury.Journal.Queries;
 using ERP.Application.Treasury.Instruments.Commands;
 using ERP.Application.Treasury.Instruments.Queries;
 using ERP.Application.Treasury.Payments.Commands;
@@ -51,6 +54,10 @@ public class Treasury : IEndpointGroup {
         groupBuilder.MapGet(ListExchangeDifferences, "exchange-differences");
         groupBuilder.MapPost(CreateDifferenceInvoice, "exchange-differences/invoice");
         groupBuilder.MapPost(CreateDifferenceExpense, "exchange-differences/expense");
+        groupBuilder.MapGet(ListJournalVouchers, "journal-vouchers");
+        groupBuilder.MapGet(GetJournalVoucher, "journal-vouchers/{id:guid}");
+        groupBuilder.MapPost(CreateJournalVoucher, "journal-vouchers");
+        groupBuilder.MapPost(CancelJournalVoucher, "journal-vouchers/{id:guid}/cancel");
     }
 
     [EndpointSummary("Virman")]
@@ -111,6 +118,32 @@ public class Treasury : IEndpointGroup {
     public static async Task<Created<DifferenceExpenseResult>> CreateDifferenceExpense(ISender sender, CreateDifferenceExpenseCommand command) {
         var result = await sender.Send(command);
         return TypedResults.Created($"/api/erp/treasury/finance-documents/{result.ExpenseId}", result);
+    }
+
+    [EndpointSummary("Mahsup fişleri")]
+    [EndpointDescription("finans.read, muhasebe.manage ya da muhasebe.export. from/to, sourceType (Manual, hr, ...) ve includeCancelled (varsayılan false) filtreleri; en çok 500 kayıt.")]
+    public static async Task<Ok<IReadOnlyList<VoucherDto>>> ListJournalVouchers(ISender sender, DateOnly? from, DateOnly? to, string? sourceType, bool? includeCancelled) {
+        return TypedResults.Ok(await sender.Send(new ListVouchersQuery(from, to, sourceType, includeCancelled ?? false)));
+    }
+
+    [EndpointSummary("Mahsup fişi")]
+    [EndpointDescription("finans.read, muhasebe.manage ya da muhasebe.export.")]
+    public static async Task<Ok<VoucherDto>> GetJournalVoucher(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetVoucherQuery(id)));
+    }
+
+    [EndpointSummary("Mahsup fişi oluştur")]
+    [EndpointDescription("muhasebe.manage. Satırlar { accountCode, debit, credit, description, currentAccountId? }; toplam borç = toplam alacak (400 voucher_unbalanced). Cari bağlı satır carinin defterine yazılır (yalnızca TL cari). Dönem kilidi uygulanır (409 period_locked).")]
+    public static async Task<Created<VoucherResult>> CreateJournalVoucher(ISender sender, CreateVoucherCommand command) {
+        var result = await sender.Send(command);
+        return TypedResults.Created($"/api/erp/treasury/journal-vouchers/{result.Id}", result);
+    }
+
+    [EndpointSummary("Mahsup fişini iptal et")]
+    [EndpointDescription("muhasebe.manage. Cari satırları iptal edilir ve eşleştirmeler yeniden kurulur. Dönem kilidi uygulanır; iptal edilmiş fiş 409 voucher_cancelled.")]
+    public static async Task<NoContent> CancelJournalVoucher(ISender sender, Guid id, CancelVoucherBody body) {
+        await sender.Send(new CancelVoucherCommand(id, body.Reason));
+        return TypedResults.NoContent();
     }
 
     [EndpointSummary("Çek/senet al")]
@@ -248,3 +281,4 @@ public class Treasury : IEndpointGroup {
 }
 
 public sealed record CancelFinanceDocumentBody(string Reason);
+public sealed record CancelVoucherBody(string Reason);

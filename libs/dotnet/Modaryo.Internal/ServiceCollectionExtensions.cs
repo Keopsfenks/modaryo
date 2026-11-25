@@ -12,6 +12,8 @@ public static class ServiceCollectionExtensions {
     ) {
         services.TryAddSingleton(TimeProvider.System);
         services.AddOptions<InternalOptions>().Bind(configuration.GetSection(InternalOptions.SectionName));
+        services.TryAddScoped<IdempotencyContext>();
+        services.TryAddScoped<IIdempotencyContext>(sp => sp.GetRequiredService<IdempotencyContext>());
         return services;
     }
 

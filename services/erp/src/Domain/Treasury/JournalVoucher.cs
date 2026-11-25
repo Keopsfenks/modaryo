@@ -10,6 +10,8 @@ public class JournalVoucher : BaseAuditableEntity, ITenantOwned {
     public string?           ExternalCaller { get; set; }
     public List<JournalLine> Lines          { get; set; } = new();
     public bool              IsCancelled    { get; set; }
+    public DateTimeOffset?   CancelledAt    { get; set; }
+    public string?           CancelReason   { get; set; }
     public Guid              TenantId       { get; set; }
 
     public bool IsBalanced => Lines.Sum(l => l.Debit) == Lines.Sum(l => l.Credit);

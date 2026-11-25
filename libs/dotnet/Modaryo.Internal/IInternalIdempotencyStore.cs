@@ -35,10 +35,11 @@ public interface IInternalIdempotencyStore {
                                               CancellationToken ct);
 
     /// <summary>
-    ///     Kaydı tamamlar. <paramref name="ownerToken" />, ayırma sonucundaki sahiplik belirtecidir; kayıt başkasına
-    ///     devredilmişse (zaman aşımı sonrası devralma) hiçbir şey yapılmaz.
+    ///     Kaydı tamamlar; yalnızca hâlâ bekleyen (henüz tamamlanmamış) kaydı, ilk tamamlama kazanır (işleyici işlemi içinde tamamladıysa
+    ///     middleware'in sonraki çağrısı etkisizdir). <paramref name="ownerToken" />, ayırma sonucundaki sahiplik belirtecidir; kayıt
+    ///     başkasına devredilmişse hiçbir şey yapılmaz. Kayıt bu çağrıyla tamamlandıysa true döner.
     /// </summary>
-    Task CompleteAsync(string            caller,
+    Task<bool> CompleteAsync(string            caller,
                        string            key,
                        Guid              ownerToken,
                        int               status,

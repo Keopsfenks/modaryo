@@ -69,16 +69,19 @@ public sealed class IdempotencyStore(
         return new IdempotencyReservation(IdempotencyOutcome.InProgress);
     }
 
-    public async Task CompleteAsync(string            caller,
+    public async Task<bool> CompleteAsync(string            caller,
                                     string            key,
                                     Guid              ownerToken,
                                     int               status,
                                     string            responseJson,
                                     CancellationToken ct
     ) {
-        await db.IdempotencyRecords.Where(r => r.Caller == caller && r.Key == key && r.OwnerToken == ownerToken)
-            .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status,       status)
-                                    .SetProperty(r => r.ResponseJson, responseJson), ct);
+        // Yalnızca bekleyen kayıt (Status 0) tamamlanır: işleyici kaydı kendi işleminde tamamladıysa middleware'in çağrısı etkisizdir.
+        // ExecuteUpdate, bağlamın açık işlemi varsa onun içinde çalışır.
+        var rows = await db.IdempotencyRecords.Where(r => r.Caller == caller && r.Key == key && r.OwnerToken == ownerToken && r.Status == 0)
+                       .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status,       status)
+                                               .SetProperty(r => r.ResponseJson, responseJson), ct);
+        return rows > 0;
     }
 
     public async Task ReleaseAsync(string caller, string key, Guid ownerToken, CancellationToken ct) {

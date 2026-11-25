@@ -135,6 +135,30 @@ public static class TreasuryErrors {
         return new AppException(400, "difference_not_applicable", message);
     }
 
+    public static AppException VoucherUnbalanced() {
+        return new AppException(400, "voucher_unbalanced", "Fişin toplam borcu toplam alacağına eşit olmalıdır.");
+    }
+
+    public static AppException VoucherInvalid(string message) {
+        return new AppException(400, "voucher_invalid", message);
+    }
+
+    public static AppException VoucherCariCurrency() {
+        return new AppException(400, "voucher_cari_currency", "Mahsup fişi satırına yalnızca TL carisi bağlanabilir.");
+    }
+
+    public static AppException VoucherSourceExists() {
+        return new AppException(409, "voucher_source_exists", "Bu kaynak için zaten bir mahsup fişi var.");
+    }
+
+    public static AppException VoucherCancelled() {
+        return new AppException(409, "voucher_cancelled", "Fiş zaten iptal edilmiş.");
+    }
+
+    public static AppException IdempotencyLost() {
+        return new AppException(409, "idempotency_in_progress", "İdempotency kaydı başka bir istek tarafından devralındı; işlem geri alındı.");
+    }
+
     public static AppException ModuleDisabled() {
         return new AppException(403, "module_disabled", "Bu modül firmanızda kapalı.");
     }

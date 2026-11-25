@@ -4018,6 +4018,13 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset>("Created")
                         .HasColumnType("timestamp with time zone");
 
@@ -4075,6 +4082,10 @@ namespace ERP.Infrastructure.Data.Migrations
                         .IsUnique();
 
                     b.HasIndex("TenantId", "SourceType", "SourceId");
+
+                    b.HasIndex("TenantId", "ExternalCaller", "SourceType", "SourceId")
+                        .IsUnique()
+                        .HasFilter("\"ExternalCaller\" IS NOT NULL AND \"SourceId\" IS NOT NULL AND NOT \"IsCancelled\"");
 
                     b.ToTable("journal_vouchers", (string)null);
                 });

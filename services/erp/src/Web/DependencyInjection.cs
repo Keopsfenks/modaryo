@@ -17,6 +17,7 @@ public static class DependencyInjection {
 
         builder.Services.AddScoped<CurrentSession>();
         builder.Services.AddScoped<ICurrentSession>(sp => sp.GetRequiredService<CurrentSession>());
+        builder.Services.AddScoped<IInternalRequest, InternalRequest>();
         builder.Services.AddScoped<ICurrentTenant>(sp => sp.GetRequiredService<ERP.Application.Inventory.Costing.TenantScope>().Override
                                                                      ?? sp.GetRequiredService<CurrentSession>());
 
