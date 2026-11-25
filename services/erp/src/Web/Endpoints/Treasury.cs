@@ -110,14 +110,14 @@ public class Treasury : IEndpointGroup {
     }
 
     [EndpointSummary("Kur farkı faturası")]
-    [EndpointDescription("finans.manage. Pozitif kur farkından KDV dahil (vatRate varsayılan 20) ExchangeDifference satış faturası taslağı. İşlenmiş fark 409 difference_already_settled.")]
+    [EndpointDescription("finans.manage. Müşteri tarafındaki pozitif kur farkından KDV dahil (vatRate varsayılan 20) ExchangeDifference satış faturası taslağı; tedarikçi tarafı ve negatif fark 400 difference_not_applicable. İşlenmiş fark 409 difference_already_settled; taslak silinir ya da fatura iptal edilirse fark yeniden işlenebilir.")]
     public static async Task<Created<DifferenceInvoiceResult>> CreateDifferenceInvoice(ISender sender, CreateDifferenceInvoiceCommand command) {
         var result = await sender.Send(command);
         return TypedResults.Created($"/api/erp/invoices/{result.InvoiceId}", result);
     }
 
     [EndpointSummary("Kur farkı gideri")]
-    [EndpointDescription("masraf.manage. Negatif kur farkından kur-farki kategorili gider fişi; accountId verilmezse cariyi alacaklandırır. İşlenmiş fark 409 difference_already_settled.")]
+    [EndpointDescription("masraf.manage. Cari artığını kapatan fiş: negatif farktan kur-farki kategorili gider fişi (cariyi alacaklandırır), tedarikçi tarafındaki pozitif farktan kur-farki-geliri kategorili gelir fişi (cariyi borçlandırır). accountId verilemez (400 difference_not_applicable); müşteri tarafındaki pozitif fark ve karışık seçim 400 difference_not_applicable. İşlenmiş fark 409 difference_already_settled; fiş iptal edilirse fark yeniden işlenebilir.")]
     public static async Task<Created<DifferenceExpenseResult>> CreateDifferenceExpense(ISender sender, CreateDifferenceExpenseCommand command) {
         var result = await sender.Send(command);
         return TypedResults.Created($"/api/erp/treasury/finance-documents/{result.ExpenseId}", result);

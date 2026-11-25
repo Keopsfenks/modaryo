@@ -2,6 +2,7 @@ using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.Invoicing.Posting;
+using ERP.Application.Treasury.ExchangeDifferences.Commands;
 using ERP.Domain.Invoicing;
 
 namespace ERP.Application.Invoicing.Commands;
@@ -64,6 +65,8 @@ public sealed class CancelInvoiceCommandHandler(
             invoice.CancelledAt  = clock.GetUtcNow();
             invoice.LastModified = clock.GetUtcNow();
             await poster.ReverseAsync(invoice, reason, ct);
+            // Kur farkı faturası iptal edilirse işlenmiş kur farkı serbest kalır.
+            await Settlement.ReleaseAsync(db, invoice.Id, ct);
 
             await db.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);

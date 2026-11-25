@@ -157,3 +157,17 @@ public class ExchangeDifferenceSettlementConfiguration : IEntityTypeConfiguratio
         builder.HasIndex(e => new { e.TenantId, e.CurrentAccountId });
     }
 }
+
+public class ExchangeDifferenceSettlementItemConfiguration : IEntityTypeConfiguration<ExchangeDifferenceSettlementItem> {
+    public void Configure(EntityTypeBuilder<ExchangeDifferenceSettlementItem> builder) {
+        builder.ToTable("exchange_difference_settlement_items");
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.Amount).HasPrecision(18, 2);
+
+        builder.HasOne<ExchangeDifferenceSettlement>().WithMany().HasForeignKey(e => e.SettlementId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<LedgerEntry>().WithMany().HasForeignKey(e => e.InvoiceEntryId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(e => new { e.TenantId, e.InvoiceEntryId });
+        builder.HasIndex(e => e.SettlementId);
+    }
+}

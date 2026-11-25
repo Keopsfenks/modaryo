@@ -3687,6 +3687,37 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.ToTable("exchange_difference_settlements", (string)null);
                 });
 
+            modelBuilder.Entity("ERP.Domain.Treasury.ExchangeDifferenceSettlementItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("InvoiceEntryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SettlementId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceEntryId");
+
+                    b.HasIndex("SettlementId");
+
+                    b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "InvoiceEntryId");
+
+                    b.ToTable("exchange_difference_settlement_items", (string)null);
+                });
+
             modelBuilder.Entity("ERP.Domain.Treasury.ExpenseCategory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4715,6 +4746,21 @@ namespace ERP.Infrastructure.Data.Migrations
                         .WithMany()
                         .HasForeignKey("CurrentAccountId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERP.Domain.Treasury.ExchangeDifferenceSettlementItem", b =>
+                {
+                    b.HasOne("ERP.Domain.CurrentAccounts.LedgerEntry", null)
+                        .WithMany()
+                        .HasForeignKey("InvoiceEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERP.Domain.Treasury.ExchangeDifferenceSettlement", null)
+                        .WithMany()
+                        .HasForeignKey("SettlementId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

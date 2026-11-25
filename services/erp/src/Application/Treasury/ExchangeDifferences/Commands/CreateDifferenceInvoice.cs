@@ -9,7 +9,7 @@ namespace ERP.Application.Treasury.ExchangeDifferences.Commands;
 
 public sealed record DifferenceInvoiceResult(Guid InvoiceId, decimal Amount, int VatRate);
 
-/// <summary>Seçilen pozitif kur farklarından KDV dahil tutarlı bir kur farkı satış faturası taslağı oluşturur (KDV varsayılan %20). Her fark bir kez işlenir.</summary>
+/// <summary>Müşteri (alacak) tarafındaki pozitif kur farklarından KDV dahil tutarlı bir kur farkı satış faturası taslağı oluşturur (KDV varsayılan %20). Her fark bir kez işlenir; tedarikçi tarafı ve negatif farklar için fatura kesilmez.</summary>
 [Authorize(Permission = TreasuryPermissions.Manage)]
 public sealed record CreateDifferenceInvoiceCommand(IReadOnlyList<Guid> AllocationIds, int? VatRate) : IRequest<DifferenceInvoiceResult>;
 
@@ -40,12 +40,15 @@ public sealed class CreateDifferenceInvoiceCommandHandler(
         await using var tx = await db.BeginTransactionAsync(ct);
         if (!await db.LockCurrentAccountAsync(cariId, ct)) throw new NotFoundException(cariId.ToString(), "CurrentAccount");
 
-        var (items, total) = await Settlement.LoadAsync(reader, cariId, ids, ct);
-        if (total <= 0m) throw TreasuryErrors.DifferenceNotApplicable("Fatura yalnızca pozitif kur farkı için kesilir; negatif fark için kur farkı gideri girin.");
+        var (rows, total, kind) = await Settlement.LoadAsync(reader, cariId, ids, ct);
+        if (kind != DifferenceKind.Invoice)
+            throw TreasuryErrors.DifferenceNotApplicable(kind == DifferenceKind.Expense
+                                                             ? "Fatura yalnızca pozitif kur farkı için kesilir; negatif fark için kur farkı gideri girin."
+                                                             : "Tedarikçi tarafındaki kur farkı için satış faturası kesilmez; kur farkı geliri fişi girin.");
 
         var branch = (await branches.ListAsync(tenantId, ct)).Where(b => b.IsActive).OrderByDescending(b => b.IsDefault).ThenBy(b => b.Code, StringComparer.Ordinal).FirstOrDefault()
                      ?? throw TreasuryErrors.BranchNotFound();
-        var notes = $"Kur farkı: {string.Join(", ", items.Select(i => i.InvoiceNumber).Where(n => n.Length > 0).Distinct())}";
+        var notes = $"Kur farkı: {string.Join(", ", rows.Select(r => r.Dto.InvoiceNumber).Where(n => n.Length > 0).Distinct())}";
         var input = new InvoiceInput {
                                          Kind             = InvoiceKind.Sales,
                                          BranchId         = branch.Id,
@@ -67,7 +70,7 @@ public sealed class CreateDifferenceInvoiceCommandHandler(
         }
 
         db.Invoices.Add(invoice);
-        Settlement.Record(db, outbox, cariId, total, "Invoice", invoice.Id, ids);
+        Settlement.Record(db, outbox, cariId, total, "Invoice", invoice.Id, ids, rows);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return new DifferenceInvoiceResult(invoice.Id, total, vatRate);

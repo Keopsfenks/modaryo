@@ -20,7 +20,8 @@ public sealed record CashFlowReportDto(DateOnly Start, string Granularity, strin
 
 /// <summary>
 ///     Nakit akışı (TL): açılış = kasa + banka hesap bakiyeleri toplamı (döviz başlangıç gününün kuruyla; pos hesapları dahil değildir).
-///     Girişler: açık alacak vade satırları ve alınan çek/senetler (portföyde ya da tahsilde). Çıkışlar: açık borç vade satırları ve verilen çek/senetler (ödenmemiş).
+///     Girişler: açık fatura alacak vade satırları ve alınan çek/senetler (portföyde ya da tahsilde). Çıkışlar: açık fatura borç vade satırları ve verilen çek/senetler (ödenmemiş).
+///     Faturasız vade satırları (eşleşmemiş avans/ön ödeme, tahsilat/ödeme, çek/senet kayıtları, mahsup) beklenen nakit değildir ve hariç tutulur.
 ///     Vadesi geçmiş kalemler ilk döneme yazılır; ufku aşanlar dışarıda kalır. granularity: day (en çok 90) | week (en çok 26); from verilmezse bugün.
 /// </summary>
 [Authorize(Permission = TreasuryPermissions.Read)]
@@ -78,8 +79,12 @@ public sealed class CashFlowQueryHandler(
 
         var accounts = await db.CurrentAccounts.AsNoTracking().Select(a => new { a.Id, a.Currency }).ToListAsync(ct);
         var items    = await reader.ForAccountsAsync(accounts.Select(a => a.Id).ToList(), start, ct);
+
+        // Yalnızca fatura vadeleri beklenen nakittir. Tahsilat/ödeme (avans, ön ödeme), çek/senet alım-ciro-keşide satırları ve mahsup/elle
+        // hareketler ya açılış bakiyesinde ya da çek/senet listesinde zaten vardır; vade satırı olarak sayılırlarsa çift sayılır.
+        var invoiceEntries = (await db.LedgerEntries.AsNoTracking().Where(e => e.Source == LedgerEntrySource.Invoice && e.CancelledAt == null).Select(e => e.Id).ToListAsync(ct)).ToHashSet();
         foreach (var account in accounts)
-            foreach (var item in items[account.Id].Where(i => i.Remaining > 0m)) {
+            foreach (var item in items[account.Id].Where(i => i.Remaining > 0m && invoiceEntries.Contains(i.EntryId))) {
                 if (Slot(item.DueDate) is not { } slot) continue;
 
                 var tl = await Tl(item.Remaining, account.Currency);

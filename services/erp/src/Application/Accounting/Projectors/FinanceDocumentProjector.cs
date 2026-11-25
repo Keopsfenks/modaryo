@@ -57,13 +57,13 @@ public sealed class FinanceDocumentProjector(IApplicationDbContext db, Accountin
         switch (document.Kind) {
             case FinanceDocumentKind.Collection: {
                 var tl = await context.TlAsync(document.Amount, document.Currency, document.Date, document.Rate, ct);
-                var party = document.IsAdvance ? codes.Sub(map.AdvancesReceived, cari) : codes.Customer(cari);
+                var party = document.IsAdvance ? codes.Advance(cari, received: true) : codes.Customer(cari);
                 lines.Debit(codes.Treasury(account), tl, text).Credit(party, tl, text, document.CurrentAccountId);
                 break;
             }
             case FinanceDocumentKind.Payment: {
                 var tl = await context.TlAsync(document.Amount, document.Currency, document.Date, document.Rate, ct);
-                var party = document.IsAdvance ? codes.Sub(map.AdvancesGiven, cari) : codes.Supplier(cari);
+                var party = document.IsAdvance ? codes.Advance(cari, received: false) : codes.Supplier(cari);
                 lines.Debit(party, tl, text, document.CurrentAccountId).Credit(codes.Treasury(account), tl, text);
                 break;
             }

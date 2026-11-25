@@ -3,17 +3,19 @@ using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.CurrentAccounts;
 using ERP.Application.Settings;
-using ERP.Application.Treasury.Accounts;
 using ERP.Application.Treasury.ExpenseCategories;
 using ERP.Application.Treasury.Vouchers;
 
 namespace ERP.Application.Treasury.ExchangeDifferences.Commands;
 
-public sealed record DifferenceExpenseResult(Guid ExpenseId, string Number, decimal Amount);
+/// <summary>Kind: Expense (kur farkı gideri, cariyi alacaklandırır) ya da Income (kur farkı geliri, cariyi borçlandırır).</summary>
+public sealed record DifferenceExpenseResult(Guid ExpenseId, string Number, decimal Amount, string Kind);
 
 /// <summary>
-///     Seçilen negatif kur farklarından kur farkı gideri (kategori kur-farki) fişi yazar. Hesap verilmezse fiş cariyi alacaklandırır
-///     (artakalan borcu kapatır); verilirse TL kasa/banka hesabından çıkış yapar. Her fark bir kez işlenir.
+///     Cari artığını kapatan kur farkı fişi. Negatif fark (cari borç artığı) kategori kur-farki gider fişi ile cariyi alacaklandırır; tedarikçi tarafındaki pozitif fark
+///     (cari alacak artığı) kategori kur-farki-geliri gelir fişi ile cariyi borçlandırır. Fiş her zaman cariye yazılır: fark nakit hareketi değildir, bu nedenle
+///     kasa/banka hesabı seçilemez (<see cref="AccountId" /> verilirse 400 difference_not_applicable). Müşteri tarafındaki pozitif fark için fatura kesilir.
+///     Her fark bir kez işlenir; fiş iptal edilirse fark yeniden işlenebilir.
 /// </summary>
 [Authorize(Permission = TreasuryPermissions.Expense)]
 public sealed record CreateDifferenceExpenseCommand(IReadOnlyList<Guid> AllocationIds, Guid? AccountId) : IRequest<DifferenceExpenseResult>;
@@ -30,41 +32,39 @@ public sealed class CreateDifferenceExpenseCommandHandler(
     ExchangeDifferenceReader reader,
     ExpensePoster            poster,
     ITenantSettings          settings,
-    ICurrentTenant           tenant,
     IOutbox                  outbox,
     TimeProvider             time
 ) : IRequestHandler<CreateDifferenceExpenseCommand, DifferenceExpenseResult> {
     public async Task<DifferenceExpenseResult> Handle(CreateDifferenceExpenseCommand request, CancellationToken ct) {
+        if (request.AccountId is not null)
+            throw TreasuryErrors.DifferenceNotApplicable("Kur farkı nakit hareketi değildir; fiş her zaman cariye yazılır, kasa/banka hesabı seçilemez.");
+
         var ids    = Settlement.Distinct(request.AllocationIds);
         var cariId = await Settlement.CariOfAsync(db, ids, ct);
 
         await using var tx = await db.BeginTransactionAsync(ct);
         if (!await db.LockCurrentAccountAsync(cariId, ct)) throw new NotFoundException(cariId.ToString(), "CurrentAccount");
 
-        var (_, total) = await Settlement.LoadAsync(reader, cariId, ids, ct);
-        if (total >= 0m) throw TreasuryErrors.DifferenceNotApplicable("Kur farkı gideri yalnızca negatif fark için girilir; pozitif fark için fatura kesin.");
+        var (rows, total, kind) = await Settlement.LoadAsync(reader, cariId, ids, ct);
+        if (kind == DifferenceKind.Invoice) throw TreasuryErrors.DifferenceNotApplicable("Müşteri tarafındaki pozitif kur farkı için fatura kesin; gider/gelir fişi girilmez.");
 
-        if (request.AccountId is { } accountId) {
-            var account = await AccountRules.FindAsync(db, tenant, accountId, ct);
-            if (account.Currency != "TRY") throw TreasuryErrors.AccountCurrencyMismatch("Kur farkı gideri yalnızca TL hesaptan çıkabilir.");
-        }
-
+        var expense = kind == DifferenceKind.Expense;
         await CategoryRules.EnsureSeededAsync(db, settings, ct);
-        var category = await db.ExpenseCategories.AsNoTracking().FirstOrDefaultAsync(c => c.Code == "kur-farki", ct)
-                       ?? throw new NotFoundException("kur-farki", "ExpenseCategory");
-        var amount = -total;
+        var code     = expense ? "kur-farki" : "kur-farki-geliri";
+        var category = await db.ExpenseCategories.AsNoTracking().FirstOrDefaultAsync(c => c.Code == code, ct)
+                       ?? throw new NotFoundException(code, "ExpenseCategory");
+        var amount = Math.Abs(total);
         var result = await poster.PostAsync(new CreateExpenseCommand {
-                                                                        Kind             = ExpenseKind.Expense,
+                                                                        Kind             = expense ? ExpenseKind.Expense : ExpenseKind.Income,
                                                                         CategoryId       = category.Id,
                                                                         Date             = CurrentAccountClock.Today(time),
                                                                         Amount           = amount,
-                                                                        AccountId        = request.AccountId,
-                                                                        CurrentAccountId = request.AccountId is null ? cariId : null,
-                                                                        Description      = "Kur farkı gideri"
+                                                                        CurrentAccountId = cariId,
+                                                                        Description      = expense ? "Kur farkı gideri" : "Kur farkı geliri"
                                                                     }, ct);
-        Settlement.Record(db, outbox, cariId, total, "Expense", result.Id, ids);
+        Settlement.Record(db, outbox, cariId, total, expense ? "Expense" : "Income", result.Id, ids, rows);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
-        return new DifferenceExpenseResult(result.Id, result.Number, amount);
+        return new DifferenceExpenseResult(result.Id, result.Number, amount, expense ? "Expense" : "Income");
     }
 }

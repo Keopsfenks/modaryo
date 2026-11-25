@@ -142,6 +142,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
 
     public DbSet<ExchangeDifferenceSettlement> ExchangeDifferenceSettlements => Set<ExchangeDifferenceSettlement>();
 
+    public DbSet<ExchangeDifferenceSettlementItem> ExchangeDifferenceSettlementItems => Set<ExchangeDifferenceSettlementItem>();
+
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();

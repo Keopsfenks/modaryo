@@ -8,12 +8,13 @@ namespace ERP.Application.Accounting.Projectors;
 
 /// <summary>
 ///     Kesilmiş (taslak olmayan) faturalar. Tutarlar TL alanlarındandır; cari satırı bileşenlerin toplamından türetilir, fiş her zaman dengelidir.
-///     Satış:        B 120[.cari] (net + ÖTV + KDV)                 A 600 (net + ÖTV)   A 391 (KDV)
-///                   KDV tevkifatı: alıcı öder, satıcı alacağını tam yazar; tevkifat ayrı satır açmaz.
+///     Satış:        B 120[.cari] (net + ÖTV + KDV - tevkifat)      A 600 (net + ÖTV)   A 391 (KDV - tevkifat)
+///                   KDV tevkifatı (satış): 120 cari defterindeki net alacağı taşır (net + ÖTV + KDV - tevkifat) ve 391 yalnızca tahsil edilen KDV (KDV - tevkifat) kadar alacaklanır;
+///                   tevkifat edilen KDV'yi alıcı sorumlu sıfatıyla beyan eder, satıcıda ayrı hesap açılmaz (eşlemede yeni anahtar gerekmez).
 ///     Alış:         B 153 (net + ÖTV)   B 191 (KDV)                 A 320[.cari] (net + ÖTV + KDV - tevkifat)   A 360 (tevkifat)
-///     Satış iade:   B 610 (net + ÖTV)   B 391 (KDV)                 A 120[.cari] (net + ÖTV + KDV)
+///     Satış iade:   B 610 (net + ÖTV)   B 391 (KDV - tevkifat)      A 120[.cari] (net + ÖTV + KDV - tevkifat)
 ///     Alış iade:    B 320[.cari] (net + ÖTV + KDV - tevkifat)   B 360 (tevkifat)   A 153 (net + ÖTV)   A 191 (KDV)
-///     Kur farkı:    B 120[.cari] (net + KDV)                        A 646 (net)         A 391 (KDV)
+///     Kur farkı:    B 120[.cari] (net + KDV - tevkifat)             A 646 (net)         A 391 (KDV - tevkifat)
 ///     İptal edilen fatura: özgün fiş + iptal tarihli ters fiş. İndirim netten düşülmüş sayılır (611 kullanılmaz).
 /// </summary>
 public sealed class InvoiceProjector(IApplicationDbContext db, AccountingContext context) : IJournalProjector {
@@ -50,13 +51,13 @@ public sealed class InvoiceProjector(IApplicationDbContext db, AccountingContext
 
         switch (invoice.Kind) {
             case InvoiceKind.Sales:
-                lines.Debit(codes.Customer(cari), net + vat, text, invoice.CurrentAccountId).Credit(map.Sales, net, text).Credit(map.VatOutput, vat, text);
+                lines.Debit(codes.Customer(cari), net + vat - withheld, text, invoice.CurrentAccountId).Credit(map.Sales, net, text).Credit(map.VatOutput, vat - withheld, text);
                 break;
             case InvoiceKind.ExchangeDifference:
-                lines.Debit(codes.Customer(cari), net + vat, text, invoice.CurrentAccountId).Credit(map.FxGain, net, text).Credit(map.VatOutput, vat, text);
+                lines.Debit(codes.Customer(cari), net + vat - withheld, text, invoice.CurrentAccountId).Credit(map.FxGain, net, text).Credit(map.VatOutput, vat - withheld, text);
                 break;
             case InvoiceKind.SalesReturn:
-                lines.Debit(map.SalesReturns, net, text).Debit(map.VatOutput, vat, text).Credit(codes.Customer(cari), net + vat, text, invoice.CurrentAccountId);
+                lines.Debit(map.SalesReturns, net, text).Debit(map.VatOutput, vat - withheld, text).Credit(codes.Customer(cari), net + vat - withheld, text, invoice.CurrentAccountId);
                 break;
             case InvoiceKind.Purchase:
                 lines.Debit(map.PurchasesInventory, net, text).Debit(map.VatInput, vat, text)

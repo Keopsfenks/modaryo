@@ -93,7 +93,7 @@ export const treasury = {
     // Kur farkı
     exchangeDifferences: (q: { currentAccountId?: string; from?: string; to?: string } = {}) => get<ExchangeDifferenceDto[]>(`/exchange-differences${query(q)}`),
     createDifferenceInvoice: (body: { allocationIds: string[]; vatRate?: number }) => send<{ invoiceId: string; amount: number; vatRate: number }>("POST", "/exchange-differences/invoice", body),
-    createDifferenceExpense: (body: { allocationIds: string[]; accountId?: string | null }) => send<{ expenseId: string; number: string; amount: number }>("POST", "/exchange-differences/expense", body),
+    createDifferenceExpense: (body: { allocationIds: string[] }) => send<{ expenseId: string; number: string; amount: number; kind: "Expense" | "Income" }>("POST", "/exchange-differences/expense", body),
 
     // Mahsup fişleri
     journalVouchers: (q: { from?: string; to?: string; includeCancelled?: boolean } = {}) => get<VoucherDto[]>(`/journal-vouchers${query(q)}`),

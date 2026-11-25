@@ -8,6 +8,6 @@ public sealed record ListExchangeDifferencesQuery(Guid? CurrentAccountId, DateOn
 
 public sealed class ListExchangeDifferencesQueryHandler(ExchangeDifferenceReader reader) : IRequestHandler<ListExchangeDifferencesQuery, IReadOnlyList<ExchangeDifferenceDto>> {
     public async Task<IReadOnlyList<ExchangeDifferenceDto>> Handle(ListExchangeDifferencesQuery request, CancellationToken ct) {
-        return await reader.ListAsync(request.CurrentAccountId, request.From, request.To, null, false, ct);
+        return await reader.ListAsync(request.CurrentAccountId, request.From, request.To, ct);
     }
 }

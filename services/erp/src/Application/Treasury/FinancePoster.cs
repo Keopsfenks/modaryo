@@ -7,6 +7,7 @@ using ERP.Application.Settings;
 using ERP.Application.Settings.Categories;
 using ERP.Application.Treasury.Accounts;
 using ERP.Application.Treasury.Allocations;
+using ERP.Application.Treasury.ExchangeDifferences.Commands;
 using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Treasury;
 
@@ -217,6 +218,9 @@ public sealed class FinancePoster(
         }
 
         await db.SaveChangesAsync(ct);
+
+        // Kur farkı gideri/geliri fişi iptal edilirse işlenmiş kur farkı serbest kalır (aynı kaydetmede).
+        await Settlement.ReleaseAsync(db, document.Id, ct);
 
         // İptal edilen satıra dokunan eşleştirmeler silinir, kalan tutarlar sonraki satırlara kayar.
         if (head.CurrentAccountId is { } rebuildCari) await auto.RebuildAsync(rebuildCari, ct);

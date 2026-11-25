@@ -15,14 +15,31 @@ public sealed class AccountCodes(AccountMapping map, bool subAccountPerCari) {
         return subAccountPerCari && cari is not null ? $"{baseCode}.{cari.Code}" : baseCode;
     }
 
-    /// <summary>Müşteri tarafı (120); yalnızca personel olan cari 335.</summary>
+    /// <summary>
+    ///     Müşteri tarafı: cari rolü belirler. Yalnızca tedarikçi olan cari 320, yalnızca personel olan 335; müşteri ya da hem müşteri hem tedarikçi olan 120
+    ///     (çift rolde belgenin varsayılan tarafı: tahsilat/satış 120).
+    /// </summary>
     public string Customer(CurrentAccount? cari) {
-        return Sub(cari is { IsEmployee: true, IsCustomer: false, IsSupplier: false } ? map.Employees : map.Customers, cari);
+        return Sub(PartyBase(cari, customerSide: true), cari);
     }
 
-    /// <summary>Tedarikçi tarafı (320); yalnızca personel olan cari 335.</summary>
+    /// <summary>Tedarikçi tarafı: yalnızca müşteri olan cari 120, yalnızca personel olan 335; aksi halde 320 (çift rolde ödeme/alış 320).</summary>
     public string Supplier(CurrentAccount? cari) {
-        return Sub(cari is { IsEmployee: true, IsCustomer: false, IsSupplier: false } ? map.Employees : map.Suppliers, cari);
+        return Sub(PartyBase(cari, customerSide: false), cari);
+    }
+
+    private string PartyBase(CurrentAccount? cari, bool customerSide) {
+        if (cari is { IsEmployee: true, IsCustomer: false, IsSupplier: false }) return map.Employees;
+        if (cari is { IsCustomer: false, IsSupplier: true }) return map.Suppliers;
+        if (cari is { IsCustomer: true, IsSupplier: false }) return map.Customers;
+
+        return customerSide ? map.Customers : map.Suppliers;
+    }
+
+    /// <summary>Avans hesabı: cari rolüne göre alınan (340) ya da verilen (159) avans; rol belirsizse belgenin yönü.</summary>
+    public string Advance(CurrentAccount? cari, bool received) {
+        var customerRole = cari is { IsCustomer: true, IsSupplier: false } || (cari is not { IsSupplier: true, IsCustomer: false } && received);
+        return Sub(customerRole ? map.AdvancesReceived : map.AdvancesGiven, cari);
     }
 
     public string Treasury(TreasuryAccount? account) {

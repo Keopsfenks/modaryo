@@ -1,6 +1,7 @@
 using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
+using ERP.Application.Treasury.ExchangeDifferences.Commands;
 using ERP.Domain.Invoicing;
 
 namespace ERP.Application.Invoicing.Commands;
@@ -19,6 +20,9 @@ public sealed class DeleteDraftCommandHandler(
         InvoiceRules.EnsureKindPermission(session, invoice.Kind);
         BranchGuard.Ensure(tenant, invoice.BranchId);
         if (invoice.Status != InvoiceStatus.Draft) throw InvoiceErrors.NotDraft(invoice.Status);
+
+        // Silinen kur farkı faturası taslağı işlenmiş kur farkını serbest bırakır (aynı kaydetmede).
+        if (invoice.SourceType == "kur-farki") await Settlement.ReleaseAsync(db, invoice.Id, ct);
 
         db.Invoices.Remove(invoice);
         try {

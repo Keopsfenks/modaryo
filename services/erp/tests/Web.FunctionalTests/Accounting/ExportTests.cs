@@ -265,6 +265,58 @@ public class ExportTests : TestBase {
     }
 
     [Test]
+    public async Task SalesInvoiceWithWithholding_PartyNetsToCariLedger() {
+        var env  = await NewExportEnv();
+        var sale = await CreateAndIssue(env, Body(env, lines: [FreeLine(price: 1000m, vatRate: 20, extra: new { withholdingCode = "601" })], date: new DateOnly(2026, 3, 2)));
+        var vat      = Dec(sale, "totals", "vat");
+        var withheld = Dec(sale, "totals", "withheld");
+        withheld.ShouldBeGreaterThan(0m);
+
+        var rows = await Export(env);
+
+        // Tevkifatı alıcı beyan eder: 120 cari defteriyle aynı net tutarı (net + KDV - tevkifat) borçlanır, 391 yalnızca tahsil edilen KDV'yi alacaklandırır.
+        Lines(Voucher(rows, sale.GetProperty("number").GetString()!)).ShouldBe([("120", 1000m + vat - withheld, 0m), ("600", 0m, 1000m), ("391", 0m, vat - withheld)]);
+        (await CariBalance(env, env.Customer)).ShouldBe(1000m + vat - withheld);
+
+        // Müşteri cari defteri kadar ödeme yapınca hem defter hem 120 hesabı sıfırlanır.
+        var cash = await Account(env, "Kasa", "cash");
+        await CollectOk(env, cash, 1000m + vat - withheld);
+        (await CariBalance(env, env.Customer)).ShouldBe(0m);
+        var all = await Export(env);
+        (all.Where(r => r.Account == "120").Sum(r => r.Debit) - all.Where(r => r.Account == "120").Sum(r => r.Credit)).ShouldBe(0m);
+    }
+
+    [Test]
+    public async Task PartyAccountFollowsCariRole_NotDocumentKind() {
+        var env = await NewExportEnv();
+        using (var settings = await env.Client.PutAsJsonAsync("/api/erp/settings/finans", new { version = 0, value = new { subAccountPerCari = true } }))
+            settings.StatusCode.ShouldBe(HttpStatusCode.OK, await settings.Content.ReadAsStringAsync());
+        var cash = await Account(env, "Kasa", "cash");
+
+        // Tedarikçiden iade tahsilatı 320'ye, müşteriye iade ödemesi 120'ye yazılır.
+        var supplierRefund = await CreatedId(await Collect(env, cash, 40m, env.Supplier));
+        var customerRefund = await CreatedId(await Pay(env, cash, 25m, env.Customer));
+        using var categories = await env.Client.GetAsync($"{Base}/expense-categories");
+        var       category   = (await categories.JsonAsync()).EnumerateArray().First(c => c.GetProperty("code").GetString() == "kur-farki").GetProperty("id").GetGuid();
+        var       expense    = await CreatedId(await Json(env, "expenses", new { kind = "expense", categoryId = category, date = Today.ToString("yyyy-MM-dd"), amount = 50m, currentAccountId = env.Customer }));
+
+        var rows = await Export(env);
+        var documents = await Documents(env.Tenant);
+        string No(Guid id) => documents.Single(d => d.Id == id).Number;
+
+        Lines(Voucher(rows, No(supplierRefund))).ShouldBe([("100", 40m, 0m), ("320.T1", 0m, 40m)]);
+        Lines(Voucher(rows, No(customerRefund))).ShouldBe([("120.M1", 25m, 0m), ("100", 0m, 25m)]);
+        // Müşteriye yazılan kur farkı gideri 320.M1 değil 120.M1 kodunu alacaklandırır; cari artığı 120'de kapanır.
+        Lines(Voucher(rows, No(expense))).ShouldBe([("656", 50m, 0m), ("120.M1", 0m, 50m)]);
+
+        // Her cari tek bir ana hesapta toplanır: müşteri 120.M1 (net 25 - 50), tedarikçi 320.T1.
+        rows.Where(r => r.Account.EndsWith(".M1")).Select(r => r.Account).Distinct().ShouldBe(["120.M1"]);
+        rows.Where(r => r.Account.EndsWith(".T1")).Select(r => r.Account).Distinct().ShouldBe(["320.T1"]);
+        (await CariBalance(env, env.Customer)).ShouldBe(-25m);
+        (rows.Where(r => r.Account == "120.M1").Sum(r => r.Debit) - rows.Where(r => r.Account == "120.M1").Sum(r => r.Credit)).ShouldBe(-25m);
+    }
+
+    [Test]
     public async Task Export_RequiresPermission() {
         var env = await NewExportEnv();
         using var limited = await OtherClient(env, "finans.read", "muhasebe.manage");

@@ -60,4 +60,27 @@ describe("ExchangeDifferences", () => {
         expect(screen.getByRole("button", { name: "Kur farkı faturası oluştur" })).toBeDisabled();
         expect(screen.getByRole("button", { name: "Kur farkı gideri oluştur" })).toBeEnabled();
     });
+
+    it("ExchangeDifferences_PayablePositiveOffersIncomeOnly_WithoutAccountPicker", async () => {
+        const posted: unknown[] = [];
+        setup([diff({ side: "payable", difference: 50, allocationIds: ["al-3"] })]);
+        server.use(
+            http.post("*/api/erp/treasury/exchange-differences/expense", async ({ request }) => {
+                posted.push(await request.json());
+                return HttpResponse.json({ expenseId: "gf-1", number: "GF2026000001", amount: 50, kind: "Income" }, { status: 201 });
+            }),
+        );
+        const { user } = render();
+
+        await user.click(await screen.findByRole("checkbox", { name: "SF2026000001 seç" }));
+
+        // Tedarikçi tarafındaki pozitif fark için satış faturası kesilmez; gelir fişi girilir ve hesap seçimi yoktur.
+        expect(screen.getByRole("button", { name: "Kur farkı faturası oluştur" })).toBeDisabled();
+        await user.click(screen.getByRole("button", { name: "Kur farkı geliri oluştur" }));
+        expect(screen.queryByLabelText(/Ödeme hesabı/)).not.toBeInTheDocument();
+        await user.click(await screen.findByRole("button", { name: "Geliri oluştur" }));
+
+        expect(await screen.findByText(/Kur farkı gelir fişi oluşturuldu: GF2026000001/)).toBeInTheDocument();
+        expect(posted).toEqual([{ allocationIds: ["al-3"] }]);
+    });
 });

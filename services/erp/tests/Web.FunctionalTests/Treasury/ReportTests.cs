@@ -141,6 +141,33 @@ public class ReportTests : TestBase {
     }
 
     [Test]
+    public async Task CashFlow_AdvancesAndPrepayments_AreNotFutureCash() {
+        var env  = await ReportEnv();
+        var cash = await Account(env, "Kasa");
+        var date = new DateOnly(2026, 3, 12);
+
+        // Müşteri avansı (tahsilat, faturasız) 500 kasaya girdi; tedarikçiye avans ödemesi 200 çıktı; faturasız alınan çek 100.
+        using (var advance = await Collect(env, cash, 500m, extra: new { isAdvance = true }, date: date)) await Created(advance);
+        using (var prepayment = await Pay(env, cash, 200m, extra: new { isAdvance = true }, date: date)) await Created(prepayment);
+        using (var check = await env.Client.PostAsJsonAsync($"{Base}/instruments/receive", new {
+                   kind = "check", currentAccountId = env.Customer, number = "C-9", dueDate = "2026-03-20", amount = 100m, currency = "TRY", drawer = "Keşideci", bankName = "Garanti", date = "2026-03-12"
+               }))
+            await Created(check);
+
+        var report = await Get(env, "cash-flow?granularity=week&periods=4&from=2026-03-12");
+
+        // Açılış kasada gerçekleşmiş 300; gelecekteki tek nakit çekin 100'üdür. Avanslar vade satırı olarak ne giriş ne çıkış sayılır.
+        report.GetProperty("opening").GetDecimal().ShouldBe(300m);
+        foreach (var period in report.GetProperty("periods").EnumerateArray()) {
+            period.GetProperty("inflow").GetProperty("dueLines").GetDecimal().ShouldBe(0m);
+            period.GetProperty("outflow").GetProperty("dueLines").GetDecimal().ShouldBe(0m);
+        }
+
+        report.GetProperty("periods")[1].GetProperty("inflow").GetProperty("instruments").GetDecimal().ShouldBe(100m);
+        report.GetProperty("closing").GetDecimal().ShouldBe(400m);
+    }
+
+    [Test]
     public async Task CashFlow_OverdueFirstPeriod_BeyondHorizonDropped() {
         var env = await ReportEnv();
         await DueOn(env, 120m, "2026-02-11"); // vadesi geçmiş: ilk dönem

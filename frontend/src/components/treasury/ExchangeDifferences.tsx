@@ -26,7 +26,7 @@ import DashboardCard from "@/components/dashboard/DashboardCard";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessages";
 import type { CurrentAccountListItem } from "@/lib/api/erp";
-import { treasury, type ExchangeDifferenceDto, type TreasuryAccountDto } from "@/lib/api/treasury";
+import { treasury, type ExchangeDifferenceDto } from "@/lib/api/treasury";
 import { addDaysIso, todayIso } from "@/lib/date";
 import { formatMoney } from "@/lib/money";
 import { useSession } from "@/session/SessionProvider";
@@ -51,8 +51,6 @@ export default function ExchangeDifferences() {
     const [error, setError] = useState<ApiError | string | null>(null);
     const [dialog, setDialog] = useState<"invoice" | "expense" | null>(null);
     const [vatRate, setVatRate] = useState(20);
-    const [accountId, setAccountId] = useState("");
-    const [accounts, setAccounts] = useState<TreasuryAccountDto[]>([]);
     const [busy, setBusy] = useState(false);
     const [done, setDone] = useState<string | null>(null);
 
@@ -73,16 +71,15 @@ export default function ExchangeDifferences() {
         void load();
     }, [canRead, load]);
 
-    useEffect(() => {
-        if (dialog !== "expense") return;
-        treasury.accounts().then((list) => setAccounts(list.filter((a) => a.isActive && a.currency === "TRY" && a.kind !== "cardPos")), () => setAccounts([]));
-    }, [dialog]);
-
     if (!canRead) return <Alert severity="warning">Kur farkı araçları için yetkiniz yok.</Alert>;
 
     const chosen = (rows ?? []).filter((r) => r.allocationIds.some((id) => selected.includes(id)));
     const total = round2(chosen.reduce((sum, r) => sum + r.difference, 0));
     const lockedCari = chosen[0]?.currentAccountId;
+    // Cari artığını kapatan belge: müşteri tarafı pozitif fark fatura; negatif fark gider; tedarikçi tarafı pozitif fark gelir fişi. Karışık seçim işlenemez.
+    const kindOf = (r: ExchangeDifferenceDto) => (r.difference < 0 ? "expense" : r.side === "receivable" ? "invoice" : "income");
+    const kinds = new Set(chosen.map(kindOf));
+    const kind = kinds.size === 1 ? [...kinds][0] : null;
     const key = (r: ExchangeDifferenceDto) => r.allocationIds.join(",");
 
     const toggle = (r: ExchangeDifferenceDto, on: boolean) =>
@@ -111,9 +108,9 @@ export default function ExchangeDifferences() {
 
     const createExpense = () =>
         run(async () => {
-            const result = await treasury.createDifferenceExpense({ allocationIds: selected, accountId: accountId || null });
+            const result = await treasury.createDifferenceExpense({ allocationIds: selected });
             setDialog(null);
-            setDone(`Kur farkı gider fişi oluşturuldu: ${result.number}`);
+            setDone(`${result.kind === "Income" ? "Kur farkı gelir fişi" : "Kur farkı gider fişi"} oluşturuldu: ${result.number}`);
             await load();
         });
 
@@ -177,13 +174,13 @@ export default function ExchangeDifferences() {
                     <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
                         <Typography>Seçilen toplam: {formatMoney(total, "TRY")}</Typography>
                         {canInvoice && (
-                            <Button variant="contained" disabled={total <= 0} onClick={() => setDialog("invoice")}>
+                            <Button variant="contained" disabled={kind !== "invoice"} onClick={() => setDialog("invoice")}>
                                 Kur farkı faturası oluştur
                             </Button>
                         )}
                         {canExpense && (
-                            <Button variant="outlined" color="warning" disabled={total >= 0} onClick={() => setDialog("expense")}>
-                                Kur farkı gideri oluştur
+                            <Button variant="outlined" color="warning" disabled={kind !== "expense" && kind !== "income"} onClick={() => setDialog("expense")}>
+                                {kind === "income" ? "Kur farkı geliri oluştur" : "Kur farkı gideri oluştur"}
                             </Button>
                         )}
                     </Stack>
@@ -213,24 +210,18 @@ export default function ExchangeDifferences() {
             </Dialog>
 
             <Dialog open={dialog === "expense"} onClose={() => setDialog(null)} fullWidth maxWidth="xs">
-                <DialogTitle>Kur farkı gideri</DialogTitle>
+                <DialogTitle>{kind === "income" ? "Kur farkı geliri" : "Kur farkı gideri"}</DialogTitle>
                 <DialogContent>
                     <Stack spacing={2} sx={{ pt: 1 }}>
-                        <Typography variant="body2">Gider tutarı {formatMoney(Math.abs(total), "TRY")}. Hesap seçilmezse cari hesaba alacak yazılır.</Typography>
-                        <TextField select label="Ödeme hesabı (isteğe bağlı)" value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-                            <MenuItem value="">Cariye yaz</MenuItem>
-                            {accounts.map((a) => (
-                                <MenuItem key={a.id} value={a.id}>
-                                    {a.name}
-                                </MenuItem>
-                            ))}
-                        </TextField>
+                        <Typography variant="body2">
+                            {kind === "income" ? "Gelir" : "Gider"} tutarı {formatMoney(Math.abs(total), "TRY")}. Fark nakit hareketi değildir; fiş cari hesaba {kind === "income" ? "borç" : "alacak"} yazılarak artığı kapatır.
+                        </Typography>
                     </Stack>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setDialog(null)}>Vazgeç</Button>
                     <Button variant="contained" disabled={busy} onClick={() => void createExpense()}>
-                        Gideri oluştur
+                        {kind === "income" ? "Geliri oluştur" : "Gideri oluştur"}
                     </Button>
                 </DialogActions>
             </Dialog>

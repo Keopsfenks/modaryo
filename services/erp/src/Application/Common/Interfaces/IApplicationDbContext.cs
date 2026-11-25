@@ -119,6 +119,8 @@ public interface IApplicationDbContext {
 
     DbSet<ExchangeDifferenceSettlement> ExchangeDifferenceSettlements { get; }
 
+    DbSet<ExchangeDifferenceSettlementItem> ExchangeDifferenceSettlementItems { get; }
+
     DbSet<TenantRateOverride> TenantRateOverrides { get; }
 
     /// <summary>Firma + anahtar için sıradaki numarayı (1'den) tek SQL ifadesiyle ayırır; işlem geri alınırsa numara da geri gider.</summary>
