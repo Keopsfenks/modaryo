@@ -1,6 +1,8 @@
 using ERP.Application.Invoicing;
 using ERP.Application.Purchasing.Invoices;
 using ERP.Application.Purchasing.Invoices.Commands;
+using ERP.Application.Purchasing.ImportFiles;
+using ERP.Application.Purchasing.LandedCosts;
 using ERP.Application.Purchasing.Orders;
 using ERP.Application.Purchasing.Quarantine;
 using ERP.Application.Purchasing.Returns;
@@ -30,6 +32,18 @@ public class Purchasing : IEndpointGroup {
         groupBuilder.MapPost(CancelReceipt, "receipts/{id:guid}/cancel");
         groupBuilder.MapPost(CreateInvoiceDraft, "receipts/invoice-draft");
         groupBuilder.MapGet(PriceStats, "price-stats");
+        groupBuilder.MapPost(CreateLandedCost, "landed-costs");
+        groupBuilder.MapGet(ListLandedCosts, "landed-costs");
+        groupBuilder.MapGet(GetLandedCost, "landed-costs/{id:guid}");
+        groupBuilder.MapPost(PostLandedCost, "landed-costs/{id:guid}/post");
+        groupBuilder.MapPost(CancelLandedCost, "landed-costs/{id:guid}/cancel");
+        groupBuilder.MapPost(CreateImportFile, "import-files");
+        groupBuilder.MapGet(ListImportFiles, "import-files");
+        groupBuilder.MapGet(GetImportFile, "import-files/{id:guid}");
+        groupBuilder.MapPut(UpdateImportFile, "import-files/{id:guid}");
+        groupBuilder.MapPost(LinkImportFile, "import-files/{id:guid}/link");
+        groupBuilder.MapPost(CloseImportFile, "import-files/{id:guid}/close");
+        groupBuilder.MapGet(ImportSummary, "import-files/{id:guid}/summary");
         groupBuilder.MapGet(ListQuarantine, "quarantine");
         groupBuilder.MapPost(ReleaseQuarantine, "quarantine/release");
         groupBuilder.MapPost(RejectQuarantine, "quarantine/reject");
@@ -166,5 +180,79 @@ public class Purchasing : IEndpointGroup {
     [EndpointDescription("satinalma.read + fiyat.alis. Süzgeçler: productId, variantId. Kesilmiş alış faturalarından kalem ve birim başına son, en düşük ve en yüksek TL birim fiyat (12 ay) ve son alış tarihi.")]
     public static async Task<Ok<IReadOnlyList<PriceStatDto>>> PriceStats(ISender sender, Guid? productId, Guid? variantId) {
         return TypedResults.Ok(await sender.Send(new GetPriceStatsQuery(productId, variantId)));
+    }
+
+    [EndpointSummary("Masraf dağıtımı oluştur")]
+    [EndpointDescription("satinalma.manage + fiyat.alis. Gövde: { date, key: amount|quantity|weight, receiptIds[]?, importFileId?, notes?, sources[{ invoiceId? | manualAmountTl, description?, costType: navlun|gumruk|sigorta|diger }] }. Hedefler mal kabul satırlarıdır (ithalat dosyasına bağlı mal kabuller dahil). Her kaynak kuruşu kuruşuna dağıtılır. 409 weight_missing (ağırlık anahtarında ağırlığı olmayan kalemler mesajda), landed_cost_target_cancelled, landed_cost_source_cancelled, invoice_already_allocated. Taslak olarak oluşur; /post ile maliyet düzeltmesi yazılır.")]
+    public static async Task<Created<LandedCostDto>> CreateLandedCost(ISender sender, LandedCostInput input) {
+        var landed = await sender.Send(new CreateLandedCostCommand(input));
+        return TypedResults.Created($"/api/erp/purchasing/landed-costs/{landed.Id}", landed);
+    }
+
+    [EndpointSummary("Masraf dağıtımları")]
+    [EndpointDescription("satinalma.read + fiyat.alis. Süzgeçler: status, importFileId.")]
+    public static async Task<Ok<IReadOnlyList<LandedCostListItemDto>>> ListLandedCosts(ISender sender, LandedCostStatus? status, Guid? importFileId) {
+        return TypedResults.Ok(await sender.Send(new ListLandedCostsQuery(status, importFileId)));
+    }
+
+    [EndpointSummary("Masraf dağıtımı detayı")]
+    [EndpointDescription("satinalma.read + fiyat.alis. Mal kabul satırı başına TL dağıtım tablosu ve masraf türü kırılımı.")]
+    public static async Task<Ok<LandedCostDto>> GetLandedCost(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetLandedCostQuery(id)));
+    }
+
+    [EndpointSummary("Masraf dağıtımını işle")]
+    [EndpointDescription("satinalma.manage + fiyat.alis. Her hedef satırın payı mal kabul tarihine P3 maliyet düzeltmesi olarak yazılır (sonraki çıkışlar işçi tarafından yeniden maliyetlenir). Dönem kilidi mal kabul tarihlerinde geçerlidir.")]
+    public static async Task<Ok<LandedCostDto>> PostLandedCost(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new PostLandedCostCommand(id)));
+    }
+
+    [EndpointSummary("Masraf dağıtımını iptal et")]
+    [EndpointDescription("satinalma.manage + fiyat.alis. Gövde: { reason }. İşlenmişse maliyet düzeltmeleri ters yönde yazılır.")]
+    public static async Task<Ok<LandedCostDto>> CancelLandedCost(ISender sender, Guid id, ReasonBody body) {
+        return TypedResults.Ok(await sender.Send(new CancelLandedCostCommand(id, body.Reason)));
+    }
+
+    [EndpointSummary("İthalat dosyası oluştur")]
+    [EndpointDescription("satinalma.manage, ithalat modülü. Gövde: { supplierId, originCountry, incoterm: EXW|FCA|FOB|CIF|DAP|DDP, currency, notes? }. Numara IT{yyyy}{0001}.")]
+    public static async Task<Created<ImportFileDto>> CreateImportFile(ISender sender, ImportFileInput input) {
+        var file = await sender.Send(new CreateImportFileCommand(input));
+        return TypedResults.Created($"/api/erp/purchasing/import-files/{file.Id}", file);
+    }
+
+    [EndpointSummary("İthalat dosyaları")]
+    [EndpointDescription("satinalma.read, ithalat modülü. Süzgeç: status.")]
+    public static async Task<Ok<IReadOnlyList<ImportFileListItemDto>>> ListImportFiles(ISender sender, ImportFileStatus? status) {
+        return TypedResults.Ok(await sender.Send(new ListImportFilesQuery(status)));
+    }
+
+    [EndpointSummary("İthalat dosyası detayı")]
+    [EndpointDescription("satinalma.read, ithalat modülü. Bağlı belgeler links[] içinde.")]
+    public static async Task<Ok<ImportFileDto>> GetImportFile(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetImportFileQuery(id)));
+    }
+
+    [EndpointSummary("İthalat dosyasını güncelle")]
+    [EndpointDescription("satinalma.manage, ithalat modülü. Kapalı dosya değiştirilemez (409 import_file_closed).")]
+    public static async Task<Ok<ImportFileDto>> UpdateImportFile(ISender sender, Guid id, ImportFileInput input) {
+        return TypedResults.Ok(await sender.Send(new UpdateImportFileCommand(id, input)));
+    }
+
+    [EndpointSummary("İthalat dosyasına belge bağla")]
+    [EndpointDescription("satinalma.manage, ithalat modülü. Gövde: { kind: po|receipt|invoice|landedCost|attachment, id }. attachment için id P0b dosya kimliğidir.")]
+    public static async Task<Ok<ImportFileDto>> LinkImportFile(ISender sender, Guid id, ImportLinkInput input) {
+        return TypedResults.Ok(await sender.Send(new LinkImportFileCommand(id, input)));
+    }
+
+    [EndpointSummary("İthalat dosyasını kapat")]
+    [EndpointDescription("satinalma.manage, ithalat modülü. Kapalı dosyaya belge bağlanamaz ve masraf dağıtılamaz.")]
+    public static async Task<Ok<ImportFileDto>> CloseImportFile(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new CloseImportFileCommand(id)));
+    }
+
+    [EndpointSummary("İthalat dosyası özeti")]
+    [EndpointDescription("satinalma.read + fiyat.alis, ithalat modülü. Mal değeri, masraf türüne göre işlenmiş masraflar ve kalem başına toplam birim maliyet.")]
+    public static async Task<Ok<ImportSummaryDto>> ImportSummary(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetImportSummaryQuery(id)));
     }
 }
