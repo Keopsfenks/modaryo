@@ -80,20 +80,20 @@ export default function AccountList({ role, title }: AccountListProps) {
         };
     }, [search, role, includeInactive, page, pageSize]);
 
-    const newHref = `/cari/yeni${role ? `?rol=${role === "customer" ? "musteri" : "tedarikci"}` : ""}`;
+    const newHref = `/cari/yeni${role === "customer" ? "?rol=musteri" : role === "supplier" ? "?rol=tedarikci" : ""}`;
     const newButton = (
         <Button component={Link} href={newHref} variant="contained">
             Yeni cari
         </Button>
     );
     const isEmpty = result !== null && result.total === 0 && !search && !error;
-    const emptyTitle = role === "customer" ? "Henüz müşteri yok" : role === "supplier" ? "Henüz tedarikçi yok" : !includeInactive ? "Gösterilecek cari yok" : "Henüz cari yok";
+    const emptyTitle = role === "employee" ? "Henüz personel carisi yok" : role === "customer" ? "Henüz müşteri yok" : role === "supplier" ? "Henüz tedarikçi yok" : !includeInactive ? "Gösterilecek cari yok" : "Henüz cari yok";
     const emptyHint = role || !includeInactive ? "Yeni bir cari kartı oluşturabilir veya pasifleri göstermeyi deneyebilirsiniz." : "İlk cari kartınızı oluşturarak başlayın.";
 
     return (
         <>
             <PageHeader title={title} subtitle="Cari kartlar, bakiyeler ve vadesi geçen tutarlar" />
-            <DashboardCard action={canManage && !isEmpty ? newButton : undefined}>
+            <DashboardCard action={canManage && role !== "employee" && !isEmpty ? newButton : undefined}>
                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mb: 2, alignItems: { sm: "center" } }}>
                     <TextField
                         size="small"
@@ -119,7 +119,7 @@ export default function AccountList({ role, title }: AccountListProps) {
                         <Typography color="text.secondary" sx={{ mb: 2 }}>
                             {emptyHint}
                         </Typography>
-                        {canManage && newButton}
+                        {canManage && role !== "employee" && newButton}
                     </Box>
                 ) : (
                     <>

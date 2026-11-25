@@ -18,6 +18,7 @@ import AccountForm from "@/components/cari/AccountForm";
 import AccountHeader from "@/components/cari/AccountHeader";
 import AddressesTab from "@/components/cari/AddressesTab";
 import DueTab from "@/components/cari/DueTab";
+import InstallmentsCard from "@/components/treasury/InstallmentsCard";
 import OpenInvoicesTab from "@/components/invoicing/OpenInvoicesTab";
 import CustomerPricesTab from "@/components/pricing/CustomerPricesTab";
 import MovementsTab from "@/components/cari/MovementsTab";
@@ -127,7 +128,7 @@ export default function AccountDetail({ id }: { id: string }) {
 
     return (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <AccountHeader account={account} canManage={canManage} busy={busy} onToggleActive={toggleActive} onDelete={() => setConfirmDelete(true)} />
+            <AccountHeader account={account} canManage={canManage} canCollect={hasPermission("tahsilat.manage")} canPay={hasPermission("odeme.manage")} busy={busy} onToggleActive={toggleActive} onDelete={() => setConfirmDelete(true)} />
             <FormAlert error={actionError} />
 
             <Tabs className="no-print" value={tab} onChange={changeTab} variant="scrollable" scrollButtons="auto" aria-label="Cari sekmeleri">
@@ -162,7 +163,12 @@ export default function AccountDetail({ id }: { id: string }) {
             {tab === "adresler" && <AddressesTab account={account} canManage={canManage} onChanged={setAccount} />}
             {tab === "hareketler" && <MovementsTab account={account} canMove={canMove} onChanged={setAccount} />}
             {tab === "ekstre" && <StatementTab account={account} />}
-            {tab === "vade" && <DueTab account={account} />}
+            {tab === "vade" && (
+                <>
+                    <DueTab account={account} />
+                    {(hasPermission("finans.read") || hasPermission("tahsilat.manage") || hasPermission("odeme.manage")) && <InstallmentsCard account={account} />}
+                </>
+            )}
             {tab === "ozel-fiyatlar" && <CustomerPricesTab account={account} canManage={canManagePrices} />}
             {tab === "acik-faturalar" && <OpenInvoicesTab account={account} />}
 

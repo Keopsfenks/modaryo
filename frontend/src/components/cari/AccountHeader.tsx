@@ -2,6 +2,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
+import Link from "next/link";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import type { CurrentAccountDto } from "@/lib/api/erp";
 import { formatBalance, formatMoney } from "@/lib/money";
@@ -10,6 +11,9 @@ type AccountHeaderProps = {
     account: CurrentAccountDto;
     canManage: boolean;
     busy?: boolean;
+    /** Tahsilat/ödeme yetkisi; düğmeler cari rolüne göre görünür. */
+    canCollect?: boolean;
+    canPay?: boolean;
     onToggleActive: () => void;
     onDelete: () => void;
 };
@@ -28,7 +32,9 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 /** Detay sayfası başlığı: kod, ad, rol ve durum rozetleri, bakiye, limit, vade günü ve yönetim butonları. */
-export default function AccountHeader({ account, canManage, busy, onToggleActive, onDelete }: AccountHeaderProps) {
+export default function AccountHeader({ account, canManage, busy, canCollect, canPay, onToggleActive, onDelete }: AccountHeaderProps) {
+    const showCollect = !!canCollect && account.isCustomer;
+    const showPay = !!canPay && (account.isSupplier || !!account.isEmployee);
     return (
         <DashboardCard>
             <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 2 }}>
@@ -42,11 +48,23 @@ export default function AccountHeader({ account, canManage, busy, onToggleActive
                     <Box sx={{ display: "flex", gap: 1, mt: 1 }}>
                         {account.isCustomer && <Chip size="small" color="primary" variant="outlined" label="Müşteri" />}
                         {account.isSupplier && <Chip size="small" color="secondary" variant="outlined" label="Tedarikçi" />}
+                        {account.isEmployee && <Chip size="small" color="info" variant="outlined" label="Personel" />}
                         {!account.isActive && <Chip size="small" label="Pasif" />}
                     </Box>
                 </Box>
-                {canManage && (
+                {(canManage || showCollect || showPay) && (
                     <Box className="no-print" sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
+                        {showCollect && (
+                            <Button component={Link} href={`/finans/tahsilat/yeni?cari=${account.id}`} variant="contained">
+                                Tahsilat al
+                            </Button>
+                        )}
+                        {showPay && (
+                            <Button component={Link} href={`/finans/odeme/yeni?cari=${account.id}`} variant="contained" color="secondary">
+                                Ödeme yap
+                            </Button>
+                        )}
+                        {canManage && (<>
                         <Button variant="outlined" disabled={busy} onClick={onToggleActive}>
                             {account.isActive ? "Pasifleştir" : "Etkinleştir"}
                         </Button>
@@ -55,6 +73,7 @@ export default function AccountHeader({ account, canManage, busy, onToggleActive
                                 Sil
                             </Button>
                         )}
+                        </>)}
                     </Box>
                 )}
             </Box>
