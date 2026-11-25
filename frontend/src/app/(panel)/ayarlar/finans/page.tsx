@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "Finans" };
 
 export default function Page() {
     return (
-        <SettingsPage category="finans" title="Finans" description="Dönem kilidi.">
+        <SettingsPage category="finans" title="Finans" description="Dönem kilidi ve muhasebe hesap eşlemesi.">
             <FinanceSettingsForm />
         </SettingsPage>
     );

@@ -208,7 +208,38 @@ export type GeneralSettings = {
     dateFormat: DateFormat;
 };
 
-export type FinanceSettings = { periodLockDate: string | null };
+export type AccountMapping = {
+    customers: string;
+    suppliers: string;
+    employees: string;
+    advancesGiven: string;
+    advancesReceived: string;
+    cash: string;
+    bank: string;
+    checksReceived: string;
+    checksIssued: string;
+    notesReceived: string;
+    notesPayable: string;
+    sales: string;
+    salesReturns: string;
+    salesDiscounts: string;
+    purchasesInventory: string;
+    vatOutput: string;
+    vatInput: string;
+    withholdingVatPayable: string;
+    fxGain: string;
+    fxLoss: string;
+    expenseDefault: string;
+};
+
+/** rateType ve expenseCategoryCodes bu formda düzenlenmez; PUT tüm değeri değiştirdiği için olduğu gibi geri gönderilir. */
+export type FinanceSettings = {
+    periodLockDate: string | null;
+    rateType?: string;
+    accountMapping?: AccountMapping;
+    subAccountPerCari?: boolean;
+    expenseCategoryCodes?: Record<string, string>;
+};
 
 export type SettingsDto<T> = { version: number; value: T };
 export type UploadedFile = { id: string; fileName: string; contentType: string; size: number };

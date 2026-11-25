@@ -38,6 +38,37 @@ describe("ExpenseForm", () => {
         expect(await screen.findByText(/MF2026000001/)).toBeInTheDocument();
     });
 
+    it("ExpenseForm_AttachmentUploadedAndSent", async () => {
+        const posted: unknown[] = [];
+        const uploads: string[] = [];
+        server.use(
+            http.get("*/api/erp/treasury/expense-categories", () => HttpResponse.json(categories)),
+            http.get("*/api/erp/treasury/accounts", () => HttpResponse.json(accounts)),
+            http.post("*/api/erp/files", ({ request }) => {
+                uploads.push(new URL(request.url).searchParams.get("kind") ?? "");
+                return HttpResponse.json({ id: "f-1", fileName: "fis.pdf", contentType: "application/pdf", size: 10 }, { status: 201 });
+            }),
+            http.post("*/api/erp/treasury/expenses", async ({ request }) => {
+                posted.push(await request.json());
+                return HttpResponse.json({ id: "d", number: "MF2026000001", netAmount: 1000, vatAmount: 200, warnings: [] }, { status: 201 });
+            }),
+        );
+        const { user } = renderWithTheme(<ExpenseForm />);
+
+        await user.upload(screen.getByLabelText("Fiş/fatura eki dosyası"), new File(["x"], "fis.pdf", { type: "application/pdf" }));
+        expect(await screen.findByText("fis.pdf")).toBeInTheDocument();
+        await user.type(screen.getByRole("textbox", { name: /^Tutar/ }), "1200");
+        await user.click(await screen.findByRole("combobox", { name: "Kategori" }));
+        await user.click(await screen.findByRole("option", { name: "Kira" }));
+        await user.click(screen.getByRole("combobox", { name: "Hesap" }));
+        await user.click(await screen.findByRole("option", { name: /Ana Kasa/ }));
+        await user.click(screen.getByRole("button", { name: "Kaydet" }));
+
+        await waitFor(() => expect(posted).toHaveLength(1));
+        expect(uploads).toEqual(["attachment"]);
+        expect(posted[0]).toMatchObject({ attachmentFileId: "f-1" });
+    });
+
     it("splitVat_MatchesServerRounding", () => {
         expect(splitVat(100, 18)).toEqual({ net: 84.75, vat: 15.25 });
         expect(splitVat(100, 0)).toEqual({ net: 100, vat: 0 });

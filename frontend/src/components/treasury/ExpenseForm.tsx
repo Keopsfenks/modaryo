@@ -13,10 +13,11 @@ import FormAlert from "@/components/auth/FormAlert";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessages";
-import type { CurrentAccountListItem } from "@/lib/api/erp";
+import type { CurrentAccountListItem, UploadedFile } from "@/lib/api/erp";
 import { ACCOUNT_KIND_LABELS, treasury, type ExpenseCategoryDto, type ExpenseKind, type ExpenseResult, type TreasuryAccountDto } from "@/lib/api/treasury";
 import { todayIso } from "@/lib/date";
 import { formatMoney, parseAmount } from "@/lib/money";
+import AttachmentUpload from "./AttachmentUpload";
 import CariPicker from "./CariPicker";
 
 const today = todayIso;
@@ -41,6 +42,7 @@ export default function ExpenseForm() {
     const [amountText, setAmountText] = useState("");
     const [vatText, setVatText] = useState("20");
     const [description, setDescription] = useState("");
+    const [attachment, setAttachment] = useState<UploadedFile | null>(null);
     const [error, setError] = useState<ApiError | string | null>(null);
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState<ExpenseResult | null>(null);
@@ -80,6 +82,7 @@ export default function ExpenseForm() {
                     accountId: target === "account" ? selectedAccount?.id : null,
                     currentAccountId: target === "cari" ? cari?.id : null,
                     description: description.trim() || null,
+                    attachmentFileId: attachment?.id ?? null,
                 }),
             );
         } catch (e) {
@@ -105,6 +108,7 @@ export default function ExpenseForm() {
                                 setResult(null);
                                 setAmountText("");
                                 setDescription("");
+                                setAttachment(null);
                             }}
                         >
                             Yeni fiş
@@ -187,6 +191,7 @@ export default function ExpenseForm() {
                             Net: {formatMoney(preview.net, currency ?? "TRY")} · KDV: {formatMoney(preview.vat, currency ?? "TRY")} · Toplam: {formatMoney(amount ?? 0, currency ?? "TRY")}
                         </Typography>
                     )}
+                    <AttachmentUpload file={attachment} onChange={setAttachment} label="Fiş/fatura eki" />
                     <div>
                         <Button type="submit" variant="contained" disabled={busy}>
                             {busy ? "Kaydediliyor..." : "Kaydet"}

@@ -1,4 +1,5 @@
 import type { Currency } from "../money";
+import { download } from "./catalog";
 import { apiFetch } from "./client";
 
 // ERP servisi (services/erp) kasa/banka uç noktalarının tipli sarmalayıcıları (/api/erp/treasury/*).
@@ -80,7 +81,143 @@ export const treasury = {
     updateExpenseCategory: (id: string, body: ExpenseCategoryInput) => send<ExpenseCategoryDto>("PUT", `/expense-categories/${id}`, body),
     deleteExpenseCategory: (id: string) => send("DELETE", `/expense-categories/${id}`),
     createExpense: (body: ExpenseInput) => send<ExpenseResult>("POST", "/expenses", body),
+
+    // Çek/senet (cek-senet modülü)
+    instruments: (q: InstrumentQuery = {}) => get<InstrumentDto[]>(`/instruments${query(q)}`),
+    instrument: (id: string) => get<InstrumentDetail>(`/instruments/${id}`),
+    portfolio: () => get<PortfolioRow[]>("/instruments/portfolio"),
+    receiveInstrument: (body: InstrumentInput & { endorsementCount: number }) => send<InstrumentPostResult>("POST", "/instruments/receive", body),
+    issueInstrument: (body: InstrumentInput & { bankAccountId?: string | null }) => send<InstrumentPostResult>("POST", "/instruments/issue", body),
+    moveInstrument: (id: string, body: InstrumentMoveInput) => send<InstrumentPostResult>("POST", `/instruments/${id}/move`, body),
+
+    // Kur farkı
+    exchangeDifferences: (q: { currentAccountId?: string; from?: string; to?: string } = {}) => get<ExchangeDifferenceDto[]>(`/exchange-differences${query(q)}`),
+    createDifferenceInvoice: (body: { allocationIds: string[]; vatRate?: number }) => send<{ invoiceId: string; amount: number; vatRate: number }>("POST", "/exchange-differences/invoice", body),
+    createDifferenceExpense: (body: { allocationIds: string[]; accountId?: string | null }) => send<{ expenseId: string; number: string; amount: number }>("POST", "/exchange-differences/expense", body),
+
+    // Mahsup fişleri
+    journalVouchers: (q: { from?: string; to?: string; includeCancelled?: boolean } = {}) => get<VoucherDto[]>(`/journal-vouchers${query(q)}`),
+    createJournalVoucher: (body: VoucherInput) => send<{ id: string; number: string }>("POST", "/journal-vouchers", body),
+    cancelJournalVoucher: (id: string, reason: string) => send("POST", `/journal-vouchers/${id}/cancel`, { reason }),
+
+    // Raporlar
+    aging: (q: { direction: "receivable" | "payable"; currency?: string; asOf?: string }) => get<AgingReport>(`/reports/aging${query(q)}`),
+    cashFlow: (q: { granularity: "day" | "week"; periods?: number; from?: string }) => get<CashFlowReport>(`/reports/cash-flow${query(q)}`),
 };
+
+/** Yevmiye Excel çıktısı (/api/erp/accounting/journal.xlsx). */
+export const exportJournal = (from: string, to: string) => download(`/api/erp/accounting/journal.xlsx${query({ from, to })}`, `yevmiye-${from}-${to}.xlsx`);
+
+function query(q: object): string {
+    const search = new URLSearchParams();
+    for (const [key, value] of Object.entries(q)) {
+        if (value !== undefined && value !== "") search.set(key, String(value));
+    }
+    const text = search.toString();
+    return text ? `?${text}` : "";
+}
+
+export type InstrumentKind = "check" | "note";
+export type InstrumentDirection = "received" | "issued";
+export type InstrumentStatus = "inPortfolio" | "endorsed" | "inCollection" | "collected" | "bounced" | "returnedToCustomer" | "issued" | "paid" | "returnedFromSupplier";
+
+export type InstrumentDto = {
+    id: string;
+    kind: InstrumentKind;
+    direction: InstrumentDirection;
+    status: InstrumentStatus;
+    number: string;
+    dueDate: string;
+    amount: number;
+    currency: Currency;
+    drawerName: string;
+    bankName: string | null;
+    bankBranch: string | null;
+    accountNo: string | null;
+    endorsementCount: number;
+    currentAccountId: string;
+    currentAccountName: string;
+    endorsedToId: string | null;
+    endorsedToName: string | null;
+    collectionAccountId: string | null;
+    protestFlag: boolean;
+};
+
+export type InstrumentEventDto = {
+    id: string;
+    from: InstrumentStatus | null;
+    to: InstrumentStatus;
+    date: string;
+    note: string | null;
+    documentId: string | null;
+    documentNumber: string | null;
+    created: string;
+};
+
+export type InstrumentDetail = { instrument: InstrumentDto; history: InstrumentEventDto[] };
+export type PortfolioRow = { direction: InstrumentDirection; status: InstrumentStatus; currency: Currency; count: number; total: number };
+export type InstrumentPostResult = { instrumentId: string; documentId: string; documentNumber: string; warnings: string[] };
+export type InstrumentQuery = { direction?: InstrumentDirection; status?: InstrumentStatus; dueFrom?: string; dueTo?: string; currentAccountId?: string };
+
+export type InstrumentInput = {
+    kind: InstrumentKind;
+    currentAccountId: string;
+    number: string;
+    dueDate: string;
+    amount: number;
+    currency: Currency;
+    date: string;
+    bankName?: string | null;
+    bankBranch?: string | null;
+    accountNo?: string | null;
+    drawer?: string | null;
+};
+
+export type InstrumentMoveInput = { to: InstrumentStatus; date: string; currentAccountId?: string | null; accountId?: string | null; note?: string | null };
+
+export type ExchangeDifferenceDto = {
+    currentAccountId: string;
+    currentAccountName: string;
+    side: "receivable" | "payable";
+    allocationIds: string[];
+    invoiceNumber: string;
+    foreignAmount: number;
+    currency: Currency;
+    invoiceRate: number;
+    paymentRate: number;
+    difference: number;
+};
+
+export type VoucherLineInput = { accountCode: string; debit: number; credit: number; description?: string | null; currentAccountId?: string | null };
+export type VoucherInput = { date: string; description: string; lines: VoucherLineInput[] };
+export type VoucherDto = {
+    id: string;
+    number: string;
+    date: string;
+    description: string;
+    sourceType: string;
+    sourceId: string | null;
+    externalCaller: string | null;
+    isCancelled: boolean;
+    cancelReason: string | null;
+    totalDebit: number;
+    totalCredit: number;
+    lines: { accountCode: string; debit: number; credit: number; description: string; currentAccountId: string | null }[];
+};
+
+export const AGING_BUCKETS = ["current", "1-30", "31-60", "61-90", "90+"] as const;
+export type AgingBucket = (typeof AGING_BUCKETS)[number];
+export type AgingRow = { currentAccountId: string; code: string; name: string; currency: Currency; buckets: Record<AgingBucket, number>; total: number };
+export type AgingReport = {
+    asOf: string;
+    direction: "receivable" | "payable";
+    rows: AgingRow[];
+    totals: { currency: Currency; buckets: Record<AgingBucket, number>; total: number }[];
+};
+
+export type CashFlowSources = { dueLines: number; instruments: number; recurring: number; total: number };
+export type CashFlowPeriod = { start: string; end: string; inflow: CashFlowSources; outflow: CashFlowSources; net: number; closing: number };
+export type CashFlowReport = { start: string; granularity: "day" | "week"; currency: string; opening: number; periods: CashFlowPeriod[]; closing: number };
 
 export type PaymentMethod = "cash" | "transfer" | "creditCard";
 export type ExpenseKind = "expense" | "income";
@@ -151,6 +288,8 @@ export type ExpenseCategoryDto = {
 };
 
 export type ExpenseInput = {
+    /** P0b dosya API'sine "attachment" olarak yüklenen belgenin kimliği. */
+    attachmentFileId?: string | null;
     kind: ExpenseKind;
     categoryId: string;
     date: string;
