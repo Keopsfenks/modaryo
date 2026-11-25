@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Avatar from "@mui/material/Avatar";
@@ -16,6 +17,8 @@ import Typography from "@mui/material/Typography";
 import { IconPower } from "@tabler/icons-react";
 import { navigation } from "@/config/navigation";
 import { visibleCategories } from "@/config/settings";
+import { erp } from "@/lib/api/erp";
+import type { PurchasingSettings } from "@/lib/api/purchasing";
 import { useSession } from "@/session/SessionProvider";
 import { initials } from "./Header";
 import Logo from "./Logo";
@@ -28,12 +31,27 @@ export default function SidebarContent({ onNavigate }: SidebarContentProps) {
     const pathname = usePathname();
     const { session, logout, hasPermission, hasModule } = useSession();
     const canSeeSettings = visibleCategories({ hasPermission, hasModule }).length > 0;
+    // Karantina öğesi yalnızca firmada karantina açıksa görünür; ayar yalnızca öğe yetki süzgecinden geçiyorsa okunur.
+    const wantsQuarantine = navigation.some((s) => s.items.some((i) => i.requiresQuarantine && (!i.permission || hasPermission(i.permission))));
+    const [quarantineEnabled, setQuarantineEnabled] = useState(false);
+    useEffect(() => {
+        if (!wantsQuarantine) return;
+        let cancelled = false;
+        erp.settings.get<PurchasingSettings>("satinalma").then(
+            (s) => !cancelled && setQuarantineEnabled(s.value.quarantineEnabled === true),
+            () => undefined,
+        );
+        return () => {
+            cancelled = true;
+        };
+    }, [wantsQuarantine]);
     const visibleNavigation = navigation
         .map((section) => ({ ...section, items: section.items.filter(
                 (item) =>
                     (!item.permission || hasPermission(item.permission)) &&
                     (!item.alsoPermission || hasPermission(item.alsoPermission)) &&
                     (!item.module || hasModule(item.module)) &&
+                    (!item.requiresQuarantine || quarantineEnabled) &&
                     (item.href !== "/ayarlar" || canSeeSettings),
             ) }))
         .filter((section) => section.items.length > 0);

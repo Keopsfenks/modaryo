@@ -29,8 +29,10 @@ import {
     IconLayoutDashboard,
     IconNotes,
     IconPackage,
+    IconPackageImport,
     IconReceipt,
     IconSettings,
+    IconShieldCheck,
     IconSpeakerphone,
     IconTag,
     IconTags,
@@ -54,6 +56,8 @@ export type NavItem = {
     alsoPermission?: string;
     /** Bu modül firmada kapalıysa öğe menüde görünmez. */
     module?: string;
+    /** Yalnızca firmada karantina açıksa görünür (Ayarlar > Satın alma). */
+    requiresQuarantine?: boolean;
     /** Gerçek sayfası olan öğe; "Yakında" sayfası üretilmez. */
     implemented?: boolean;
 };
@@ -88,7 +92,9 @@ export const navigation: NavSection[] = [
             { title: "Tedarikçiler", href: "/satin-alma/tedarikciler", icon: IconBuildingStore, permission: "cari.read", implemented: true },
             { title: "Alış fiyatları", href: "/satin-alma/alis-fiyatlari", icon: IconTag, permission: "fiyat.alis", implemented: true },
             { title: "Alış faturaları", href: "/satin-alma/faturalar", icon: IconFileInvoice, permission: "fatura.read", alsoPermission: "fiyat.alis", implemented: true },
-            { title: "Satın Alma Siparişleri", href: "/satin-alma/siparisler", icon: IconTruckDelivery },
+            { title: "Satın Alma Siparişleri", href: "/satin-alma/siparisler", icon: IconTruckDelivery, permission: "satinalma.read", implemented: true },
+            { title: "Mal kabul", href: "/satin-alma/mal-kabul", icon: IconPackageImport, permission: "satinalma.read", implemented: true },
+            { title: "Karantina", href: "/satin-alma/karantina", icon: IconShieldCheck, permission: "satinalma.read", requiresQuarantine: true, implemented: true },
         ],
     },
     {
