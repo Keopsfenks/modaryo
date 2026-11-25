@@ -187,6 +187,20 @@ public class StockSideFixTests : TestBase {
         returns.Where(m => m.WarehouseId == second).Sum(m => -m.Quantity).ShouldBe(6m);
     }
 
+    [Test]
+    public async Task Return_AfterPartialQuarantineReturnAndRelease_Works() {
+        var s = await Received(10m);
+        using var first = await PostReturn(s, 2m); // karantinadayken iade
+        first.StatusCode.ShouldBe(HttpStatusCode.OK, await first.Content.ReadAsStringAsync());
+        (await Release(s, 8m)).StatusCode.ShouldBe(HttpStatusCode.OK);
+
+        using var later = await PostReturn(s, 3m);
+
+        later.StatusCode.ShouldBe(HttpStatusCode.OK, await later.Content.ReadAsStringAsync());
+        (await Physical(s.Env, s.Normal)).ShouldBe(5m);
+        (await Physical(s.Env, s.Quarantine)).ShouldBe(0m);
+    }
+
     // ---- I5 ---------------------------------------------------------------------------------------------------
 
     [Test]

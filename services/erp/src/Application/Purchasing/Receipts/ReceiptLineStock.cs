@@ -61,7 +61,7 @@ public sealed class ReceiptLineStock(IApplicationDbContext db) {
                             .Where(m => m.SourceLineId == lineId && ((m.SourceType == ReleaseSource && m.Quantity > 0m) || (m.SourceType == ReturnSource && m.Quantity < 0m)))
                             .Select(m => new { m.WarehouseId, m.Quantity, m.Sequence, m.SourceType }).ToListAsync(ct);
         return moves.GroupBy(m => m.WarehouseId)
-                    .Select(g => (WarehouseId: g.Key, Quantity: g.Sum(m => m.Quantity), First: g.Where(m => m.SourceType == ReleaseSource).Min(m => m.Sequence)))
+                    .Select(g => (WarehouseId: g.Key, Quantity: g.Sum(m => m.Quantity), First: g.Where(m => m.SourceType == ReleaseSource).Select(m => (long?)m.Sequence).Min() ?? long.MaxValue))
                     .Where(x => x.Quantity > 0m).OrderBy(x => x.First).Select(x => (x.WarehouseId, x.Quantity)).ToList();
     }
 

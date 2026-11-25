@@ -259,7 +259,9 @@ internal sealed class StockLedger(
         movement.TotalCost = Round2(delta);
         db.StockMovements.Add(movement);
 
-        await EnqueueRevaluationAsync(warehouse.Id, productId, variantId, date, ct);
+        // Yeniden maliyetleme, düzeltilen girişin tarihinden başlar: tekrar oynatma düzeltmeyi girişin konumuna taşır, giriş ile
+        // düzeltme tarihi arasındaki çıkışlar da yeniden maliyetlenmelidir (aksi halde donmuş kalıp payları kaybolur).
+        await EnqueueRevaluationAsync(warehouse.Id, productId, variantId, date < inbound.Date ? date : inbound.Date, ct);
         await db.SaveChangesAsync(ct);
         return movement;
     }

@@ -1,5 +1,7 @@
+using ERP.Infrastructure.Inventory;
 using ERP.Domain.Inventory;
 using ERP.Web.FunctionalTests.Pricing;
+using Microsoft.Extensions.DependencyInjection;
 using static ERP.Web.FunctionalTests.Catalog.CatalogTestSupport;
 using static ERP.Web.FunctionalTests.Inventory.InventoryTestSupport;
 using static ERP.Web.FunctionalTests.Inventory.StockTestSupport;
@@ -7,6 +9,12 @@ using static ERP.Web.FunctionalTests.Inventory.StockTestSupport;
 namespace ERP.Web.FunctionalTests.Inventory;
 
 public class LedgerTests : TestBase {
+    private static readonly DateOnly D4 = new(2026, 3, 4);
+
+    private static Task<int> RunWorker(Env env) {
+        return TestEnvironment.Factory.Services.GetRequiredService<RevaluationWorker>().PublicRunOnceAsync(CancellationToken.None, env.Tenant);
+    }
+
     private static object Correction(Env env, Guid inboundId, string date, decimal delta) {
         return new {
             warehouseId = env.Warehouse, productId = env.Product, variantId = (Guid?)null, date, inboundMovementId = inboundId,
@@ -230,7 +238,7 @@ public class LedgerTests : TestBase {
         revaluation.Quantity.ShouldBe(0m);
         revaluation.TotalCost.ShouldBe(20m);
         (await BalanceOf(env, env.Warehouse)).GetProperty("averageCost").GetDecimal().ShouldBe(12m);
-        (await Jobs(env.Tenant)).Single().FromDate.ShouldBe(new DateOnly(2026, 3, 2));
+        (await Jobs(env.Tenant)).Single().FromDate.ShouldBe(D1); // işin başlangıcı düzeltilen girişin tarihidir
 
         await Ok(Issue(env, 2m, D3));
         (await Movements(env.Tenant)).Last().TotalCost.ShouldBe(-24m);
@@ -255,7 +263,8 @@ public class LedgerTests : TestBase {
 
     [Test]
     public async Task CorrectCost_AfterStockWasFullyIssued_IsAccepted() {
-        // Düzeltme girişin konumunda uygulanır; günün sonunda stok kalmamış olması engel değildir (cost_correction_no_stock artık atılmaz).
+        // Düzeltme girişin konumunda uygulanır; günün sonunda stok kalmamış olması engel değildir. İş girişin tarihinden başlar,
+        // aradaki çıkış da yeniden maliyetlenir.
         var env = await NewEnv();
         await Receive(env, 10m, 10m);
         await Ok(Issue(env, 10m, D3));
@@ -264,6 +273,31 @@ public class LedgerTests : TestBase {
         await Ok(Op(env.Client, "correct", Correction(env, inbound.Id, "2026-03-04", 20m)));
 
         (await Movements(env.Tenant)).Count(m => m.Type == MovementType.Revaluation).ShouldBe(1);
+        (await Jobs(env.Tenant)).Single().FromDate.ShouldBe(D1);
+        (await RunWorker(env)).ShouldBe(1);
+        (await Movements(env.Tenant)).Single(m => m.Quantity < 0m).TotalCost.ShouldBe(-120m);
+    }
+
+    [Test]
+    [TestCase("weightedAverage")]
+    [TestCase("fifo")]
+    public async Task CorrectCost_DatedAfterInbound_RecostsOutflowsInBetween(string method) {
+        var env = await NewEnv();
+        await SetStock(env.Client, method);
+        await Receive(env, 10m, 10m);
+        await Ok(Issue(env, 4m, D3));
+        await Ok(Issue(env, 2m, D4));
+        var inbound = (await Movements(env.Tenant)).First();
+
+        await Ok(Op(env.Client, "correct", Correction(env, inbound.Id, "2026-03-05", 20m)));
+
+        (await Jobs(env.Tenant)).Single().FromDate.ShouldBe(D1);
+        (await RunWorker(env)).ShouldBe(1);
+
+        var issues = (await Movements(env.Tenant)).Where(m => m.Quantity < 0m).OrderBy(m => m.Date).ToList();
+        issues[0].TotalCost.ShouldBe(-48m);
+        issues[1].TotalCost.ShouldBe(-24m);
+        (await BalanceOf(env, env.Warehouse)).GetProperty("averageCost").GetDecimal().ShouldBe(12m);
     }
 
     [Test]
