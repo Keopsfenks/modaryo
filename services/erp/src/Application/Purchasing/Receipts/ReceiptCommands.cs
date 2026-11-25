@@ -244,6 +244,7 @@ public sealed class CancelReceiptCommandHandler(
         var head = await ReceiptRules.LoadAsync(db, tenant, request.Id, false, ct);
 
         await using var tx = await db.BeginTransactionAsync(ct);
+        await db.LockReceiptsAsync([head.Id], ct); // faturalama kilidi: eşzamanlı fatura taslağı ile iptal sıraya girer
         PurchaseOrder? po = null;
         if (head.PurchaseOrderId is { } poId) {
             await db.LockPurchaseOrderAsync(poId, ct);

@@ -234,7 +234,7 @@ public sealed class PoMapper(
         var receiptRows = await db.GoodsReceiptLines.AsNoTracking()
                               .Where(l => l.PurchaseOrderLineId != null && lineIds.Contains(l.PurchaseOrderLineId.Value))
                               .Join(db.GoodsReceipts.Where(r => r.Status == GoodsReceiptStatus.Posted && r.Currency == po.Currency), l => l.GoodsReceiptId, r => r.Id,
-                                    (l, _) => new { Line = l.PurchaseOrderLineId!.Value, l.Quantity, l.UnitPrice }).ToListAsync(ct);
+                                    (l, _) => new { Line = l.PurchaseOrderLineId!.Value, l.Quantity, l.BaseQuantity, l.UnitPrice }).ToListAsync(ct);
         var receiptIds  = await db.GoodsReceipts.AsNoTracking().Where(r => r.PurchaseOrderId == po.Id && r.Status == GoodsReceiptStatus.Posted).Select(r => r.Id).ToListAsync(ct);
         var linkedLines = new List<(Guid PoLine, InvoiceLine Line, string Currency)>();
         foreach (var invoice in (await ReceiptInvoiceLinks.InvoicesAsync(db, receiptIds, ct)).Where(i => i.Status == InvoiceStatus.Issued))
@@ -247,8 +247,10 @@ public sealed class PoMapper(
             var received = receiptRows.Where(r => r.Line == line.Id).ToList();
             var invoiced    = linkedLines.Where(r => r.PoLine == line.Id).ToList();
             var invoicedQty = invoiced.Sum(r => r.Line.Quantity * r.Line.Factor) / line.Factor;
-            var receiptQty  = received.Where(r => r.UnitPrice is not null).Sum(r => r.Quantity);
-            decimal? receiptPrice = receiptQty > 0m ? received.Where(r => r.UnitPrice is not null).Sum(r => r.Quantity * r.UnitPrice!.Value) / receiptQty : null;
+            // Mal kabul satırı fiyatı kendi birimindedir (toplam tutar = Quantity x UnitPrice); temel birim üzerinden ortalama alınıp sipariş birimine çevrilir.
+            var priced       = received.Where(r => r.UnitPrice is not null && r.BaseQuantity > 0m).ToList();
+            var receiptBase  = priced.Sum(r => r.BaseQuantity);
+            decimal? receiptPrice = receiptBase > 0m ? priced.Sum(r => r.Quantity * r.UnitPrice!.Value) / receiptBase * line.Factor : null;
             // Fiyat karşılaştırması yalnızca sipariş para biriminde kesilmiş faturalar arasında, iskonto sonrası net fiyatla yapılır.
             var sameCurrency = invoiced.Where(r => r.Currency == po.Currency).ToList();
             var invoiceBase  = sameCurrency.Sum(r => r.Line.Quantity * r.Line.Factor);

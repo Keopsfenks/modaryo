@@ -187,6 +187,21 @@ public class LandedCostTests : TestBase {
     }
 
     [Test]
+    public async Task GoodsInvoiceOfTheSameReceipt_IsNotAValidSource() {
+        var s       = await InvoiceMatchTests.Received(10m, 10m);
+        var env     = s.Env;
+        var receipt = s.Receipt.GetProperty("id").GetGuid();
+        var goods   = (await InvoiceMatchTests.Draft(env, [receipt])).GetProperty("id").GetGuid();
+        await Issue(env.Client, goods);
+
+        using var response = await PostLanded(env, "amount", [receipt], [new { invoiceId = goods, costType = "diger" }]);
+
+        await Fail(response, HttpStatusCode.Conflict, "landed_cost_source_invalid");
+        await using var db = PricingTestSupport.Db(env.Tenant);
+        (await db.LandedCosts.CountAsync()).ShouldBe(0);
+    }
+
+    [Test]
     public async Task CancelledReceiptTarget_Returns409() {
         var s       = await InvoiceMatchTests.Received(10m, 10m);
         var env     = s.Env;

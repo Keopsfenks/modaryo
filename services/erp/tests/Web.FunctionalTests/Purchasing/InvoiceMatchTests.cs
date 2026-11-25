@@ -33,7 +33,7 @@ public class InvoiceMatchTests : TestBase {
         return receipt.GetProperty("id").GetGuid();
     }
 
-    private static async Task<JsonElement> Draft(Env env, Guid[] receipts, DateOnly? date = null, string? external = null) {
+    internal static async Task<JsonElement> Draft(Env env, Guid[] receipts, DateOnly? date = null, string? external = null) {
         using var response = await env.Client.PostAsJsonAsync($"{Api}/receipts/invoice-draft", new { receiptIds = receipts, externalNumber = external ?? "TED-" + Guid.NewGuid().ToString("N")[..8], date = (date ?? Day).ToString("yyyy-MM-dd") });
         response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
         return await response.JsonAsync();
@@ -195,5 +195,188 @@ public class InvoiceMatchTests : TestBase {
         stat.GetProperty("maxUnitPriceTl").GetDecimal().ShouldBe(20m);
         stat.GetProperty("lastPurchaseDate").GetString().ShouldBe(today.AddDays(-4).ToString("yyyy-MM-dd"));
         noPrice.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
+    // ---- P6 son inceleme: fatura tarafı düzeltmeleri -------------------------------------------------------------------
+
+    private static Task<HttpResponseMessage> PutDraft(Env env, JsonElement draft, decimal? quantity = null, bool affectsStock = false, Guid? supplier = null,
+                                                      string? currency = null, Guid? sourceLineId = null, Guid? warehouse = null) {
+        var line = draft.GetProperty("lines")[0];
+        return env.Client.PutAsJsonAsync($"{Url}/{draft.GetProperty("id").GetGuid()}", new {
+            kind = "Purchase", branchId = env.Branch, currentAccountId = supplier ?? env.Supplier, date = Day.ToString("yyyy-MM-dd"), currency = currency ?? "TRY",
+            externalNumber = draft.GetProperty("externalNumber").GetString(), affectsStock, warehouseId = warehouse,
+            lines = new[] { new { productId = env.Product, unit = line.GetProperty("unit").GetString(), quantity = quantity ?? line.GetProperty("quantity").GetDecimal(),
+                                  unitPrice = line.GetProperty("unitPrice").GetDecimal(), sourceLineId = sourceLineId ?? line.GetProperty("sourceLineId").GetGuid() } }
+        });
+    }
+
+    private static async Task<JsonElement> PutOk(Env env, JsonElement draft, decimal quantity) {
+        using var response = await PutDraft(env, draft, quantity);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return await response.JsonAsync();
+    }
+
+    private static Task<HttpResponseMessage> TryDraft(Env env, Guid receipt) {
+        return env.Client.PostAsJsonAsync($"{Api}/receipts/invoice-draft", new { receiptIds = new[] { receipt }, externalNumber = "TED-" + Guid.NewGuid().ToString("N")[..8], date = Day.ToString("yyyy-MM-dd") });
+    }
+
+    [Test]
+    public async Task ReceiptDraft_CannotSwitchToAffectsStock() {
+        var s     = await Received(10m, 20m);
+        var draft = await Draft(s.Env, [s.Receipt.GetProperty("id").GetGuid()]);
+
+        using var response = await PutDraft(s.Env, draft, affectsStock: true, warehouse: s.Warehouse);
+
+        await Fail(response, HttpStatusCode.BadRequest, "receipt_invoice_affects_stock");
+    }
+
+    [Test]
+    public async Task ReceiptDraft_SupplierCurrencyAndLinkAreLocked() {
+        var s       = await Received(10m, 20m, receiveQuantity: 4m);
+        var env     = s.Env;
+        var first   = s.Receipt.GetProperty("id").GetGuid();
+        var second  = await ReceiveMore(s, 6m);
+        var draft   = await Draft(env, [first]);
+        var other   = await CreateCari(env.Client, "SUP2", false, true);
+        using var secondGet = await env.Client.GetAsync($"{Api}/receipts/{second}");
+        var foreign = (await secondGet.JsonAsync()).GetProperty("lines")[0].GetProperty("id").GetGuid();
+
+        using var supplier = await PutDraft(env, draft, supplier: other);
+        using var currency = await PutDraft(env, draft, currency: "USD");
+        using var link     = await PutDraft(env, draft, sourceLineId: foreign);
+
+        await Fail(supplier, HttpStatusCode.BadRequest, "receipt_invoice_locked");
+        await Fail(currency, HttpStatusCode.BadRequest, "receipt_invoice_locked");
+        await Fail(link, HttpStatusCode.BadRequest, "receipt_invoice_locked");
+    }
+
+    [Test]
+    public async Task ReceiptDraft_Issue_RejectsTamperedStockFlagAndSupplier() {
+        var s     = await Received(10m, 20m);
+        var env   = s.Env;
+        var draft = await Draft(env, [s.Receipt.GetProperty("id").GetGuid()]);
+        var id    = draft.GetProperty("id").GetGuid();
+        var other = await CreateCari(env.Client, "SUP3", false, true);
+
+        await using (var db = PricingTestSupport.Db(env.Tenant)) {
+            var row = await db.Invoices.SingleAsync(i => i.Id == id);
+            row.AffectsStock = true;
+            row.WarehouseId  = s.Warehouse;
+            await db.SaveChangesAsync();
+        }
+
+        using var stockFlag = await env.Client.PostAsync($"{Url}/{id}/issue", null);
+        await using (var db = PricingTestSupport.Db(env.Tenant)) {
+            var row = await db.Invoices.SingleAsync(i => i.Id == id);
+            row.AffectsStock     = false;
+            row.WarehouseId      = null;
+            row.CurrentAccountId = other;
+            await db.SaveChangesAsync();
+        }
+
+        using var supplier = await env.Client.PostAsync($"{Url}/{id}/issue", null);
+
+        await Fail(stockFlag, HttpStatusCode.Conflict, "receipt_invoice_affects_stock");
+        await Fail(supplier, HttpStatusCode.Conflict, "receipt_invoice_locked");
+        await using var check = PricingTestSupport.Db(env.Tenant);
+        (await check.Invoices.SingleAsync(i => i.Id == id)).Status.ShouldBe(InvoiceStatus.Draft);
+        (await check.StockMovements.CountAsync(m => m.SourceType == "invoice")).ShouldBe(0);
+    }
+
+    [Test]
+    public async Task ReceiptDraft_EditedQuantityCannotExceedReceipt() {
+        var s     = await Received(10m, 20m);
+        var draft = await Draft(s.Env, [s.Receipt.GetProperty("id").GetGuid()]);
+
+        using var response = await PutDraft(s.Env, draft, 20m);
+
+        await Fail(response, HttpStatusCode.Conflict, "receipt_over_invoiced");
+    }
+
+    [Test]
+    public async Task ReceiptDraft_OtherDraftsCountTowardsInvoicedQuantity() {
+        var s       = await Received(10m, 20m);
+        var env     = s.Env;
+        var receipt = s.Receipt.GetProperty("id").GetGuid();
+        var first   = await PutOk(env, await Draft(env, [receipt]), 3m);
+        var second  = await Draft(env, [receipt]); // kalan 7
+
+        using var tooMuch = await PutDraft(env, first, 5m); // 5 + 7 > 10
+        var       fits    = await PutOk(env, first, 3m);
+
+        second.GetProperty("lines")[0].GetProperty("quantity").GetDecimal().ShouldBe(7m);
+        await Fail(tooMuch, HttpStatusCode.Conflict, "receipt_over_invoiced");
+        fits.GetProperty("lines")[0].GetProperty("quantity").GetDecimal().ShouldBe(3m);
+    }
+
+    [Test]
+    public async Task ReceiptDraft_Issue_RejectsOverInvoicedQuantity() {
+        var s        = await Received(10m, 20m);
+        var env      = s.Env;
+        var receipt  = s.Receipt.GetProperty("id").GetGuid();
+        await PutOk(env, await Draft(env, [receipt]), 3m);
+        var secondId = (await Draft(env, [receipt])).GetProperty("id").GetGuid();
+        await using (var db = PricingTestSupport.Db(env.Tenant)) {
+            var line = await db.InvoiceLines.SingleAsync(l => l.InvoiceId == secondId);
+            line.Quantity = 9m; // doğrudan veritabanında bozulmuş taslak: 3 + 9 > 10
+            await db.SaveChangesAsync();
+        }
+
+        using var response = await env.Client.PostAsync($"{Url}/{secondId}/issue", null);
+
+        await Fail(response, HttpStatusCode.Conflict, "receipt_over_invoiced");
+        await using var check = PricingTestSupport.Db(env.Tenant);
+        (await check.Invoices.SingleAsync(i => i.Id == secondId)).Status.ShouldBe(InvoiceStatus.Draft);
+    }
+
+    [Test]
+    public async Task ConcurrentDraftCreation_InvoicesReceiptOnlyOnce() {
+        var s       = await Received(10m, 20m);
+        var receipt = s.Receipt.GetProperty("id").GetGuid();
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => TryDraft(s.Env, receipt)));
+
+        responses.Count(r => r.StatusCode == HttpStatusCode.Created).ShouldBe(1);
+        responses.Count(r => r.StatusCode == HttpStatusCode.Conflict).ShouldBe(3);
+        await using var db = PricingTestSupport.Db(s.Env.Tenant);
+        (await db.InvoiceLines.SumAsync(l => l.Quantity)).ShouldBe(10m);
+    }
+
+    [Test]
+    public async Task ConcurrentDraftEdits_ExactlyOneFits() {
+        var s       = await Received(10m, 20m);
+        var env     = s.Env;
+        var receipt = s.Receipt.GetProperty("id").GetGuid();
+        var first   = await PutOk(env, await Draft(env, [receipt]), 3m);
+        var second  = await PutOk(env, await Draft(env, [receipt]), 3m); // toplam 6, 4 boşta
+
+        // Kilitsiz: ikisi de diğerini 3 görür (6 + 3 = 9 sığar), toplam 12 olurdu. Kilitli: ikincisi 6 + 6 = 12'yi görür ve reddedilir.
+        var responses = await Task.WhenAll(PutDraft(env, first, 6m), PutDraft(env, second, 6m));
+
+        responses.Count(r => r.StatusCode == HttpStatusCode.OK).ShouldBe(1);
+        responses.Count(r => r.StatusCode == HttpStatusCode.Conflict).ShouldBe(1);
+        await using var db = PricingTestSupport.Db(env.Tenant);
+        (await db.InvoiceLines.SumAsync(l => l.Quantity)).ShouldBeLessThanOrEqualTo(10m);
+    }
+
+    [Test]
+    public async Task PriceVariance_ComparesInPoUnit_WhenReceivedInAnotherUnit() {
+        var env       = await NewPurchasingEnv();
+        var warehouse = await InventoryTestSupport.CreateWarehouse(env.Client, env.Branch, "D1");
+        var item      = await InventoryTestSupport.CreateProduct(env.Client, "KOLI7", new { baseUnit = "adet", vatRate = 20, units = new[] { new { unit = "koli", factor = 12m, barcode = (string?)null } } });
+        var po        = await CreatePo(env, PoBody(env, [PoLine(item, 10m, 120m, new { unit = "koli" })]));
+        var poId      = po.GetProperty("id").GetGuid();
+        await Approve(env.Client, poId);
+        var poLine  = (await GetPo(env.Client, poId)).GetProperty("lines")[0].GetProperty("id").GetGuid();
+        var receipt = await Receive(env.Client, ReceiptBody(env, poId, warehouse, [RLine(poLine, item, 120m, new { unit = "adet" })]));
+        var draft   = await Draft(env, [receipt.GetProperty("id").GetGuid()]);
+        await InvoiceTestSupport.Issue(env.Client, draft.GetProperty("id").GetGuid());
+
+        var row = (await GetPo(env.Client, poId)).GetProperty("matchRows")[0];
+
+        row.GetProperty("poPrice").GetDecimal().ShouldBe(120m);
+        row.GetProperty("receiptPrice").GetDecimal().ShouldBe(120m); // koli başına; adet başına 10 değil
+        row.GetProperty("invoicePrice").GetDecimal().ShouldBe(120m);
+        row.GetProperty("priceVariance").GetBoolean().ShouldBeFalse();
     }
 }

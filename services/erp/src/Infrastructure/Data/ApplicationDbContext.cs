@@ -197,6 +197,16 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
         return locked.Count > 0;
     }
 
+    public async Task LockReceiptsAsync(IEnumerable<Guid> receiptIds, CancellationToken cancellationToken) {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Mal kabul kilidi yalnızca açık bir işlem içinde alınabilir.");
+
+        var tenantId = CurrentTenantId ?? throw new InvalidOperationException("Aktif firma yok.");
+        var keys     = receiptIds.Distinct().Select(id => $"receiptinv:{tenantId:N}:{id:N}").Order(StringComparer.Ordinal).ToList();
+        foreach (var key in keys)
+            await Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", cancellationToken);
+    }
+
     public async Task LockStockAsync(IEnumerable<(Guid WarehouseId, Guid ProductId, Guid? VariantId)> items,
                                      CancellationToken cancellationToken
     ) {

@@ -99,7 +99,7 @@ public sealed class CostCorrection(IApplicationDbContext db, IStockService stock
 }
 
 /// <summary>Mal kabulden kesilen alış faturası kesilince / iptal edilince maliyet düzeltmesini yazar ya da geri alır.</summary>
-public sealed class PurchaseInvoiceHook(CostCorrection correction, IApplicationDbContext db) : IInvoicePostHook {
+public sealed class PurchaseInvoiceHook(CostCorrection correction, ReceiptInvoiceGuard guard, IApplicationDbContext db) : IInvoicePostHook {
     private static bool Applies(Invoice invoice) {
         return invoice.Kind == InvoiceKind.Purchase && invoice.SourceType == ReceiptInvoiceLinks.Source;
     }
@@ -109,7 +109,10 @@ public sealed class PurchaseInvoiceHook(CostCorrection correction, IApplicationD
         if (cancelling && await db.LandedCostSources.AnyAsync(s => s.InvoiceId == invoice.Id
                                                                      && db.LandedCosts.Any(c => c.Id == s.LandedCostId && c.Status == LandedCostStatus.Posted), ct))
             throw PurchasingErrors.Conflict("invoice_in_landed_cost", "Fatura işlenmiş bir masraf dağıtımının kaynağı; önce masraf dağıtımını iptal edin.");
-        return Applies(invoice) ? await correction.KeysAsync(invoice, cancelling, ct) : [];
+        if (!Applies(invoice)) return [];
+        // Kesimde: mal kabul kilidi altında stok etkisi, tedarikçi/şube/para birimi uyumu ve faturalanan miktar denetlenir (hiçbir şey yazılmadan).
+        if (!cancelling) await guard.EnsureIssuableAsync(invoice, ct);
+        return await correction.KeysAsync(invoice, cancelling, ct);
     }
 
     public Task OnIssuedAsync(Invoice invoice, CancellationToken ct) {

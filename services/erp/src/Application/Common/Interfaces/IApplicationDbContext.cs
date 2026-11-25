@@ -177,6 +177,13 @@ public interface IApplicationDbContext {
     Task<bool> LockPurchaseOrderAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
+    ///     Mal kabullerin faturalama kilidini işlem sonuna kadar alır (pg_advisory_xact_lock, kimlik sırasıyla): fatura taslağı oluşturma ve
+    ///     güncelleme, fatura kesimi ve mal kabul iptali aynı mal kabulde sıraya girer; faturalanan miktar aşılamaz. Sıra: bu kilit, sonra
+    ///     sipariş kilidi, sonra stok kilitleri. Açık işlem gerekir.
+    /// </summary>
+    Task LockReceiptsAsync(IEnumerable<Guid> receiptIds, CancellationToken cancellationToken);
+
+    /// <summary>
     ///     Verilen depo x kalem anahtarlarını işlem sonuna kadar kilitler (pg_advisory_xact_lock). Anahtarlar sıralı alınır
     ///     (kilitlenme olmaması için). Açık bir işlem gerekir; kilit, bakiye okumalarından ÖNCE alınmalıdır.
     /// </summary>

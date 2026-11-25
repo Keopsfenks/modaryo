@@ -37,6 +37,10 @@ public sealed class CreateInvoiceFromReceiptsCommandHandler(
     public async Task<InvoiceDto> Handle(CreateInvoiceFromReceiptsCommand request, CancellationToken ct) {
         var input = request.Input;
         var ids   = input.ReceiptIds.Distinct().ToList();
+
+        // Mal kabul faturalama kilidi: eşzamanlı taslaklar aynı miktarı iki kez faturalayamaz; mal kabul iptali de bu kilitle sıraya girer.
+        await using var tx = await db.BeginTransactionAsync(ct);
+        await db.LockReceiptsAsync(ids, ct);
         var receipts = await db.GoodsReceipts.AsNoTracking().Include(r => r.Lines).Where(r => ids.Contains(r.Id))
                                .OrderBy(r => r.Date).ThenBy(r => r.Number).ToListAsync(ct);
         if (receipts.Count != ids.Count) throw new NotFoundException(string.Join(",", ids.Except(receipts.Select(r => r.Id))), "GoodsReceipt");
@@ -111,6 +115,7 @@ public sealed class CreateInvoiceFromReceiptsCommandHandler(
         db.Invoices.Add(draft);
         try {
             await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
         } catch (DbUpdateException ex) when (InvoicingErrors.IsUniqueViolation(ex)) {
             db.ClearTracking();
             throw InvoiceErrors.ExternalNumberTaken();

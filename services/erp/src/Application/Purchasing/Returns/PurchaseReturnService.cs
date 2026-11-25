@@ -120,7 +120,7 @@ public sealed class PurchaseReturnService(
             Rate = original.Currency == "TRY" ? null : original.Rate, ExternalNumber = "IADE-" + receipt.Number + "-" + returnId.ToString("N")[..6], AffectsStock = false,
             ReturnOfInvoiceId = original.Id, Notes = "Mal kabul " + receipt.Number + " iadesi", Lines = lines
         };
-        var built   = await invoices.BuildAsync(input, null, false, ct);
+        var built   = await invoices.BuildAsync(input, null, false, ct, systemGenerated: true);
         var invoice = new Invoice { Status = InvoiceStatus.Draft, SourceType = "purchase-return", SourceId = returnId };
         InvoiceBuilder.Apply(invoice, input, built);
         foreach (var l in built.Lines) {

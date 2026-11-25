@@ -1,6 +1,7 @@
 using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
+using ERP.Application.Purchasing.Invoices;
 using ERP.Domain.Invoicing;
 
 namespace ERP.Application.Invoicing.Commands;
@@ -19,6 +20,7 @@ public sealed class UpdateDraftCommandHandler(
     ICurrentTenant        tenant,
     ICurrentSession       session,
     InvoiceBuilder        builder,
+    ReceiptInvoiceGuard   receiptGuard,
     TimeProvider          clock
 ) : IRequestHandler<UpdateDraftCommand, InvoiceDto> {
     public async Task<InvoiceDto> Handle(UpdateDraftCommand request, CancellationToken ct) {
@@ -30,10 +32,20 @@ public sealed class UpdateDraftCommandHandler(
         if (request.Input.Version is { } version && version != invoice.Version) throw InvoiceErrors.VersionConflict();
 
         var input = request.Input;
+        var linked = ReceiptInvoiceGuard.IsReceiptLinked(invoice);
+        if (linked) ReceiptInvoiceGuard.EnsureDraftFieldsLocked(invoice, input);
         var built = await builder.BuildAsync(input, invoice.Id, false, ct);
 
         await using var tx = await db.BeginTransactionAsync(ct);
         try {
+            if (linked) {
+                // Mal kabul kilidi altında faturalanan miktar (diğer taslaklar ve kesilmiş faturalar dahil) mal kabul miktarını aşamaz.
+                var receiptIds = await receiptGuard.ReceiptIdsAsync(invoice, ct);
+                await db.LockReceiptsAsync(receiptIds, ct);
+                await receiptGuard.EnsureNotOverInvoicedAsync(receiptIds, invoice.Id,
+                                                              built.Lines.Where(l => l.SourceLineId != null).Select(l => (l.SourceLineId!.Value, l.Quantity * l.Factor)), ct);
+            }
+
             // Önce eski satırları sil (satır sırası tekil indeksi), sonra yenilerini ve başlığı yaz.
             db.InvoiceLines.RemoveRange(invoice.Lines);
             db.InvoiceDueLines.RemoveRange(invoice.DueSchedule);

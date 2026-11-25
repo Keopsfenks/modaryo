@@ -33,6 +33,7 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Invoicing.Posting.CurrencyPosting>();
         builder.Services.AddScoped<ERP.Application.Invoicing.Posting.InvoicePoster>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Invoices.CostCorrection>();
+        builder.Services.AddScoped<ERP.Application.Purchasing.Invoices.ReceiptInvoiceGuard>();
         builder.Services.AddScoped<ERP.Application.Purchasing.LandedCosts.LandedCostMapper>();
         builder.Services.AddScoped<ERP.Application.Invoicing.Posting.IInvoicePostHook, ERP.Application.Purchasing.Invoices.PurchaseInvoiceHook>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Invoices.PurchasePriceStatsReader>();

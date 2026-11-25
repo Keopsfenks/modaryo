@@ -162,6 +162,8 @@ public sealed class CreateLandedCostCommandHandler(
 
     internal static void EnsureSourceInvoice(Invoice invoice) {
         if (invoice.Kind != InvoiceKind.Purchase) throw PurchasingErrors.Bad("landed_cost_source_invalid", "Masraf kaynağı bir alış faturası olmalıdır.");
+        if (invoice.SourceType == ReceiptInvoiceLinks.Source)
+            throw PurchasingErrors.Conflict("landed_cost_source_invalid", "Mal kabule bağlı mal faturası masraf kaynağı olamaz; hizmet/masraf faturası seçin.");
         if (invoice.Status == InvoiceStatus.Cancelled) throw PurchasingErrors.Conflict("landed_cost_source_cancelled", "İptal edilmiş fatura masraf kaynağı olamaz.");
         if (invoice.Status != InvoiceStatus.Issued) throw PurchasingErrors.Conflict("landed_cost_source_not_issued", "Yalnızca kesilmiş fatura masraf kaynağı olabilir.");
     }

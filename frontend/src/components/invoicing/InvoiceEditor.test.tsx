@@ -84,3 +84,40 @@ describe("Navigation", () => {
         expect(await screen.findByRole("link", { name: "Alış faturaları" })).toHaveAttribute("href", "/satin-alma/faturalar");
     });
 });
+
+describe("Receipt-linked purchase draft", () => {
+    it("InvoiceEditor_ReceiptLinkedDraft_LocksSupplierCurrencyAndStock", async () => {
+        resetNavigation("/satin-alma/faturalar/inv-1");
+        const line = {
+            id: "l-1", sort: 1, productId: "p-1", variantId: null, description: "Kalem", unit: "adet", quantity: 10, unitPrice: 20, factor: 1, gross: 200, lineDiscount: 0, docDiscount: 0, net: 200,
+            otv: 0, vatBase: 200, vat: 40, withheld: 0, total: 240, totalTl: 240, vatRate: 20, sourceLineId: "rl-1",
+        };
+        const totals = { gross: 200, discount: 0, net: 200, otv: 0, vat: 40, withheld: 0, payable: 240 };
+        server.use(
+            http.get(`${IDENTITY}/auth/session`, () => HttpResponse.json(sessionInfo({ permissions: ["fatura.read", "fatura.manage", "fiyat.alis", "cari.read", "stok.read"] }))),
+            http.get(`${IDENTITY}/companies/current/branches`, () => HttpResponse.json([{ id: "b-1", code: "MRK", name: "Merkez", isActive: true, isDefault: true }])),
+            http.get("*/api/erp/invoices/codes", () => HttpResponse.json({ withholding: [], exemption: [] })),
+            http.get("*/api/erp/inventory/warehouses", () => HttpResponse.json([])),
+            http.get("*/api/erp/current-accounts", () => HttpResponse.json({ items: [], total: 0 })),
+            http.get("*/api/erp/current-accounts/acc-1", () => HttpResponse.json(accountDto({ id: "acc-1", name: "Tedarikçi AŞ", currency: "TRY" }))),
+            http.get("*/api/erp/invoices/inv-1", () =>
+                HttpResponse.json({
+                    id: "inv-1", kind: "purchase", status: "draft", mode: "paper", scenario: null, branchId: "b-1", seriesId: null, number: null, externalNumber: "TED-1",
+                    currentAccountId: "acc-1", currentAccountName: "Tedarikçi AŞ", date: "2026-03-10", currency: "TRY", rate: 1, rateOverridden: false, docDiscountPercent: null,
+                    docDiscountAmount: null, totals, totalsTl: totals, affectsStock: false, warehouseId: null, paymentTermDays: 30, notes: null, returnOfInvoiceId: null,
+                    cancelReason: null, version: 1, lines: [line], dueSchedule: [], vatSummary: [],
+                }),
+            ),
+        );
+        renderWithTheme(
+            <SessionProvider>
+                <InvoiceEditor group="purchase" id="inv-1" />
+            </SessionProvider>,
+        );
+
+        expect(await screen.findByLabelText("Para birimi")).toBeDisabled();
+        expect(screen.getByLabelText("Şube")).toBeDisabled();
+        expect(screen.getByRole("combobox", { name: "Tedarikçi" })).toBeDisabled();
+        expect(await screen.findByRole("switch", { name: "Stoğa işle" })).toBeDisabled();
+    });
+});

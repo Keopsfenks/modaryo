@@ -105,6 +105,8 @@ function InvoiceForm({ group, initial, initialCari, onIssued }: { group: Invoice
     const base = invoiceBase(group);
 
     const [kind] = useState<InvoiceKind>(initial?.kind ?? (purchase ? "purchase" : "sales"));
+    // Mal kabulden kesilen alış taslağı: tedarikçi, şube, para birimi ve stok etkisi sunucuda kilitlidir (stok mal kabulde girmiştir).
+    const receiptLinked = initial?.kind === "purchase" && initial.lines.some((l) => l.sourceLineId);
     const [invoiceId, setInvoiceId] = useState<string | null>(initial?.id ?? null);
     const [draftVersion, setDraftVersion] = useState<number | null>(initial?.version ?? null);
     const [cari, setCari] = useState<CurrentAccountDto | null>(initialCari);
@@ -358,6 +360,7 @@ function InvoiceForm({ group, initial, initialCari, onIssued }: { group: Invoice
                             <Autocomplete
                                 size="small"
                                 sx={{ minWidth: 320, flexGrow: 1 }}
+                                disabled={receiptLinked}
                                 options={cariOptions}
                                 filterOptions={(x) => x}
                                 getOptionLabel={(o) => `${o.code} · ${o.name}`}
@@ -369,7 +372,7 @@ function InvoiceForm({ group, initial, initialCari, onIssued }: { group: Invoice
                                 noOptionsText="Cari bulunamadı."
                                 renderInput={(params) => <TextField {...params} label={purchase ? "Tedarikçi" : "Müşteri"} />}
                             />
-                            <TextField select size="small" label="Şube" value={branchId} onChange={(e) => setBranchId(e.target.value)} slotProps={{ select: { native: true } }} sx={{ minWidth: 180 }}>
+                            <TextField select size="small" label="Şube" value={branchId} disabled={receiptLinked} onChange={(e) => setBranchId(e.target.value)} slotProps={{ select: { native: true } }} sx={{ minWidth: 180 }}>
                                 {branches.map((b) => (
                                     <option key={b.id} value={b.id}>
                                         {b.name}
@@ -384,6 +387,7 @@ function InvoiceForm({ group, initial, initialCari, onIssued }: { group: Invoice
                                 size="small"
                                 label="Para birimi"
                                 value={currency}
+                                disabled={receiptLinked}
                                 onChange={(e) => {
                                     setCurrency(e.target.value);
                                     setRate({ value: "", overridden: false });
@@ -413,7 +417,11 @@ function InvoiceForm({ group, initial, initialCari, onIssued }: { group: Invoice
                         </Stack>
                         {canStock && (
                             <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
-                                <FormControlLabel control={<Switch checked={affectsStock} onChange={(e) => setAffectsStock(e.target.checked)} />} label="Stoğa işle" />
+                                <FormControlLabel
+                                    control={<Switch checked={affectsStock} disabled={receiptLinked} onChange={(e) => setAffectsStock(e.target.checked)} />}
+                                    label="Stoğa işle"
+                                />
+                                {receiptLinked && <Alert severity="info">Mal kabulden kesilen faturada stok mal kabulde girmiştir; tedarikçi, şube, para birimi ve stok etkisi değiştirilemez.</Alert>}
                                 {affectsStock && (
                                     <TextField select size="small" label="Depo" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} slotProps={{ select: { native: true } }} sx={{ minWidth: 200 }}>
                                         <option value="" />

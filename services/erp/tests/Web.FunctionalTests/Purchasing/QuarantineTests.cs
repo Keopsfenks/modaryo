@@ -119,6 +119,26 @@ public class QuarantineTests : TestBase {
     }
 
     [Test]
+    public async Task RejectReturn_ByQuarantineUserWithoutAlis_BuildsDraftAndHidesPrices() {
+        var s        = await Held();
+        var original = await IssuedPurchaseInvoice(s, 10m);
+        using var qc = await OtherClient(s.Env, "satinalma.read", "satinalma.quarantine");
+
+        using var response = await qc.PostAsJsonAsync($"{Api}/quarantine/reject", new { receiptLineId = s.ReceiptLine, quantity = 4m, action = "return" });
+
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var result    = await response.JsonAsync();
+        var invoiceId = result.GetProperty("invoiceId").GetGuid();
+        result.ToString().ShouldNotContain("unitPrice");
+        (await Physical(s.Env, s.Quarantine)).ShouldBe(6m);
+        await using var db = PricingTestSupport.Db(s.Env.Tenant);
+        var draft = await db.Invoices.Include(i => i.Lines).SingleAsync(i => i.Id == invoiceId);
+        draft.Kind.ShouldBe(InvoiceKind.PurchaseReturn);
+        draft.ReturnOfInvoiceId.ShouldBe(original);
+        draft.Lines.Single().UnitPrice.ShouldBe(20m); // fiyatlar sunucuda, asıl faturadan gelir
+    }
+
+    [Test]
     public async Task RejectReturn_WithoutInvoice_StillReturnsStock() {
         var s = await Held();
 

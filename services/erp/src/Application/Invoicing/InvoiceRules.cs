@@ -193,8 +193,12 @@ public sealed class InvoiceBuilder(
         List<InvoiceDueLine> Due,
         decimal              LedgerAmount);
 
-    public async Task<Built> BuildAsync(InvoiceInput input, Guid? existingInvoiceId, bool preview, CancellationToken ct) {
-        InvoiceRules.EnsureKindPermission(session, input.Kind);
+    /// <param name="systemGenerated">
+    ///     Sistemin kendi ürettiği belge (ör. karantina reddinden alış iade taslağı): alış faturası için oturumun fiyat yetkisi aranmaz.
+    ///     Fiyat görünürlüğü DTO düzeyinde ayrıca kapalı kalır.
+    /// </param>
+    public async Task<Built> BuildAsync(InvoiceInput input, Guid? existingInvoiceId, bool preview, CancellationToken ct, bool systemGenerated = false) {
+        if (!systemGenerated) InvoiceRules.EnsureKindPermission(session, input.Kind);
         if (input.Kind == InvoiceKind.ExchangeDifference)
             throw InvoiceErrors.Bad("invalid_kind", "Kur farkı faturası elle oluşturulamaz.");
 
