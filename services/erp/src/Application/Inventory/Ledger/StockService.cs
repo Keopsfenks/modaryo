@@ -337,6 +337,20 @@ internal sealed class StockService(
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task<IReadOnlyList<ReleasedReservation>> ReleaseExpectedAsync(Guid expectedReceiptSourceId, CancellationToken ct) {
+        IQueryable<Reservation> Matching() {
+            return db.Reservations.Where(r => r.ExpectedReceiptSourceId == expectedReceiptSourceId && r.Status == ReservationStatus.Active);
+        }
+
+        var keys = await Matching().AsNoTracking().Select(r => new { r.WarehouseId, r.ProductId, r.VariantId }).Distinct().ToListAsync(ct);
+        await LockAsync(keys.Select(k => (k.WarehouseId, k.ProductId, k.VariantId)), ct);
+
+        var rows = await Matching().OrderBy(r => r.Id).ToListAsync(ct);
+        foreach (var row in rows) row.Status = ReservationStatus.Released;
+        await db.SaveChangesAsync(ct);
+        return rows.Select(r => new ReleasedReservation(r.SourceType, r.SourceId, r.SourceLineId, r.ProductId, r.VariantId, r.Quantity)).ToList();
+    }
+
     public async Task ConsumeAsync(string sourceType, Guid sourceId, Guid sourceLineId, decimal baseQuantity, CancellationToken ct,
                                    string? movementSourceType = null, Guid? movementSourceId = null, DateOnly? date = null,
                                    bool exemptFromStockCheck = false, IReadOnlyList<LotInput>? lots = null,

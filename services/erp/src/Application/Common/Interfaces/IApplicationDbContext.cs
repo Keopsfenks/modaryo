@@ -171,6 +171,12 @@ public interface IApplicationDbContext {
     Task<bool> LockCurrentAccountAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
+    ///     Satın alma siparişini işlem sonuna kadar kilitler (SELECT ... FOR UPDATE): aynı siparişe yazan mal kabul, iptal ve
+    ///     kısa kapatma sıraya girer, gelen miktar toleransı aşılamaz. Sıra: sipariş kilidi, sonra stok kilitleri. Açık işlem gerekir.
+    /// </summary>
+    Task<bool> LockPurchaseOrderAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
     ///     Verilen depo x kalem anahtarlarını işlem sonuna kadar kilitler (pg_advisory_xact_lock). Anahtarlar sıralı alınır
     ///     (kilitlenme olmaması için). Açık bir işlem gerekir; kilit, bakiye okumalarından ÖNCE alınmalıdır.
     /// </summary>

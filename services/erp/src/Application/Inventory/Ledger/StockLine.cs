@@ -39,6 +39,8 @@ public sealed record ReserveLine(
     Guid?   ExpectedReceiptSourceId
 );
 
+public sealed record ReleasedReservation(string SourceType, Guid SourceId, Guid SourceLineId, Guid ProductId, Guid? VariantId, decimal Quantity);
+
 /// <summary>Reserved yalnızca stoğu karşılanmış (bekleyen girişe bağlı olmayan) rezervasyonları sayar; Available yalnızca Normal depoda sıfırdan büyüktür.</summary>
 public sealed record StockBalance(
     Guid     WarehouseId,

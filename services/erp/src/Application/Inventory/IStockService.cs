@@ -49,6 +49,12 @@ public interface IStockService {
     Task RetargetExpectedAsync(Guid expectedReceiptSourceId, Guid warehouseId, decimal baseQuantity, CancellationToken ct,
                                Guid? productId = null, Guid? variantId = null);
 
+    /// <summary>
+    ///     Siparişin kısa kapatılması: beklenen girişe (expectedReceiptSourceId) hâlâ bağlı aktif rezervasyonları bırakır. Daha önce
+    ///     alıcı depoya taşınmış (beklenen girişi boşalmış) rezervasyonlara dokunmaz. Bırakılan satırları döndürür.
+    /// </summary>
+    Task<IReadOnlyList<ReleasedReservation>> ReleaseExpectedAsync(Guid expectedReceiptSourceId, CancellationToken ct);
+
     /// <summary>Giriş hareketinin toplam maliyetini deltaTotalTl kadar düzeltir (Revaluation hareketi, miktar 0).</summary>
     Task CorrectCostAsync(Guid warehouseId, Guid productId, Guid? variantId, DateOnly date, Guid inboundMovementId,
                           decimal deltaTotalTl, string sourceType, Guid sourceId, CancellationToken ct);

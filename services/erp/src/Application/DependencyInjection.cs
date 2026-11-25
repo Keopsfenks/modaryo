@@ -46,6 +46,7 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Accounting.IJournalProjector, ERP.Application.Accounting.Projectors.JournalVoucherProjector>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Orders.PoBuilder>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Orders.PoMapper>();
+        builder.Services.AddScoped<ERP.Application.Purchasing.Receipts.ReceiptMapper>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.CostCalculator>();
         builder.Services.AddScoped<ERP.Application.Inventory.Costing.IRevaluationRunner, ERP.Application.Inventory.Costing.RevaluationRunner>();
         builder.Services.AddScoped<ERP.Application.Catalog.Excel.ImportEngine>();

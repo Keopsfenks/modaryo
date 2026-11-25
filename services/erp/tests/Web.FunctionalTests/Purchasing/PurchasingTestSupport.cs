@@ -12,8 +12,64 @@ internal static class PurchasingTestSupport {
         .. AllPermissions, "satinalma.read", "satinalma.manage", "satinalma.receive", "satinalma.quarantine", "ayarlar.satinalma", "fiyat.read", "fiyat.manage"
     ];
 
-    public static Task<Env> NewPurchasingEnv(string[]? permissions = null) {
-        return NewEnv(permissions ?? Permissions);
+    public static Task<Env> NewPurchasingEnv(string[]? permissions = null, string[]? modules = null) {
+        return NewEnv(permissions ?? Permissions, modules: modules);
+    }
+
+    /// <summary>Mal kabul gövdesi; satır başına (poLineId, productId, quantity) verilir.</summary>
+    public static Dictionary<string, object?> ReceiptBody(Env env, Guid poId, Guid warehouse, object[] lines, DateOnly? date = null, object? extra = null) {
+        var body = new Dictionary<string, object?> {
+            ["purchaseOrderId"] = poId, ["supplierId"] = env.Supplier, ["branchId"] = env.Branch, ["warehouseId"] = warehouse,
+            ["date"] = (date ?? Day).ToString("yyyy-MM-dd"), ["lines"] = lines
+        };
+        if (extra is not null)
+            foreach (var property in extra.GetType().GetProperties())
+                body[property.Name] = property.GetValue(extra);
+        return body;
+    }
+
+    public static Dictionary<string, object?> RLine(Guid poLine, Guid product, decimal quantity, object? extra = null) {
+        var line = new Dictionary<string, object?> { ["poLineId"] = poLine, ["productId"] = product, ["quantity"] = quantity };
+        if (extra is not null)
+            foreach (var property in extra.GetType().GetProperties())
+                line[property.Name] = property.GetValue(extra);
+        return line;
+    }
+
+    public static Task<HttpResponseMessage> PostReceipt(HttpClient client, Dictionary<string, object?> body) {
+        return client.PostAsJsonAsync($"{Api}/receipts", body);
+    }
+
+    public static async Task<JsonElement> Receive(HttpClient client, Dictionary<string, object?> body) {
+        using var response = await PostReceipt(client, body);
+        response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        return await response.JsonAsync();
+    }
+
+    public static async Task SetPurchasingSettings(HttpClient client, decimal overDeliveryPercent = 0m, bool quarantine = false, Dictionary<Guid, Guid>? quarantineWarehouses = null) {
+        using var current = await client.GetAsync("/api/erp/settings/satinalma");
+        var doc     = await current.JsonAsync();
+        var version = doc.TryGetProperty("version", out var v) ? v.GetInt32() : 0;
+        using var put = await client.PutAsJsonAsync("/api/erp/settings/satinalma", new {
+            version, value = new {
+                overDeliveryPercent, priceVariancePercent = 2m, quarantineEnabled = quarantine,
+                quarantineWarehouseByBranch = quarantineWarehouses ?? new Dictionary<Guid, Guid>(), defaultLandedKey = "amount"
+            }
+        });
+        put.StatusCode.ShouldBe(HttpStatusCode.OK, await put.Content.ReadAsStringAsync());
+    }
+
+    public static async Task<decimal> Physical(Env env, Guid warehouse, Guid? product = null) {
+        using var response = await env.Client.PostAsJsonAsync("/test-probe/stock?op=balance", new { items = new[] { new { productId = product ?? env.Product, variantId = (Guid?)null } }, warehouseId = warehouse });
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        var rows = await response.JsonAsync();
+        return rows.GetArrayLength() == 0 ? 0m : rows[0].GetProperty("physical").GetDecimal();
+    }
+
+    public static async Task<decimal> Available(Env env, Guid warehouse, Guid? product = null) {
+        using var response = await env.Client.PostAsJsonAsync("/test-probe/stock?op=balance", new { items = new[] { new { productId = product ?? env.Product, variantId = (Guid?)null } }, warehouseId = warehouse });
+        var rows = await response.JsonAsync();
+        return rows.GetArrayLength() == 0 ? 0m : rows[0].GetProperty("available").GetDecimal();
     }
 
     public static Dictionary<string, object?> PoLine(Guid product, decimal quantity = 10m, decimal? price = 20m, object? extra = null) {

@@ -1,4 +1,5 @@
 using ERP.Application.Purchasing.Orders;
+using ERP.Application.Purchasing.Receipts;
 using ERP.Domain.Purchasing;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -18,6 +19,10 @@ public class Purchasing : IEndpointGroup {
         groupBuilder.MapPost(CopyOrder, "orders/{id:guid}/copy");
         groupBuilder.MapGet(OrderPdf, "orders/{id:guid}/pdf");
         groupBuilder.MapPost(OrderEmail, "orders/{id:guid}/email");
+        groupBuilder.MapPost(CreateReceipt, "receipts");
+        groupBuilder.MapGet(ListReceipts, "receipts");
+        groupBuilder.MapGet(GetReceipt, "receipts/{id:guid}");
+        groupBuilder.MapPost(CancelReceipt, "receipts/{id:guid}/cancel");
     }
 
     [EndpointSummary("Satın alma siparişleri")]
@@ -87,5 +92,31 @@ public class Purchasing : IEndpointGroup {
     public static async Task<NoContent> OrderEmail(ISender sender, Guid id, EmailBody body) {
         await sender.Send(new SendPoEmailCommand(id, body.To, body.Cc, body.Subject, body.Body));
         return TypedResults.NoContent();
+    }
+
+    [EndpointSummary("Mal kabul")]
+    [EndpointDescription("satinalma.receive. Gövde: purchaseOrderId?, supplierId? (siparişsizde zorunlu), branchId, warehouseId, date, deliveryNoteNo?, notes?, currency? (siparişsizde), lines[{ poLineId?, productId, variantId?, unit?, quantity, unitPrice? (siparişsiz, fiyat.alis ister), lots?, serials? }]. Maliyet = sipariş fiyatı (satır iskontosu sonrası) x mal kabul tarihi kuru. Karantina açıksa mal şubenin karantina deposuna girer. Siparişli kabulde bekleyen rezervasyonlar (expectedReceiptSourceId = sipariş) alıcı depoya taşınır. 409: over_delivery, receipt_exceeds_open, po_not_approved, po_cancelled; yanıtta warnings[] (over_delivery_within_tolerance). fiyat.alis yoksa fiyat alanları null döner.")]
+    public static async Task<Created<ReceiptDto>> CreateReceipt(ISender sender, ReceiptInput input) {
+        var receipt = await sender.Send(new CreateReceiptCommand(input));
+        return TypedResults.Created($"/api/erp/purchasing/receipts/{receipt.Id}", receipt);
+    }
+
+    [EndpointSummary("Mal kabuller")]
+    [EndpointDescription("satinalma.read. Süzgeçler: purchaseOrderId, supplierId, status, search, page, pageSize. fiyat.alis yoksa tutarlar null döner.")]
+    public static async Task<Ok<ReceiptListResult>> ListReceipts(ISender sender, Guid? purchaseOrderId, Guid? supplierId, GoodsReceiptStatus? status, string? search,
+                                                                 int page = 1, int pageSize = 25) {
+        return TypedResults.Ok(await sender.Send(new ListReceiptsQuery(purchaseOrderId, supplierId, status, search, page, pageSize)));
+    }
+
+    [EndpointSummary("Mal kabul detayı")]
+    [EndpointDescription("satinalma.read. fiyat.alis yoksa fiyat ve tutar alanları null döner.")]
+    public static async Task<Ok<ReceiptDto>> GetReceipt(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetReceiptQuery(id)));
+    }
+
+    [EndpointSummary("Mal kabulü iptal et")]
+    [EndpointDescription("satinalma.receive. Gövde: { reason }. Stok girişini tersler, sipariş gelen miktarını düşürür. 409: receipt_cancelled, receipt_invoiced (faturalanmış), receipt_processed (karantina/iade görmüş).")]
+    public static async Task<Ok<ReceiptDto>> CancelReceipt(ISender sender, Guid id, ReasonBody body) {
+        return TypedResults.Ok(await sender.Send(new CancelReceiptCommand(id, body.Reason)));
     }
 }

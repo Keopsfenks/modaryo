@@ -2,7 +2,9 @@ using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.CurrentAccounts;
+using ERP.Application.Inventory;
 using ERP.Application.Inventory.Documents;
+using ERP.Domain.Inventory;
 using ERP.Domain.Purchasing;
 
 namespace ERP.Application.Purchasing.Orders;
@@ -137,17 +139,34 @@ public sealed class ClosePoCommandValidator : AbstractValidator<ClosePoCommand> 
 public sealed class ClosePoCommandHandler(
     IApplicationDbContext db,
     ICurrentTenant        tenant,
+    IStockService         stock,
+    IOutbox               outbox,
     PoMapper              mapper
 ) : IRequestHandler<ClosePoCommand, PoDto> {
     public async Task<PoDto> Handle(ClosePoCommand request, CancellationToken ct) {
+        // Sıra: sipariş kilidi, siparişin kilit altında okunması, rezervasyon depolarının stok kilitleri, bırakma.
+        await using var tx = await db.BeginTransactionAsync(ct);
+        if (!await db.LockPurchaseOrderAsync(request.Id, ct)) throw new NotFoundException(request.Id.ToString(), "PurchaseOrder");
         var po = await PoRules.LoadAsync(db, tenant, request.Id, true, ct);
         if (po.Status is not (PurchaseOrderStatus.Approved or PurchaseOrderStatus.PartiallyReceived))
             throw PurchasingErrors.Conflict("po_not_open", "Yalnızca onaylı ya da kısmen gelmiş siparişler kapatılabilir.");
 
+        var closed = po.Lines.Where(l => l.OpenQuantity > 0m).Select(l => new { poLineId = l.Id, salesOrderLineId = l.SalesOrderLineId, productId = l.ProductId, variantId = l.VariantId, quantity = l.OpenQuantity }).ToList();
         foreach (var line in po.Lines) line.ClosedQuantity += line.OpenQuantity;
         po.Status      = PurchaseOrderStatus.Closed;
         po.CloseReason = request.Reason.Trim();
+
+        var keys = await db.Reservations.AsNoTracking().Where(r => r.ExpectedReceiptSourceId == po.Id && r.Status == ReservationStatus.Active)
+                           .Select(r => new { r.WarehouseId, r.ProductId, r.VariantId }).Distinct().ToListAsync(ct);
+        await db.LockStockAsync(keys.Select(k => (k.WarehouseId, k.ProductId, k.VariantId)), ct);
+        var released = await stock.ReleaseExpectedAsync(po.Id, ct);
+
+        outbox.Enqueue("purchase.order-closed", new {
+            poId = po.Id, number = po.Number, reason = po.CloseReason, lines = closed,
+            releasedReservations = released.Select(r => new { sourceType = r.SourceType, sourceId = r.SourceId, sourceLineId = r.SourceLineId, productId = r.ProductId, variantId = r.VariantId, quantity = r.Quantity }).ToList()
+        });
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return await mapper.ToDtoAsync(po, ct);
     }
 }
