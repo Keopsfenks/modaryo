@@ -107,9 +107,14 @@ public sealed class CancelPoCommandValidator : AbstractValidator<CancelPoCommand
 public sealed class CancelPoCommandHandler(
     IApplicationDbContext db,
     ICurrentTenant        tenant,
+    IStockService         stock,
+    IOutbox               outbox,
     PoMapper              mapper
 ) : IRequestHandler<CancelPoCommand, PoDto> {
     public async Task<PoDto> Handle(CancelPoCommand request, CancellationToken ct) {
+        // Kapatmayla aynı sıra: sipariş kilidi, kilit altında okuma, rezervasyon depolarının stok kilitleri, bırakma. Sipariş kilidi iptal ile mal kabul yarışını da sıraya sokar.
+        await using var tx = await db.BeginTransactionAsync(ct);
+        if (!await db.LockPurchaseOrderAsync(request.Id, ct)) throw new NotFoundException(request.Id.ToString(), "PurchaseOrder");
         var po = await PoRules.LoadAsync(db, tenant, request.Id, true, ct);
         if (po.Status is PurchaseOrderStatus.Cancelled or PurchaseOrderStatus.Closed)
             throw PurchasingErrors.Conflict("po_closed", "Sipariş zaten kapatılmış ya da iptal edilmiş.");
@@ -120,7 +125,19 @@ public sealed class CancelPoCommandHandler(
 
         po.Status       = PurchaseOrderStatus.Cancelled;
         po.CancelReason = request.Reason.Trim();
+
+        var keys = await db.Reservations.AsNoTracking().Where(r => r.ExpectedReceiptSourceId == po.Id && r.Status == ReservationStatus.Active)
+                           .Select(r => new { r.WarehouseId, r.ProductId, r.VariantId }).Distinct().ToListAsync(ct);
+        await db.LockStockAsync(keys.Select(k => (k.WarehouseId, k.ProductId, k.VariantId)), ct);
+        var released = await stock.ReleaseExpectedAsync(po.Id, ct);
+
+        outbox.Enqueue("purchase.order-cancelled", new {
+            poId = po.Id, number = po.Number, reason = po.CancelReason,
+            lines = po.Lines.Select(l => new { poLineId = l.Id, salesOrderLineId = l.SalesOrderLineId, productId = l.ProductId, variantId = l.VariantId, quantity = l.Quantity }).ToList(),
+            releasedReservations = released.Select(r => new { sourceType = r.SourceType, sourceId = r.SourceId, sourceLineId = r.SourceLineId, productId = r.ProductId, variantId = r.VariantId, quantity = r.Quantity }).ToList()
+        });
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
         return await mapper.ToDtoAsync(po, ct);
     }
 }

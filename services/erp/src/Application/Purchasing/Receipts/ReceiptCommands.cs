@@ -259,6 +259,10 @@ public sealed class CancelReceiptCommandHandler(
         var lineIds = receipt.Lines.Select(l => l.Id).ToList();
         if (await db.StockMovements.AnyAsync(m => m.SourceLineId != null && lineIds.Contains(m.SourceLineId.Value) && m.SourceType != ReceiptRules.StockSource, ct))
             throw PurchasingErrors.Conflict("receipt_processed", "Karantina işlemi ya da iadesi yapılmış mal kabul iptal edilemez.");
+        if (await db.LandedCostTargets.AnyAsync(t => t.GoodsReceiptId == receipt.Id && db.LandedCosts.Any(c => c.Id == t.LandedCostId && c.Status == LandedCostStatus.Posted), ct))
+            throw PurchasingErrors.Conflict("receipt_has_landed_cost", "İşlenmiş masraf dağıtımı olan mal kabul iptal edilemez; önce masraf dağıtımını iptal edin.");
+        if (await HasNetCostCorrectionAsync(receipt.Id, ct))
+            throw PurchasingErrors.Conflict("receipt_processed", "Maliyet düzeltmesi yapılmış mal kabul iptal edilemez.");
 
         var keys = await db.StockMovements.AsNoTracking().Where(m => m.SourceType == ReceiptRules.StockSource && m.SourceId == receipt.Id && m.Quantity != 0m)
                            .Select(m => new { m.WarehouseId, m.ProductId, m.VariantId, Tracked = m.LotLines.Any() }).Distinct().ToListAsync(ct);
@@ -282,5 +286,17 @@ public sealed class CancelReceiptCommandHandler(
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return await mapper.ToDtoAsync(receipt, [], ct);
+    }
+
+    /// <summary>Girişlerine yazılan maliyet düzeltmelerinin (Revaluation, SourceLineId yok) neti sıfırdan farklıysa true; iptal edilmiş düzeltmeler netleşir.</summary>
+    private async Task<bool> HasNetCostCorrectionAsync(Guid receiptId, CancellationToken ct) {
+        var inbound = await db.StockMovements.AsNoTracking().Where(m => m.SourceType == ReceiptRules.StockSource && m.SourceId == receiptId && m.Quantity > 0m)
+                              .Select(m => m.Id).ToListAsync(ct);
+        if (inbound.Count == 0) return false;
+
+        var notes = inbound.Select(id => "correction:" + id).ToList();
+        var nets  = await db.StockMovements.AsNoTracking().Where(m => m.Type == MovementType.Revaluation && m.Note != null && notes.Contains(m.Note))
+                            .GroupBy(m => m.Note).Select(g => g.Sum(m => m.TotalCost)).ToListAsync(ct);
+        return nets.Any(n => n != 0m);
     }
 }

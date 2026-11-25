@@ -32,7 +32,8 @@ public sealed class CreateReturnCommandValidator : AbstractValidator<CreateRetur
 public sealed class CreateReturnCommandHandler(
     IApplicationDbContext db,
     ICurrentTenant        tenant,
-    PurchaseReturnService service
+    PurchaseReturnService service,
+    ERP.Application.Purchasing.Receipts.ReceiptLineStock lineStock
 ) : IRequestHandler<CreateReturnCommand, ReturnResultDto> {
     public async Task<ReturnResultDto> Handle(CreateReturnCommand request, CancellationToken ct) {
         var input      = request.Input;
@@ -42,7 +43,7 @@ public sealed class CreateReturnCommandHandler(
 
         await using var tx = await db.BeginTransactionAsync(ct);
         var wanted = head.Lines.Where(l => input.Lines.Any(i => i.ReceiptLineId == l.Id)).ToList();
-        await db.LockStockAsync(PurchaseReturnService.KeysFor(wanted, products), ct);
+        await db.LockStockAsync(PurchaseReturnService.KeysFor(wanted, products).Concat(await lineStock.ReleaseKeysAsync(wanted, ct)), ct);
 
         // Miktar denetimleri kilitten sonra: mal kabul satırları kilit altında yeniden okunur.
         var receipt = await ReceiptRules.LoadAsync(db, tenant, input.ReceiptId, true, ct);

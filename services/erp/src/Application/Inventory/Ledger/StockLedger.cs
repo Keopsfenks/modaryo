@@ -232,13 +232,8 @@ internal sealed class StockLedger(
         var variantId = inbound.VariantId;
 
         if (ctx.Method == CostingMethod.WeightedAverage) {
-            var atPoint = await db.StockMovements
-                                  .Where(m => m.WarehouseId == warehouse.Id && m.ProductId == productId && m.VariantId == variantId
-                                              && m.Date <= date)
-                                  .SumAsync(m => (decimal?)m.Quantity, ct) ?? 0m;
-            // Düzeltmenin yazıldığı noktada (tarih sonu) taşıyacak stok yoksa ortalama değişemez.
-            if (atPoint <= 0m) throw InventoryErrors.CostCorrectionNoStock();
-
+            // Düzeltme, girişin konumunda uygulanır (yeniden maliyetleme işi sonradan çıkan transfer / satışları da düzeltir); bu yüzden
+            // düzeltme günü sonunda stok kalmamış olması engel değildir.
             var snapshot = await SnapshotAsync(warehouse.Id, productId, variantId, ct);
             if (snapshot.Quantity > 0m)
                 snapshot.AverageCost = Round6((snapshot.Quantity * snapshot.AverageCost + delta) / snapshot.Quantity);

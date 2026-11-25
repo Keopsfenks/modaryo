@@ -65,19 +65,28 @@ internal static class CostReplay {
             if (remaining > 0m) avg = Round6(result.Layers.Sum(l => l.Remaining * l.UnitCost) / remaining);
         }
 
+        // Maliyet düzeltmeleri (Revaluation) kendi sıralarında değil, düzelttikleri girişin hemen ardından uygulanır: aynı gün sonradan
+        // çıkan transfer / satış düzeltilmiş maliyeti alır. Girişi bu listede olmayan düzeltme kendi sırasında uygulanır.
+        var deferred = ordered.Where(c => c.Quantity == 0m && Referenced(c, CorrectionPrefix) is { } t && byId.TryGetValue(t, out var tm) && tm.Quantity > 0m)
+                              .GroupBy(c => Referenced(c, CorrectionPrefix)!.Value).ToDictionary(g => g.Key, g => g.ToList());
+
+        void ApplyCorrection(StockMovement c) {
+            var target = Referenced(c, CorrectionPrefix);
+            var delta  = c.TotalCost;
+            if (method == CostingMethod.WeightedAverage) {
+                if (qty > 0m) avg = Round6((qty * avg + delta) / qty);
+            } else if (target is { } id && layers.TryGetValue(id, out var corrected) && corrected.Original > 0m) {
+                corrected.UnitCost = Round6(corrected.UnitCost + delta / corrected.Original);
+                RefreshAverage();
+            }
+
+            result.Costs[c.Id] = new ReplayCost(c.UnitCost, c.TotalCost);
+        }
+
         foreach (var m in ordered) {
             if (m.Quantity == 0m) {
-                // Maliyet düzeltmesi (Revaluation): giriş maliyetine delta ekler.
-                var target = Referenced(m, CorrectionPrefix);
-                var delta  = m.TotalCost;
-                if (method == CostingMethod.WeightedAverage) {
-                    if (qty > 0m) avg = Round6((qty * avg + delta) / qty);
-                } else if (target is { } id && layers.TryGetValue(id, out var corrected) && corrected.Original > 0m) {
-                    corrected.UnitCost = Round6(corrected.UnitCost + delta / corrected.Original);
-                    RefreshAverage();
-                }
-
-                result.Costs[m.Id] = new ReplayCost(m.UnitCost, m.TotalCost);
+                if (Referenced(m, CorrectionPrefix) is { } t && deferred.ContainsKey(t)) continue; // girişin konumunda uygulanır
+                ApplyCorrection(m);
                 continue;
             }
 
@@ -109,6 +118,9 @@ internal static class CostReplay {
                     layers[m.Id] = layer;
                     result.Layers.Add(layer);
                 }
+
+                if (deferred.TryGetValue(m.Id, out var corrections))
+                    foreach (var c in corrections) ApplyCorrection(c);
 
                 continue;
             }

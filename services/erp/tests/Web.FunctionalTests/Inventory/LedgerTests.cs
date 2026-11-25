@@ -254,15 +254,16 @@ public class LedgerTests : TestBase {
     }
 
     [Test]
-    public async Task CorrectCost_NoStock_Returns409() {
+    public async Task CorrectCost_AfterStockWasFullyIssued_IsAccepted() {
+        // Düzeltme girişin konumunda uygulanır; günün sonunda stok kalmamış olması engel değildir (cost_correction_no_stock artık atılmaz).
         var env = await NewEnv();
         await Receive(env, 10m, 10m);
         await Ok(Issue(env, 10m, D3));
         var inbound = (await Movements(env.Tenant)).First();
 
-        using var response = await Op(env.Client, "correct", Correction(env, inbound.Id, "2026-03-04", 20m));
+        await Ok(Op(env.Client, "correct", Correction(env, inbound.Id, "2026-03-04", 20m)));
 
-        await Fail(response, HttpStatusCode.Conflict, "cost_correction_no_stock");
+        (await Movements(env.Tenant)).Count(m => m.Type == MovementType.Revaluation).ShouldBe(1);
     }
 
     [Test]

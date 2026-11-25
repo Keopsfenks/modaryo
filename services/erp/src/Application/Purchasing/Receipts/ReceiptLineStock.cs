@@ -41,6 +41,38 @@ public sealed class ReceiptLineStock(IApplicationDbContext db) {
         return -(sum ?? 0m);
     }
 
+    /// <summary>Karantinadan hasarlı depoya reddedilen temel birim miktarı (bu mal iade edilemez; hasarlı depoda kalır).</summary>
+    public async Task<decimal> RejectedToDamagedAsync(Guid lineId, CancellationToken ct) {
+        var sum = await db.StockMovements.AsNoTracking().Where(m => m.SourceLineId == lineId && m.SourceType == RejectSource && m.Quantity > 0m).SumAsync(m => (decimal?)m.Quantity, ct);
+        return sum ?? 0m;
+    }
+
+    /// <summary>İade edilebilir temel birim miktarı = gelen - iade edilen - hasarlıya reddedilen.</summary>
+    public async Task<decimal> ReturnableAsync(GoodsReceiptLine line, CancellationToken ct) {
+        return line.BaseQuantity - await ReturnedAsync(line.Id, ct) - await RejectedToDamagedAsync(line.Id, ct);
+    }
+
+    /// <summary>
+    ///     Serbest bırakılan miktarın şu an bulunduğu depolar: her serbest bırakmanın hedef deposuna giren miktar eksi o depodan bu satır için
+    ///     yapılan iadeler; ilk serbest bırakılan depo önce. Hedef depo her bırakmada ayrı izlenir.
+    /// </summary>
+    public async Task<List<(Guid WarehouseId, decimal Quantity)>> ReleasedHeldAsync(Guid lineId, CancellationToken ct) {
+        var moves = await db.StockMovements.AsNoTracking()
+                            .Where(m => m.SourceLineId == lineId && ((m.SourceType == ReleaseSource && m.Quantity > 0m) || (m.SourceType == ReturnSource && m.Quantity < 0m)))
+                            .Select(m => new { m.WarehouseId, m.Quantity, m.Sequence, m.SourceType }).ToListAsync(ct);
+        return moves.GroupBy(m => m.WarehouseId)
+                    .Select(g => (WarehouseId: g.Key, Quantity: g.Sum(m => m.Quantity), First: g.Where(m => m.SourceType == ReleaseSource).Min(m => m.Sequence)))
+                    .Where(x => x.Quantity > 0m).OrderBy(x => x.First).Select(x => (x.WarehouseId, x.Quantity)).ToList();
+    }
+
+    /// <summary>Satırların serbest bırakıldığı depoların (depo, kalem) anahtarları; iade kilitlerine eklenir.</summary>
+    public async Task<List<(Guid, Guid, Guid?)>> ReleaseKeysAsync(IReadOnlyCollection<GoodsReceiptLine> lines, CancellationToken ct) {
+        var ids   = lines.Select(l => l.Id).ToList();
+        var found = await db.StockMovements.AsNoTracking().Where(m => m.SourceLineId != null && ids.Contains(m.SourceLineId.Value) && m.SourceType == ReleaseSource && m.Quantity > 0m)
+                            .Select(m => new { m.WarehouseId, m.ProductId, m.VariantId }).Distinct().ToListAsync(ct);
+        return found.Select(f => (f.WarehouseId, f.ProductId, f.VariantId)).ToList();
+    }
+
     public Task<bool> AnyReleasedAsync(Guid lineId, CancellationToken ct) {
         return db.StockMovements.AnyAsync(m => m.SourceLineId == lineId && m.SourceType == ReleaseSource, ct);
     }

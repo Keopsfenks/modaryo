@@ -219,6 +219,20 @@ Kesilmiş fatura iptal edildiğinde yayılır (defter, vade, eşleştirme ve sto
 | `number` | string | Faturanın numarası |
 | `reason` | string | İptal nedeni (2-200 karakter, kırpılmış) |
 
+### `purchase.order-cancelled`
+
+Henüz mal kabul görmemiş bir satın alma siparişi iptal edildiğinde yayılır (sipariş kilidi altında; bekleyen mal kabul rezervasyonlarının
+bırakılmasıyla aynı işlemde). Siparişe bağlı "beklenen mal kabul" rezervasyonları (`ExpectedReceiptSourceId` = sipariş) bırakılır; siparişe göre
+tedarik (P7) satış siparişi satırının tedarikini kaybettiğini bu olayla öğrenir. `purchase.order-closed` (kısa kapatma) ile aynı biçimdedir.
+
+| `data` alanı | Tür | Anlam |
+|---|---|---|
+| `po_id` | UUID | Satın alma siparişi |
+| `number` | string | Sipariş numarası |
+| `reason` | string | İptal nedeni (2-200 karakter, kırpılmış) |
+| `lines` | dizi | Sipariş satırları: `po_line_id`, `sales_order_line_id` (yoksa `null`), `product_id`, `variant_id`, `quantity` (sipariş birimi) |
+| `released_reservations` | dizi | Bırakılan beklenen mal kabul rezervasyonları: `source_type`, `source_id`, `source_line_id`, `product_id`, `variant_id`, `quantity` (temel birim) |
+
 ## Hata biçimi (ProblemDetails)
 
 Tüm servisler (.NET ve Go) hataları aynı gövdeyle döndürür. İçerik türü `application/problem+json`; Türkçe başlıklar kullanıcıya olduğu gibi gösterilir (frontend alan hatası yoksa `title`'ı gösterir, `code` ile dallanır).

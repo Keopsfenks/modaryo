@@ -54,18 +54,34 @@ public sealed class PurchaseReturnService(
             var product = products[line.ProductId];
             var baseQty = Math.Round(request.Quantity * ReceiptLineStock.Factor(line), 6, MidpointRounding.AwayFromZero);
             if (baseQty <= 0m) throw PurchasingErrors.Bad("invalid_quantity", "İade miktarı sıfırdan büyük olmalıdır.");
-            if (await lineStock.ReturnedAsync(line.Id, ct) + baseQty > line.BaseQuantity)
+            // İade edilebilir = gelen - iade edilen - hasarlıya reddedilen (hasarlı depodaki mal iade edilemez).
+            if (baseQty > await lineStock.ReturnableAsync(line, ct))
                 throw PurchasingErrors.Bad("return_exceeds_received", $"\"{product.Code} - {product.Name}\" için iade miktarı gelen miktarı aşıyor.");
 
-            // Kaynak: önce karantinada bekleyen kısım, kalanı hedef (normal) depodan.
+            // Kaynak: önce karantinada bekleyen kısım, kalanı her bölümün şu an bulunduğu depodan (serbest bırakma sırasıyla).
             var held = await lineStock.OpenAsync(line, ct);
             if (quarantineOnly && baseQty > held) throw PurchasingErrors.Conflict("quarantine_exceeds_open", "İade miktarı karantinadaki açık miktarı aşıyor.");
-            var fromQ    = Math.Min(baseQty, held);
-            var rest     = baseQty - fromQ;
-            var restFrom = line.Quarantine == QuarantineState.None ? line.WarehouseId : line.TargetWarehouseId ?? line.WarehouseId;
+            var fromQ = Math.Min(baseQty, held);
+            var rest  = baseQty - fromQ;
+            var restSources = new List<(Guid WarehouseId, decimal Quantity)>();
+            if (rest > 0m) {
+                if (line.Quarantine == QuarantineState.None) {
+                    restSources.Add((line.WarehouseId, rest));
+                } else {
+                    var left = rest;
+                    foreach (var (warehouseId, available) in await lineStock.ReleasedHeldAsync(line.Id, ct)) {
+                        if (left <= 0m) break;
+                        var take = Math.Min(left, available);
+                        restSources.Add((warehouseId, take));
+                        left -= take;
+                    }
+
+                    if (left > 0m) restSources.Add((line.TargetWarehouseId ?? line.WarehouseId, left)); // eski kayıtlar: serbest bırakma hareketi bulunamayan kalan
+                }
+            }
 
             var tracked = TrackingValidator.IsTracked(product);
-            if (tracked && fromQ > 0m && rest > 0m)
+            if (tracked && (fromQ > 0m ? 1 : 0) + restSources.Count > 1)
                 throw PurchasingErrors.Bad("return_split_tracked", "Takipli kalemde iade tek depodan yapılmalıdır; karantina ve depo miktarlarını ayrı iade edin.");
 
             if (fromQ > 0m) {
@@ -74,7 +90,8 @@ public sealed class PurchaseReturnService(
                 stockLines.Add(new StockLine(line.WarehouseId, line.ProductId, line.VariantId, fromQ, null, lots, serials, line.Id));
             }
 
-            if (rest > 0m) stockLines.Add(new StockLine(restFrom, line.ProductId, line.VariantId, rest, null, request.Lots, request.Serials, line.Id));
+            foreach (var (warehouseId, quantity) in restSources)
+                stockLines.Add(new StockLine(warehouseId, line.ProductId, line.VariantId, quantity, null, request.Lots, request.Serials, line.Id));
             planned.Add((line, baseQty));
         }
 
