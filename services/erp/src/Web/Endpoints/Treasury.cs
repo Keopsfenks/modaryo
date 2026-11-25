@@ -13,6 +13,7 @@ using ERP.Application.Treasury.Journal.Queries;
 using ERP.Application.Treasury.Instruments.Commands;
 using ERP.Application.Treasury.Instruments.Queries;
 using ERP.Application.Treasury.Payments.Commands;
+using ERP.Application.Treasury.Reports;
 using ERP.Application.Treasury.Transfers;
 using ERP.Application.Treasury.Vouchers;
 using ERP.Domain.Treasury;
@@ -58,6 +59,8 @@ public class Treasury : IEndpointGroup {
         groupBuilder.MapGet(GetJournalVoucher, "journal-vouchers/{id:guid}");
         groupBuilder.MapPost(CreateJournalVoucher, "journal-vouchers");
         groupBuilder.MapPost(CancelJournalVoucher, "journal-vouchers/{id:guid}/cancel");
+        groupBuilder.MapGet(GetAgingReport, "reports/aging");
+        groupBuilder.MapGet(GetCashFlowReport, "reports/cash-flow");
     }
 
     [EndpointSummary("Virman")]
@@ -277,6 +280,18 @@ public class Treasury : IEndpointGroup {
     [EndpointDescription("finans.read. from öncesi açılış bakiyesi (openingBalance); satırlarda yürüyen bakiye ve kaynak belge (documentId, documentKind, documentNumber). İptal edilen hareketler isCancelled ile gelir, bakiyeye girmez.")]
     public static async Task<Ok<AccountMovementsDto>> GetAccountMovements(ISender sender, Guid id, DateOnly? from, DateOnly? to, int? page, int? pageSize) {
         return TypedResults.Ok(await sender.Send(new GetAccountMovementsQuery(id, from, to, page ?? 1, pageSize ?? 50)));
+    }
+
+    [EndpointSummary("Yaşlandırma raporu")]
+    [EndpointDescription("finans.read. direction: receivable | payable; currency isteğe bağlı; asOf varsayılan bugün. Cari başına gecikme dilimleri (current, 1-30, 31-60, 61-90, 90+) ve para birimi başına genel toplam.")]
+    public static async Task<Ok<AgingReportDto>> GetAgingReport(ISender sender, string direction, string? currency, DateOnly? asOf) {
+        return TypedResults.Ok(await sender.Send(new AgingReportQuery(direction, currency, asOf)));
+    }
+
+    [EndpointSummary("Nakit akışı")]
+    [EndpointDescription("finans.read. granularity: day (en çok 90 dönem) | week (en çok 26); periods varsayılan 30 gün / 12 hafta; from varsayılan bugün. Açılış kasa+banka bakiyesi (TL); dönem başına giriş/çıkış kaynaklara göre (dueLines, instruments, recurring) ve kapanış.")]
+    public static async Task<Ok<CashFlowReportDto>> GetCashFlowReport(ISender sender, string granularity, int? periods, DateOnly? from) {
+        return TypedResults.Ok(await sender.Send(new CashFlowQuery(granularity, periods, from)));
     }
 }
 
