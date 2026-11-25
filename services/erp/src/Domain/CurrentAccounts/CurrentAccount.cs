@@ -21,6 +21,9 @@ public class CurrentAccount : BaseAuditableEntity, ITenantOwned {
     /// <summary>Müşteri grubu (fiyat listesi önceliği için); aktif firmanın grubu olmalı.</summary>
     public Guid?       CustomerGroupId    { get; set; }
 
+    /// <summary>Varsayılan satış temsilcisi (identity kullanıcısı).</summary>
+    public Guid?       SalesRepUserId     { get; set; }
+
     public ICollection<CurrentAccountAddress> Addresses { get; set; } = new List<CurrentAccountAddress>();
     public Guid                               TenantId  { get; set; }
 }
