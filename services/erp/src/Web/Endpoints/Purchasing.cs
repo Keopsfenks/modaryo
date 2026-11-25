@@ -7,6 +7,7 @@ using ERP.Application.Purchasing.Orders;
 using ERP.Application.Purchasing.Quarantine;
 using ERP.Application.Purchasing.Returns;
 using ERP.Application.Purchasing.Receipts;
+using ERP.Application.Purchasing.Suggestions;
 using ERP.Domain.Purchasing;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -48,6 +49,8 @@ public class Purchasing : IEndpointGroup {
         groupBuilder.MapPost(ReleaseQuarantine, "quarantine/release");
         groupBuilder.MapPost(RejectQuarantine, "quarantine/reject");
         groupBuilder.MapPost(CreateReturn, "returns");
+        groupBuilder.MapGet(Suggestions, "suggestions");
+        groupBuilder.MapPost(CreateSuggestionOrders, "suggestions/create-orders");
     }
 
     [EndpointSummary("Satın alma siparişleri")]
@@ -254,5 +257,18 @@ public class Purchasing : IEndpointGroup {
     [EndpointDescription("satinalma.read + fiyat.alis, ithalat modülü. Mal değeri, masraf türüne göre işlenmiş masraflar ve kalem başına toplam birim maliyet.")]
     public static async Task<Ok<ImportSummaryDto>> ImportSummary(ISender sender, Guid id) {
         return TypedResults.Ok(await sender.Send(new GetImportSummaryQuery(id)));
+    }
+
+    [EndpointSummary("Sipariş önerileri")]
+    [EndpointDescription("satinalma.read. Süzgeç: branchId. Minimum stoğun altındaki kalemler varsayılan tedarikçiye göre gruplanır; tedarikçisiz kalemler supplierId null olan Tedarikçisiz grubunda gelir. Açık siparişlerdeki (onaylı, gelmemiş) miktar onOrder olarak düşülür. Önerilen miktar max(sipariş miktarı, minimum - (kullanılabilir + yolda)). lastPrice yalnızca fiyat.alis ile döner.")]
+    public static async Task<Ok<SuggestionResult>> Suggestions(ISender sender, Guid? branchId) {
+        return TypedResults.Ok(await sender.Send(new GetSuggestionsQuery(branchId)));
+    }
+
+    [EndpointSummary("Önerilerden sipariş oluştur")]
+    [EndpointDescription("satinalma.manage + fiyat.alis. Gövde: { groups[{ supplierId, lines[{ productId, variantId?, warehouseId, quantity }] }] }. Tedarikçi (ve depo şubesi) başına bir taslak sipariş döner; fiyatlar alış fiyat önceliğinden gelir. 201 + siparişler.")]
+    public static async Task<Created<IReadOnlyList<PoDto>>> CreateSuggestionOrders(ISender sender, CreateSuggestionOrdersInput input) {
+        var orders = await sender.Send(new CreateSuggestionOrdersCommand(input));
+        return TypedResults.Created("/api/erp/purchasing/orders", orders);
     }
 }
