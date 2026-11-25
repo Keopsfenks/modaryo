@@ -26,7 +26,7 @@ public class PermissionCatalogTests : TestBase
         var body = await response.JsonAsync();
         var groups = body.GetProperty("groups").EnumerateArray().ToList();
         groups.Select(g => g.GetProperty("group").GetString()).ShouldBe(
-            ["Firma", "Üyeler", "Roller", "Ayarlar", "Cari hesaplar", "Katalog", "Fiyatlandırma", "Stok", "Fatura", "Finans", "Denetim"]);
+            ["Firma", "Üyeler", "Roller", "Ayarlar", "Cari hesaplar", "Katalog", "Fiyatlandırma", "Stok", "Fatura", "Finans", "Satın alma", "Denetim"]);
         groups.ShouldAllBe(g => g.GetProperty("moduleKey").ValueKind == JsonValueKind.Null);
         var codes = Entries(body).Select(e => e.GetProperty("code").GetString()).ToList();
         codes.ShouldContain("roller.read");

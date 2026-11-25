@@ -4,6 +4,7 @@ using ERP.Domain.Files;
 using ERP.Domain.Inventory;
 using ERP.Domain.Invoicing;
 using ERP.Domain.Pricing;
+using ERP.Domain.Purchasing;
 using ERP.Domain.Settings;
 using ERP.Domain.Treasury;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -122,6 +123,24 @@ public interface IApplicationDbContext {
     DbSet<ExchangeDifferenceSettlementItem> ExchangeDifferenceSettlementItems { get; }
 
     DbSet<TenantRateOverride> TenantRateOverrides { get; }
+
+    DbSet<PurchaseOrder> PurchaseOrders { get; }
+
+    DbSet<PurchaseOrderLine> PurchaseOrderLines { get; }
+
+    DbSet<GoodsReceipt> GoodsReceipts { get; }
+
+    DbSet<GoodsReceiptLine> GoodsReceiptLines { get; }
+
+    DbSet<ImportFile> ImportFiles { get; }
+
+    DbSet<ImportFileLink> ImportFileLinks { get; }
+
+    DbSet<LandedCost> LandedCosts { get; }
+
+    DbSet<LandedCostSource> LandedCostSources { get; }
+
+    DbSet<LandedCostTarget> LandedCostTargets { get; }
 
     /// <summary>Firma + anahtar için sıradaki numarayı (1'den) tek SQL ifadesiyle ayırır; işlem geri alınırsa numara da geri gider.</summary>
     Task<int> NextDocumentNumberAsync(string key, CancellationToken cancellationToken);

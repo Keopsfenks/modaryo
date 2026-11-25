@@ -74,6 +74,12 @@ public static class PermissionCatalog
             new(Permissions.AccountingManage, null, "Finans", "Mahsup fişi ve hesap eşlemesi", "Mahsup fişi girebilir ve muhasebe hesap eşlemesini düzenleyebilir."),
             new(Permissions.AccountingExport, null, "Finans", "Muhasebe aktarımı", "Muhasebe aktarım dosyasını indirebilir."),
 
+            new(Permissions.PurchasingRead, null, "Satın alma", "Satın alma belgelerini görüntüle", "Satın alma siparişlerini, mal kabulleri, masraf dağıtımlarını ve ithalat dosyalarını görüntüleyebilir."),
+            new(Permissions.PurchasingManage, null, "Satın alma", "Satın alma siparişi ve masraf dağıtımı yönet", "Sipariş oluşturabilir, onaylayabilir, kapatabilir; masraf dağıtımı ve ithalat dosyası yönetebilir."),
+            new(Permissions.PurchasingReceive, null, "Satın alma", "Mal kabul yap", "Mal kabul belgesi oluşturabilir ve iptal edebilir; fiyat göremeden yalnızca miktar girebilir."),
+            new(Permissions.PurchasingQuarantine, null, "Satın alma", "Karantinadaki malı yönet", "Karantinadaki malı depoya alabilir ya da reddedebilir."),
+            new(Permissions.SettingsPurchasing, null, "Satın alma", "Satın alma ayarlarını yönet", "Fazla teslimat toleransını, fiyat farkı eşiğini ve karantina ayarlarını düzenleyebilir."),
+
             new(Permissions.AuditRead, null, "Denetim", "Denetim kaydını görüntüle", "Firmadaki işlem geçmişini ve denetim kayıtlarını görüntüleyebilir."));
         CoreCount = Entries.Count;
     }

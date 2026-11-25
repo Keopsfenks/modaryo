@@ -52,6 +52,12 @@ public static class SystemRoles
                 Permissions.AccountingManage, Permissions.AccountingExport,
             ],
             [Permissions.FinanceRead]),
+        new(9,
+            [
+                Permissions.PurchasingRead, Permissions.PurchasingManage, Permissions.PurchasingReceive,
+                Permissions.PurchasingQuarantine, Permissions.SettingsPurchasing,
+            ],
+            [Permissions.PurchasingRead]),
     ];
 
     public static int LatestPermissionSetVersion { get; } = PermissionSetVersions.Max(v => v.Version);

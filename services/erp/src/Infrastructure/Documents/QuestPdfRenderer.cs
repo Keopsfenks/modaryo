@@ -4,6 +4,7 @@ using ERP.Application.Invoicing;
 using ERP.Application.Settings;
 using ERP.Application.Settings.Categories;
 using ERP.Domain.Invoicing;
+using ERP.Domain.Purchasing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using QuestPDF.Drawing;
@@ -77,6 +78,28 @@ public sealed class QuestPdfRenderer(
 
         // QuestPDF eşzamanlı ve CPU yoğun: istek iş parçacığını bloklamamak için havuza alınır.
         return await Task.Run(() => new InvoiceTemplate(model).GeneratePdf(), ct);
+    }
+
+    public async Task<byte[]> RenderPurchaseOrderAsync(Guid purchaseOrderId, bool showPrices, CancellationToken ct) {
+        var po = await db.PurchaseOrders.AsNoTracking().Include(p => p.Lines).FirstOrDefaultAsync(p => p.Id == purchaseOrderId, ct)
+                 ?? throw new NotFoundException(purchaseOrderId.ToString(), "PurchaseOrder");
+        var supplier = await db.CurrentAccounts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == po.SupplierId, ct)
+                       ?? throw new NotFoundException(po.SupplierId.ToString(), "CurrentAccount");
+        var productIds = po.Lines.Select(l => l.ProductId).Distinct().ToList();
+        var products   = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).Select(p => new { p.Id, p.Code, p.Name }).ToDictionaryAsync(p => p.Id, ct);
+
+        var firm     = await settings.GetAsync<CompanyProfileSettings>(ct);
+        var document = await settings.GetAsync<DocumentSettings>(ct);
+        var lines = po.Lines.OrderBy(l => l.Sort).Select(l => {
+            var product = products.GetValueOrDefault(l.ProductId);
+            return new PoPdfLine(l.Sort, product?.Code ?? string.Empty, product?.Name ?? l.Description, l.Unit, l.Quantity, showPrices ? l.UnitPrice : null,
+                                 showPrices ? l.DiscountPercent : null, l.VatRate, l.ExpectedDate, showPrices ? l.Net : null);
+        }).ToList();
+
+        var model = new PoPdfModel(po.Number, po.Status, po.Date, po.ExpectedDate, po.Currency, po.Rate, po.Notes, FirmParty(firm), CariParty(await LiveSnapshotAsync(supplier, ct)),
+                                   lines, showPrices ? po.Net : null, showPrices ? po.Vat : null, showPrices ? po.Total : null, document.AccentColor, document.FooterNote,
+                                   await LoadLogoAsync(firm.LogoFileId, ct));
+        return await Task.Run(() => new PurchaseOrderTemplate(model).GeneratePdf(), ct);
     }
 
     public async Task<byte[]> RenderSampleAsync(CancellationToken ct) {

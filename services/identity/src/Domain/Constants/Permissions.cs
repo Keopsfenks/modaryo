@@ -60,5 +60,11 @@ public static class Permissions
     public const string AccountingManage = "muhasebe.manage";
     public const string AccountingExport = "muhasebe.export";
 
+    public const string PurchasingRead = "satinalma.read";
+    public const string PurchasingManage = "satinalma.manage";
+    public const string PurchasingReceive = "satinalma.receive";
+    public const string PurchasingQuarantine = "satinalma.quarantine";
+    public const string SettingsPurchasing = "ayarlar.satinalma";
+
     public const string AuditRead = "denetim.read";
 }

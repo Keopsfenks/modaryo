@@ -9,6 +9,7 @@ using ERP.Domain.Files;
 using ERP.Domain.Inventory;
 using ERP.Domain.Invoicing;
 using ERP.Domain.Pricing;
+using ERP.Domain.Purchasing;
 using ERP.Domain.Settings;
 using ERP.Domain.Treasury;
 using Microsoft.EntityFrameworkCore;
@@ -143,6 +144,24 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<ExchangeDifferenceSettlement> ExchangeDifferenceSettlements => Set<ExchangeDifferenceSettlement>();
 
     public DbSet<ExchangeDifferenceSettlementItem> ExchangeDifferenceSettlementItems => Set<ExchangeDifferenceSettlementItem>();
+
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+
+    public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
+
+    public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
+
+    public DbSet<GoodsReceiptLine> GoodsReceiptLines => Set<GoodsReceiptLine>();
+
+    public DbSet<ImportFile> ImportFiles => Set<ImportFile>();
+
+    public DbSet<ImportFileLink> ImportFileLinks => Set<ImportFileLink>();
+
+    public DbSet<LandedCost> LandedCosts => Set<LandedCost>();
+
+    public DbSet<LandedCostSource> LandedCostSources => Set<LandedCostSource>();
+
+    public DbSet<LandedCostTarget> LandedCostTargets => Set<LandedCostTarget>();
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 

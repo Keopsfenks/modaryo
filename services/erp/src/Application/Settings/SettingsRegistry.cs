@@ -63,7 +63,8 @@ public static class SettingsRegistry {
         [PricingSettings.Key] = Create<PricingSettings>(s => s, new PricingSettingsValidator()),
         [StockSettings.Key]   = Create<StockSettings>(s => s, new StockSettingsValidator()),
         [DocumentSettings.Key] = Create<DocumentSettings>(s => s, new DocumentSettingsValidator()),
-        [EBelgeSettings.Key]   = Create<EBelgeSettings>(s => s, new EBelgeSettingsValidator())
+        [EBelgeSettings.Key]   = Create<EBelgeSettings>(s => s, new EBelgeSettingsValidator()),
+        [PurchasingSettings.Key] = Create<PurchasingSettings>(PurchasingSettings.Normalize, new PurchasingSettingsValidator())
     };
 
     public static SettingsCategoryInfo? Find(string key) {
