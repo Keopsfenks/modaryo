@@ -21,6 +21,9 @@ public class ErpApiFactory(
     /// <summary>Kimlik servisinin şube dizininin yerine geçen, testin doldurduğu sahte dizin.</summary>
     public FakeBranchDirectory Branches { get; } = new();
 
+    /// <summary>Kimlik servisinin üye dizininin yerine geçen, testin doldurduğu sahte dizin.</summary>
+    public FakeMemberDirectory Members { get; } = new();
+
     /// <summary>Başka modüllerin kalem kullanımını taklit eden sahte sağlayıcı.</summary>
     public FakeItemUsageProvider ItemUsage { get; } = new();
 
@@ -34,6 +37,7 @@ public class ErpApiFactory(
         builder.UseSetting("Files:S3:KeyPrefix", FileKeyPrefix);
         builder.UseSetting("Inventory:RevaluationEnabled", "false"); // testler PublishPendingAsync / PublicRunOnceAsync çağırır
         builder.UseSetting("Rates:FetchEnabled", "false"); // testler sahte TCMB kaynağını POST /exchange-rates/fetch ile çalıştırır
+        builder.UseSetting("Sales:JobsEnabled", "false"); // testler QuoteExpiryJob.PublicRunOnceAsync çağırır
         builder.UseSetting("Outbox:RelayEnabled", "false"); // testler PublishPendingAsync'i kendileri çağırır
         Platform.InternalProbes.Configure(builder);
         builder.ConfigureTestServices(services => {
@@ -43,6 +47,8 @@ public class ErpApiFactory(
                                           Platform.StockProbes.Register(services);
                                           services.RemoveAll<IBranchDirectory>();
                                           services.AddSingleton<IBranchDirectory>(Branches);
+                                          services.RemoveAll<IMemberDirectory>();
+                                          services.AddSingleton<IMemberDirectory>(Members);
                                           services.AddSingleton<IItemUsageProvider>(ItemUsage);
                                           services.RemoveAll<ITcmbRateSource>();
                                           services.AddSingleton<ITcmbRateSource>(Tcmb);

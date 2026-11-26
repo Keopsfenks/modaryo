@@ -5,6 +5,7 @@ using ERP.Domain.Inventory;
 using ERP.Domain.Invoicing;
 using ERP.Domain.Pricing;
 using ERP.Domain.Purchasing;
+using ERP.Domain.Sales;
 using ERP.Domain.Settings;
 using ERP.Domain.Treasury;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -141,6 +142,36 @@ public interface IApplicationDbContext {
     DbSet<LandedCostSource> LandedCostSources { get; }
 
     DbSet<LandedCostTarget> LandedCostTargets { get; }
+
+    DbSet<Quote> Quotes { get; }
+
+    DbSet<QuoteRevision> QuoteRevisions { get; }
+
+    DbSet<QuoteLine> QuoteLines { get; }
+
+    DbSet<SalesOrder> SalesOrders { get; }
+
+    DbSet<SalesOrderLine> SalesOrderLines { get; }
+
+    DbSet<InstallmentPlan> InstallmentPlans { get; }
+
+    DbSet<InstallmentPlanRow> InstallmentPlanRows { get; }
+
+    DbSet<Shipment> Shipments { get; }
+
+    DbSet<ShipmentLine> ShipmentLines { get; }
+
+    DbSet<SalesReturn> SalesReturns { get; }
+
+    DbSet<SalesReturnLine> SalesReturnLines { get; }
+
+    DbSet<RecurringTemplate> RecurringTemplates { get; }
+
+    DbSet<RecurringTemplateLine> RecurringTemplateLines { get; }
+
+    DbSet<RecurringRun> RecurringRuns { get; }
+
+    DbSet<SalesTarget> SalesTargets { get; }
 
     /// <summary>Firma + anahtar için sıradaki numarayı (1'den) tek SQL ifadesiyle ayırır; işlem geri alınırsa numara da geri gider.</summary>
     Task<int> NextDocumentNumberAsync(string key, CancellationToken cancellationToken);

@@ -80,6 +80,16 @@ public static class PermissionCatalog
             new(Permissions.PurchasingQuarantine, null, "Satın alma", "Karantinadaki malı yönet", "Karantinadaki malı depoya alabilir ya da reddedebilir."),
             new(Permissions.SettingsPurchasing, null, "Satın alma", "Satın alma ayarlarını yönet", "Fazla teslimat toleransını, fiyat farkı eşiğini ve karantina ayarlarını düzenleyebilir."),
 
+            new(Permissions.SalesRead, null, "Satış", "Satış belgelerini görüntüle", "Teklif, sipariş, sevk, iade ve tekrarlayan fatura şablonlarını görüntüleyebilir."),
+            new(Permissions.SalesManage, null, "Satış", "Teklif ve sipariş yönet", "Teklif ve sipariş oluşturabilir, düzenleyebilir, gönderebilir ve siparişe dönüştürebilir."),
+            new(Permissions.SalesApprove, null, "Satış", "Siparişi onayla", "Satış siparişini onaylayabilir ve iptal edebilir."),
+            new(Permissions.SalesLimitOverride, null, "Satış", "Risk limiti aşımını onayla", "Cari risk limitini aşan siparişin onayını verebilir."),
+            new(Permissions.SalesShip, null, "Satış", "Sevkiyat yap", "Sevk belgesi oluşturabilir, sevk edebilir ve iptal edebilir."),
+            new(Permissions.SalesReturn, null, "Satış", "Satış iadesi al", "Kesilmiş faturadan satış iadesi oluşturabilir."),
+            new(Permissions.SalesRecurring, null, "Satış", "Tekrarlayan faturaları yönet", "Abonelik (tekrarlayan fatura) şablonlarını yönetebilir."),
+            new(Permissions.SalesTargets, null, "Satış", "Satış hedeflerini yönet", "Satış temsilcisi hedeflerini girebilir ve gerçekleşmeyi görebilir."),
+            new(Permissions.SettingsSales, null, "Satış", "Satış ayarlarını yönet", "Teklif geçerlilik süresi, satış temsilcisi zorunluluğu ve taksit varsayılanlarını düzenleyebilir."),
+
             new(Permissions.AuditRead, null, "Denetim", "Denetim kaydını görüntüle", "Firmadaki işlem geçmişini ve denetim kayıtlarını görüntüleyebilir."));
         CoreCount = Entries.Count;
     }

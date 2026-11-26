@@ -37,7 +37,7 @@ public class PermissionCatalogTests
     [Test]
     public void Catalog_HasTurkishNameAndDescriptionAndKnownGroups()
     {
-        string[] groups = ["Firma", "Üyeler", "Roller", "Ayarlar", "Cari hesaplar", "Katalog", "Fiyatlandırma", "Stok", "Fatura", "Finans", "Satın alma", "Denetim"];
+        string[] groups = ["Firma", "Üyeler", "Roller", "Ayarlar", "Cari hesaplar", "Katalog", "Fiyatlandırma", "Stok", "Fatura", "Finans", "Satın alma", "Satış", "Denetim"];
 
         PermissionCatalog.All.ShouldAllBe(p => !string.IsNullOrWhiteSpace(p.Name) && !string.IsNullOrWhiteSpace(p.Description));
         PermissionCatalog.All.ShouldAllBe(p => p.ModuleKey == null || ModuleKeys.IsKnown(p.ModuleKey));

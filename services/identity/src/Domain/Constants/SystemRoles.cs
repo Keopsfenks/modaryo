@@ -58,6 +58,13 @@ public static class SystemRoles
                 Permissions.PurchasingQuarantine, Permissions.SettingsPurchasing,
             ],
             [Permissions.PurchasingRead]),
+        new(10,
+            [
+                Permissions.SalesRead, Permissions.SalesManage, Permissions.SalesApprove, Permissions.SalesLimitOverride,
+                Permissions.SalesShip, Permissions.SalesReturn, Permissions.SalesRecurring, Permissions.SalesTargets,
+                Permissions.SettingsSales,
+            ],
+            [Permissions.SalesRead, Permissions.SalesManage]),
     ];
 
     public static int LatestPermissionSetVersion { get; } = PermissionSetVersions.Max(v => v.Version);

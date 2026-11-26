@@ -66,5 +66,15 @@ public static class Permissions
     public const string PurchasingQuarantine = "satinalma.quarantine";
     public const string SettingsPurchasing = "ayarlar.satinalma";
 
+    public const string SalesRead = "satis.read";
+    public const string SalesManage = "satis.manage";
+    public const string SalesApprove = "satis.approve";
+    public const string SalesLimitOverride = "satis.limit-asimi";
+    public const string SalesShip = "satis.ship";
+    public const string SalesReturn = "satis.return";
+    public const string SalesRecurring = "satis.recurring";
+    public const string SalesTargets = "satis.targets";
+    public const string SettingsSales = "ayarlar.satis";
+
     public const string AuditRead = "denetim.read";
 }

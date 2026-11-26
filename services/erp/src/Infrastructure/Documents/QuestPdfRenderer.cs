@@ -102,6 +102,59 @@ public sealed class QuestPdfRenderer(
         return await Task.Run(() => new PurchaseOrderTemplate(model).GeneratePdf(), ct);
     }
 
+    public async Task<byte[]> RenderQuoteAsync(Guid quoteId, int? revision, CancellationToken ct) {
+        var quote = await db.Quotes.AsNoTracking().Include(q => q.Revisions).ThenInclude(r => r.Lines).FirstOrDefaultAsync(q => q.Id == quoteId, ct)
+                    ?? throw new NotFoundException(quoteId.ToString(), "Quote");
+        var number = revision ?? quote.CurrentRevision;
+        var rev    = quote.Revisions.FirstOrDefault(r => r.Revision == number) ?? throw new NotFoundException(number.ToString(), "QuoteRevision");
+        var lines  = await SalesLinesAsync(rev.Lines.OrderBy(l => l.Sort).Select(l => (l.Sort, l.ProductId, l.Description, l.Unit, l.Quantity, l.Width, l.Length, l.UnitPrice,
+                                                                                         l.DiscountPercent, l.VatRate, l.Net, l.Total)).ToList(), ct);
+        var model = await SalesModelAsync("TEKLİF", "Teklif No", quote.Number, rev.Date, rev.ValidUntil, rev.Revision, quote.Currency, quote.SalesRepName, rev.Notes,
+                                          quote.CurrentAccountId, lines, rev.Discount, rev.Net, rev.Vat, rev.Total, [],
+                                          quote.Status == Domain.Sales.QuoteStatus.Draft ? "TASLAK" : null, ct);
+        return await Task.Run(() => new SalesDocumentTemplate(model).GeneratePdf(), ct);
+    }
+
+    public async Task<byte[]> RenderSalesOrderAsync(Guid orderId, bool proforma, CancellationToken ct) {
+        var order = await db.SalesOrders.AsNoTracking().Include(o => o.Lines).Include(o => o.Plan).ThenInclude(p => p!.Rows).FirstOrDefaultAsync(o => o.Id == orderId, ct)
+                    ?? throw new NotFoundException(orderId.ToString(), "SalesOrder");
+        var lines = await SalesLinesAsync(order.Lines.OrderBy(l => l.Sort).Select(l => (l.Sort, l.ProductId, l.Description, l.Unit, l.Quantity, l.Width, l.Length, l.UnitPrice,
+                                                                                         l.DiscountPercent, l.VatRate, l.Net, l.Total)).ToList(), ct);
+        var plan = new List<SalesPdfPlanRow>();
+        if (order.Plan is { } p) {
+            if (p.DownPayment > 0m) plan.Add(new SalesPdfPlanRow("Peşinat", order.Date, p.DownPayment));
+            plan.AddRange(p.Rows.OrderBy(r => r.Sequence).Select(r => new SalesPdfPlanRow($"{r.Sequence}. taksit", r.DueDate, r.Amount)));
+        }
+
+        var model = await SalesModelAsync(proforma ? "PROFORMA FATURA" : "SİPARİŞ ONAYI", proforma ? "Proforma No" : "Sipariş No", order.Number, order.Date, null, null,
+                                          order.Currency, order.SalesRepName, order.Notes, order.CurrentAccountId, lines, order.Discount, order.Net, order.Vat, order.Total, plan,
+                                          order.Status == Domain.Sales.SalesOrderStatus.Cancelled ? "İPTAL" : order.Status == Domain.Sales.SalesOrderStatus.Draft ? "TASLAK" : null, ct);
+        return await Task.Run(() => new SalesDocumentTemplate(model).GeneratePdf(), ct);
+    }
+
+    private async Task<List<SalesPdfLine>> SalesLinesAsync(
+        IReadOnlyList<(int Sort, Guid ProductId, string Description, string Unit, decimal Quantity, decimal? Width, decimal? Length, decimal UnitPrice, decimal? DiscountPercent, int VatRate, decimal Net, decimal Total)> rows,
+        CancellationToken ct) {
+        var ids      = rows.Select(r => r.ProductId).Distinct().ToList();
+        var products = await db.Products.AsNoTracking().Where(p => ids.Contains(p.Id)).Select(p => new { p.Id, p.Code, p.Name }).ToDictionaryAsync(p => p.Id, ct);
+        return rows.Select(r => {
+            var product = products.GetValueOrDefault(r.ProductId);
+            return new SalesPdfLine(r.Sort, product?.Code ?? string.Empty, string.IsNullOrWhiteSpace(r.Description) ? product?.Name ?? string.Empty : r.Description, r.Unit,
+                                    r.Quantity, r.Width, r.Length, r.UnitPrice, r.DiscountPercent, r.VatRate, r.Net, r.Total);
+        }).ToList();
+    }
+
+    private async Task<SalesPdfModel> SalesModelAsync(string title, string numberLabel, string number, DateOnly date, DateOnly? validUntil, int? revision, string currency,
+                                                      string? rep, string? notes, Guid customerId, List<SalesPdfLine> lines, decimal discount, decimal net, decimal vat,
+                                                      decimal total, List<SalesPdfPlanRow> plan, string? watermark, CancellationToken ct) {
+        var customer = await db.CurrentAccounts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == customerId, ct)
+                       ?? throw new NotFoundException(customerId.ToString(), "CurrentAccount");
+        var firm     = await settings.GetAsync<CompanyProfileSettings>(ct);
+        var document = await settings.GetAsync<DocumentSettings>(ct);
+        return new SalesPdfModel(title, numberLabel, number, date, validUntil, revision, currency, rep, notes, FirmParty(firm), CariParty(await LiveSnapshotAsync(customer, ct)),
+                                 lines, discount, net, vat, total, plan, watermark, document.AccentColor, document.FooterNote, await LoadLogoAsync(firm.LogoFileId, ct));
+    }
+
     public async Task<byte[]> RenderSampleAsync(CancellationToken ct) {
         var firm     = await settings.GetAsync<CompanyProfileSettings>(ct);
         var document = await settings.GetAsync<DocumentSettings>(ct);

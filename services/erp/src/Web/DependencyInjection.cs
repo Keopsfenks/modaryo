@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 using Azure.Identity;
 using ERP.Application.Common.Interfaces;
@@ -30,6 +30,17 @@ public static class DependencyInjection {
         // Şubeler kimlik servisinde yaşar: imzalı iç API istemcisi (Internal:Outbound:Identity:{BaseUrl,ServiceName,Secret}).
         builder.Services.AddMemoryCache();
         builder.Services.AddHttpClient<IBranchDirectory, IdentityBranchClient>((sp, client) => {
+                                                                                   var section = sp.GetRequiredService<IConfiguration>().GetSection("Internal:Outbound:Identity");
+                                                                                   var baseUrl = section["BaseUrl"];
+                                                                                   if (!string.IsNullOrWhiteSpace(baseUrl)) client.BaseAddress = new Uri(baseUrl);
+                                                                                   client.Timeout = TimeSpan.FromSeconds(5);
+                                                                               })
+            .AddHttpMessageHandler(sp => {
+                                       var section = sp.GetRequiredService<IConfiguration>().GetSection("Internal:Outbound:Identity");
+                                       return new InternalHttpClientHandler(section["ServiceName"] ?? "erp", section["Secret"] ?? "");
+                                   });
+
+        builder.Services.AddHttpClient<IMemberDirectory, IdentityMemberClient>((sp, client) => {
                                                                                    var section = sp.GetRequiredService<IConfiguration>().GetSection("Internal:Outbound:Identity");
                                                                                    var baseUrl = section["BaseUrl"];
                                                                                    if (!string.IsNullOrWhiteSpace(baseUrl)) client.BaseAddress = new Uri(baseUrl);

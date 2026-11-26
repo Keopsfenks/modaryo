@@ -24,6 +24,7 @@ public class CurrentAccountConfiguration : IEntityTypeConfiguration<CurrentAccou
         builder.HasIndex(e => new { e.TenantId, e.TaxNumber }).IsUnique().HasFilter("\"TaxNumber\" IS NOT NULL");
 
         builder.HasIndex(e => e.CustomerGroupId);
+        builder.HasIndex(e => e.SalesRepUserId);
 
         builder.HasOne<CustomerGroup>().WithMany().HasForeignKey(e => e.CustomerGroupId).OnDelete(DeleteBehavior.Restrict);
 

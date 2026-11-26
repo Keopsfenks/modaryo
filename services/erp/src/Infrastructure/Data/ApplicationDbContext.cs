@@ -10,6 +10,7 @@ using ERP.Domain.Inventory;
 using ERP.Domain.Invoicing;
 using ERP.Domain.Pricing;
 using ERP.Domain.Purchasing;
+using ERP.Domain.Sales;
 using ERP.Domain.Settings;
 using ERP.Domain.Treasury;
 using Microsoft.EntityFrameworkCore;
@@ -162,6 +163,36 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<LandedCostSource> LandedCostSources => Set<LandedCostSource>();
 
     public DbSet<LandedCostTarget> LandedCostTargets => Set<LandedCostTarget>();
+
+    public DbSet<Quote> Quotes => Set<Quote>();
+
+    public DbSet<QuoteRevision> QuoteRevisions => Set<QuoteRevision>();
+
+    public DbSet<QuoteLine> QuoteLines => Set<QuoteLine>();
+
+    public DbSet<SalesOrder> SalesOrders => Set<SalesOrder>();
+
+    public DbSet<SalesOrderLine> SalesOrderLines => Set<SalesOrderLine>();
+
+    public DbSet<InstallmentPlan> InstallmentPlans => Set<InstallmentPlan>();
+
+    public DbSet<InstallmentPlanRow> InstallmentPlanRows => Set<InstallmentPlanRow>();
+
+    public DbSet<Shipment> Shipments => Set<Shipment>();
+
+    public DbSet<ShipmentLine> ShipmentLines => Set<ShipmentLine>();
+
+    public DbSet<SalesReturn> SalesReturns => Set<SalesReturn>();
+
+    public DbSet<SalesReturnLine> SalesReturnLines => Set<SalesReturnLine>();
+
+    public DbSet<RecurringTemplate> RecurringTemplates => Set<RecurringTemplate>();
+
+    public DbSet<RecurringTemplateLine> RecurringTemplateLines => Set<RecurringTemplateLine>();
+
+    public DbSet<RecurringRun> RecurringRuns => Set<RecurringRun>();
+
+    public DbSet<SalesTarget> SalesTargets => Set<SalesTarget>();
 
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
 
