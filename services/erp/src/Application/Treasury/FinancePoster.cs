@@ -74,7 +74,8 @@ public sealed class FinancePoster(
     AutoAllocator         auto,
     ManualAllocator       manual,
     IOutbox               outbox,
-    TimeProvider          clock
+    TimeProvider          clock,
+    IPrepaymentWatcher    prepayments
 ) {
     public const string Collection = "TH";
     public const string Payment    = "OD";
@@ -173,6 +174,7 @@ public sealed class FinancePoster(
                                                    isAdvance        = input.IsAdvance
                                                });
         await db.SaveChangesAsync(ct);
+        if (collection && salesOrderId is { } orderId) await prepayments.OnAdvanceRecordedAsync(orderId, ct);
         await tx.CommitAsync(ct);
         return new PostResult(document.Id, number, warnings);
     }

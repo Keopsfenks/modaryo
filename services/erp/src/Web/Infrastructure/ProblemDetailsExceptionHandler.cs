@@ -16,11 +16,11 @@ public class ProblemDetailsExceptionHandler : IExceptionHandler {
                                                 CancellationToken cancellationToken
     ) {
         var (statusCode, problemDetails) = exception switch {
-                                               AppException ae => (ae.Status, new ProblemDetails {
+                                               AppException ae => (ae.Status, WithDetails(new ProblemDetails {
                                                                                   Status     = ae.Status,
                                                                                   Title      = ae.Message,
                                                                                   Extensions = { ["code"] = ae.Code }
-                                                                              }),
+                                                                              }, ae)),
                                                // Bozuk JSON / geçersiz UTF-8 gövde: istemci hatası, 500 değil.
                                                BadHttpRequestException bad => (bad.StatusCode, new ProblemDetails {
                                                                                    Status = bad.StatusCode,
@@ -73,5 +73,10 @@ public class ProblemDetailsExceptionHandler : IExceptionHandler {
         await httpContext.Response.WriteAsJsonAsync(problemDetails, problemDetails.GetType(), (System.Text.Json.JsonSerializerOptions?)null,
             "application/problem+json", cancellationToken);
         return true;
+    }
+
+    private static ProblemDetails WithDetails(ProblemDetails problem, AppException exception) {
+        if (exception.Details is not null) problem.Extensions["details"] = exception.Details;
+        return problem;
     }
 }

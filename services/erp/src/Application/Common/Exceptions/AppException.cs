@@ -9,4 +9,7 @@ public sealed class AppException(
     public int Status { get; } = status;
 
     public string Code { get; } = code;
+
+    /// <summary>Yanıta "details" olarak eklenen isteğe bağlı ayrıntı (ör. yetersiz stok satırları).</summary>
+    public object? Details { get; init; }
 }

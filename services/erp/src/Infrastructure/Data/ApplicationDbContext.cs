@@ -228,6 +228,17 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
         return locked.Count > 0;
     }
 
+    public async Task<bool> LockSalesOrderAsync(Guid id, CancellationToken cancellationToken) {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Sipariş kilidi yalnızca açık bir işlem içinde alınabilir.");
+
+        var tenantId = CurrentTenantId;
+        var locked = await Database
+                         .SqlQuery<Guid>($"SELECT \"Id\" AS \"Value\" FROM sales_orders WHERE \"Id\" = {id} AND \"TenantId\" = {tenantId} FOR UPDATE")
+                         .ToListAsync(cancellationToken);
+        return locked.Count > 0;
+    }
+
     public async Task LockReceiptsAsync(IEnumerable<Guid> receiptIds, CancellationToken cancellationToken) {
         if (Database.CurrentTransaction is null)
             throw new InvalidOperationException("Mal kabul kilidi yalnızca açık bir işlem içinde alınabilir.");

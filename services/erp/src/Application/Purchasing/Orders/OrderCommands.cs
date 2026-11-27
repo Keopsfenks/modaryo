@@ -109,6 +109,7 @@ public sealed class CancelPoCommandHandler(
     ICurrentTenant        tenant,
     IStockService         stock,
     IOutbox               outbox,
+    IPurchaseLinkListener links,
     PoMapper              mapper
 ) : IRequestHandler<CancelPoCommand, PoDto> {
     public async Task<PoDto> Handle(CancelPoCommand request, CancellationToken ct) {
@@ -130,6 +131,7 @@ public sealed class CancelPoCommandHandler(
                            .Select(r => new { r.WarehouseId, r.ProductId, r.VariantId }).Distinct().ToListAsync(ct);
         await db.LockStockAsync(keys.Select(k => (k.WarehouseId, k.ProductId, k.VariantId)), ct);
         var released = await stock.ReleaseExpectedAsync(po.Id, ct);
+        await links.OnPoClosedAsync(po.Id, ct);
 
         outbox.Enqueue("purchase.order-cancelled", new {
             poId = po.Id, number = po.Number, reason = po.CancelReason,
@@ -158,6 +160,7 @@ public sealed class ClosePoCommandHandler(
     ICurrentTenant        tenant,
     IStockService         stock,
     IOutbox               outbox,
+    IPurchaseLinkListener links,
     PoMapper              mapper
 ) : IRequestHandler<ClosePoCommand, PoDto> {
     public async Task<PoDto> Handle(ClosePoCommand request, CancellationToken ct) {
@@ -177,6 +180,7 @@ public sealed class ClosePoCommandHandler(
                            .Select(r => new { r.WarehouseId, r.ProductId, r.VariantId }).Distinct().ToListAsync(ct);
         await db.LockStockAsync(keys.Select(k => (k.WarehouseId, k.ProductId, k.VariantId)), ct);
         var released = await stock.ReleaseExpectedAsync(po.Id, ct);
+        await links.OnPoClosedAsync(po.Id, ct);
 
         outbox.Enqueue("purchase.order-closed", new {
             poId = po.Id, number = po.Number, reason = po.CloseReason, lines = closed,

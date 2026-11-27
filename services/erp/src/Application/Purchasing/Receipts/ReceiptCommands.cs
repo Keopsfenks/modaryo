@@ -36,6 +36,7 @@ public sealed class CreateReceiptCommandHandler(
     IExchangeRates        rates,
     ITenantSettings       settings,
     IOutbox               outbox,
+    IPurchaseLinkListener links,
     ReceiptMapper         mapper
 ) : IRequestHandler<CreateReceiptCommand, ReceiptDto> {
     public async Task<ReceiptDto> Handle(CreateReceiptCommand request, CancellationToken ct) {
@@ -174,6 +175,9 @@ public sealed class CreateReceiptCommandHandler(
 
         receipt.Number = await DocumentNumbers.NextAsync(db, "MK", receipt.Date, ct);
         db.GoodsReceipts.Add(receipt);
+        if (po is not null && !held)
+            foreach (var l in receipt.Lines.Where(x => x.PurchaseOrderLineId is not null))
+                await links.OnReceivedAsync(l.PurchaseOrderLineId!.Value, l.Quantity, receipt.SupplierDeliveryNo, ct);
         outbox.Enqueue("purchase.received", new {
             poId = po?.Id, receiptId = receipt.Id, number = receipt.Number, warehouseId = entry.Id, quarantined = held,
             lines = receipt.Lines.Select(x => {

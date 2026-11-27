@@ -212,6 +212,9 @@ public interface IApplicationDbContext {
     ///     güncelleme, fatura kesimi ve mal kabul iptali aynı mal kabulde sıraya girer; faturalanan miktar aşılamaz. Sıra: bu kilit, sonra
     ///     sipariş kilidi, sonra stok kilitleri. Açık işlem gerekir.
     /// </summary>
+    /// <summary>Satış siparişi satırını işlem sonuna kadar kilitler (FOR UPDATE); yoksa false.</summary>
+    Task<bool> LockSalesOrderAsync(Guid id, CancellationToken cancellationToken);
+
     Task LockReceiptsAsync(IEnumerable<Guid> receiptIds, CancellationToken cancellationToken);
 
     /// <summary>
