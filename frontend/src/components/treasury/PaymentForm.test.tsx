@@ -92,4 +92,29 @@ describe("PaymentForm", () => {
         await waitFor(() => expect(posted).toHaveLength(1));
         expect(posted[0]).toMatchObject({ currentAccountId: "c-1", accountId: "a-1", method: "cash", amount: 500, isAdvance: false });
     });
+
+    it("CollectionForm_SalesOrderAdvancePrefill_PostsSalesOrderId", async () => {
+        resetNavigation("/finans/tahsilat/yeni", "cari=c-1&avans=1&siparis=so-1&tutar=2453.33");
+        const posted: unknown[] = [];
+        setup({ posted });
+        server.use(
+            http.get("*/api/erp/current-accounts/c-1", () => HttpResponse.json({ ...cari(), kind: "corporate", addresses: [], hasMovements: false, defaultDueDays: 0, creditLimit: null })),
+            http.post("*/api/erp/treasury/collections", async ({ request }) => {
+                posted.push(await request.json());
+                return HttpResponse.json({ id: "d-2", number: "TH2026000001", warnings: [] }, { status: 201 });
+            }),
+        );
+        const { user } = renderWithTheme(
+            <SessionProvider>
+                <PaymentForm kind="collection" />
+            </SessionProvider>,
+        );
+
+        await pickAccount(user, "Ana Kasa");
+        expect(screen.getByRole("textbox", { name: /^Tutar/ })).toHaveValue("2453,33");
+        await user.click(screen.getByRole("button", { name: "Kaydet" }));
+
+        await waitFor(() => expect(posted).toHaveLength(1));
+        expect(posted[0]).toMatchObject({ currentAccountId: "c-1", amount: 2453.33, isAdvance: true, salesOrderId: "so-1" });
+    });
 });

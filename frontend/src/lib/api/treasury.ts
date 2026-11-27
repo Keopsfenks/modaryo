@@ -247,6 +247,8 @@ export type PaymentInput = {
     rate?: number | null;
     description?: string | null;
     isAdvance: boolean;
+    /** Yalnızca tahsilatta: siparişe bağlı avans (P7 peşinat / ön ödeme). */
+    salesOrderId?: string;
     allocations?: AllocationInput[];
 };
 

@@ -66,6 +66,8 @@ export type CurrentAccountDto = {
     hasMovements: boolean;
     /** Fiyatlandırma müşteri grubu (fiyat.read yoksa da gelir, yalnızca kimlik). */
     customerGroupId?: string | null;
+    /** Varsayılan satış temsilcisi (kimlik kullanıcısı). */
+    salesRepUserId?: string | null;
     addresses: AddressDto[];
 };
 
@@ -102,6 +104,8 @@ export type UpdateAccountInput = {
     creditLimit?: number | null;
     /** Güncellemede her zaman gönderilir; boş bırakmak grubu kaldırır. */
     customerGroupId?: string | null;
+    /** Varsayılan satış temsilcisi; boş bırakmak temsilciyi kaldırır. */
+    salesRepUserId?: string | null;
 };
 
 export type CreateAccountInput = UpdateAccountInput & {

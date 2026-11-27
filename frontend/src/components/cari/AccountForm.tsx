@@ -28,6 +28,7 @@ import {
     type EntryDirection,
     type OpeningBalanceInput,
 } from "@/lib/api/erp";
+import { identity, type MemberDto } from "@/lib/api/identity";
 import { pricing, type CustomerGroupDto } from "@/lib/api/pricing";
 import { parseAmount, type Currency } from "@/lib/money";
 import { isValidTckn, isValidVkn } from "@/lib/taxNumber";
@@ -51,6 +52,7 @@ type FormValues = {
     defaultDueDays: string;
     creditLimit: string;
     customerGroupId: string;
+    salesRepUserId: string;
     addressTitle: string;
     addressLine: string;
     addressDistrict: string;
@@ -95,6 +97,7 @@ function initialValues(initial: CurrentAccountDto | undefined, defaultRole: Acco
         defaultDueDays: String(initial?.defaultDueDays ?? 30),
         creditLimit: initial?.creditLimit == null ? "" : String(initial.creditLimit).replace(".", ","),
         customerGroupId: initial?.customerGroupId ?? "",
+        salesRepUserId: initial?.salesRepUserId ?? "",
         addressTitle: "",
         addressLine: "",
         addressDistrict: "",
@@ -211,10 +214,13 @@ export default function AccountForm({ initial, defaultRole, onSaved }: AccountFo
     const [alert, setAlert] = useState<ApiError | null>(null);
     const [busy, setBusy] = useState(false);
     const [groups, setGroups] = useState<CustomerGroupDto[]>([]);
+    const [members, setMembers] = useState<MemberDto[]>([]);
 
     useEffect(() => {
         // fiyat.read yoksa uç 403 döner: alan gösterilmez, mevcut grup değeri değişmeden korunur.
         pricing.customerGroups().then(setGroups, () => undefined);
+        // Satış temsilcisi seçenekleri kimlik servisinin üye listesinden gelir; yetki yoksa alan gösterilmez.
+        identity.getMembers().then(setMembers, () => undefined);
     }, []);
 
     useEffect(() => {
@@ -260,7 +266,7 @@ export default function AccountForm({ initial, defaultRole, onSaved }: AccountFo
 
         setBusy(true);
         try {
-            const body = buildBody(v, creating);
+            const body = { ...buildBody(v, creating), ...(members.length > 0 ? { salesRepUserId: v.salesRepUserId || null } : {}) };
             const saved = initial
                 ? await erp.updateAccount(initial.id, {
                       code: body.code,
@@ -278,6 +284,7 @@ export default function AccountForm({ initial, defaultRole, onSaved }: AccountFo
                       defaultDueDays: body.defaultDueDays,
                       creditLimit: body.creditLimit,
                       customerGroupId: body.customerGroupId,
+                      ...(members.length > 0 ? { salesRepUserId: body.salesRepUserId } : {}),
                   })
                 : await erp.createAccount(body);
             onSaved(saved);
@@ -375,6 +382,19 @@ export default function AccountForm({ initial, defaultRole, onSaved }: AccountFo
                             {groups.map((g) => (
                                 <MenuItem key={g.id} value={g.id}>
                                     {g.name}
+                                </MenuItem>
+                            ))}
+                        </TextField>
+                    </Grid>
+                )}
+
+                {v.isCustomer && members.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                        <TextField select id="salesRepUserId" label="Satış temsilcisi" fullWidth value={v.salesRepUserId} onChange={(e) => set("salesRepUserId", e.target.value)}>
+                            <MenuItem value="">Temsilci yok</MenuItem>
+                            {members.map((m) => (
+                                <MenuItem key={m.userId} value={m.userId}>
+                                    {m.fullName}
                                 </MenuItem>
                             ))}
                         </TextField>

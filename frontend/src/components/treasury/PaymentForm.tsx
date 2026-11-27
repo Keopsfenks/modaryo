@@ -47,6 +47,8 @@ export default function PaymentForm({ kind }: PaymentFormProps) {
     const collection = kind === "collection";
     const searchParams = useSearchParams();
     const initialCari = searchParams.get("cari");
+    // Satış siparişi peşinatı: /finans/tahsilat/yeni?cari=..&avans=1&siparis=..&tutar=..
+    const salesOrderId = collection ? searchParams.get("siparis") : null;
     const { hasPermission } = useSession();
     const allowed = hasPermission(collection ? "tahsilat.manage" : "odeme.manage");
 
@@ -55,9 +57,9 @@ export default function PaymentForm({ kind }: PaymentFormProps) {
     const [method, setMethod] = useState<PaymentMethod>("cash");
     const [accountId, setAccountId] = useState("");
     const [date, setDate] = useState(today());
-    const [amountText, setAmountText] = useState("");
+    const [amountText, setAmountText] = useState(() => (collection && searchParams.get("tutar") ? (searchParams.get("tutar") ?? "").replace(".", ",") : ""));
     const [rate, setRate] = useState<RateState>({ value: "", overridden: false });
-    const [isAdvance, setIsAdvance] = useState(false);
+    const [isAdvance, setIsAdvance] = useState(() => collection && searchParams.get("avans") === "1");
     const [description, setDescription] = useState("");
     const [items, setItems] = useState<OpenItemForAllocation[]>([]);
     const [allocation, setAllocation] = useState<AllocationChange>({ allocations: [], total: 0, valid: true });
@@ -139,6 +141,7 @@ export default function PaymentForm({ kind }: PaymentFormProps) {
                 rate: differs ? parsedRate : null,
                 description: description.trim() || null,
                 isAdvance,
+                salesOrderId: salesOrderId ?? undefined,
                 allocations: !isAdvance && allocation.allocations.length > 0 ? allocation.allocations : undefined,
             };
             setResult(collection ? await treasury.createCollection(body) : await treasury.createPayment(body));
