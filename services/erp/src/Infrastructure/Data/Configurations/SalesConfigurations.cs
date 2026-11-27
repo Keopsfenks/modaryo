@@ -170,6 +170,7 @@ public class ShipmentConfiguration : IEntityTypeConfiguration<Shipment> {
         builder.Property(e => e.Number).HasMaxLength(30).IsRequired();
         builder.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(e => e.CargoNote).HasMaxLength(500);
+        builder.Property(e => e.ReceivedBy).HasMaxLength(200);
         builder.Property(e => e.Notes).HasMaxLength(1000);
         builder.Property(e => e.CancelReason).HasMaxLength(200);
         builder.Property(e => e.Version).AsXmin();
@@ -234,7 +235,9 @@ public class SalesReturnLineConfiguration : IEntityTypeConfiguration<SalesReturn
         builder.Property(e => e.Id).ValueGeneratedNever();
         builder.Property(e => e.Description).HasMaxLength(500).IsRequired();
         builder.Property(e => e.Unit).HasMaxLength(20).IsRequired();
+        builder.Property(e => e.Factor).HasPrecision(18, 6);
         builder.Property(e => e.Quantity).HasPrecision(18, 6);
+        builder.Property(e => e.UnitCost).HasPrecision(18, 6);
         builder.Property(e => e.Width).HasPrecision(18, 4);
         builder.Property(e => e.Length).HasPrecision(18, 4);
 
@@ -294,5 +297,15 @@ public class SalesTargetConfiguration : IEntityTypeConfiguration<SalesTarget> {
         builder.Property(e => e.UserName).HasMaxLength(200);
         builder.Property(e => e.Amount).HasPrecision(18, 2);
         builder.HasIndex(e => new { e.TenantId, e.UserId, e.Year, e.Month }).IsUnique();
+    }
+}
+
+public class InvoicePlanConsumptionConfiguration : IEntityTypeConfiguration<InvoicePlanConsumption> {
+    public void Configure(EntityTypeBuilder<InvoicePlanConsumption> builder) {
+        builder.ToTable("invoice_plan_consumptions");
+        builder.Property(e => e.Id).ValueGeneratedNever();
+        builder.Property(e => e.Amount).HasPrecision(18, 2);
+        builder.HasIndex(e => e.InvoiceId);
+        builder.HasIndex(e => e.SalesOrderId);
     }
 }

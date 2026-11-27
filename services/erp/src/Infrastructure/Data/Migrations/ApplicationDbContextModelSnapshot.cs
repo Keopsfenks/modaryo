@@ -4240,6 +4240,38 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.ToTable("installment_plan_rows", (string)null);
                 });
 
+            modelBuilder.Entity("ERP.Domain.Sales.InvoicePlanConsumption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("InvoiceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PlanRowId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SalesOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("SalesOrderId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("invoice_plan_consumptions", (string)null);
+                });
+
             modelBuilder.Entity("ERP.Domain.Sales.Quote", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4996,6 +5028,10 @@ namespace ERP.Infrastructure.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<decimal>("Factor")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
                     b.Property<Guid>("InvoiceLineId")
                         .HasColumnType("uuid");
 
@@ -5026,6 +5062,10 @@ namespace ERP.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<decimal?>("UnitCost")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
 
                     b.Property<Guid?>("VariantId")
                         .HasColumnType("uuid");
@@ -5145,6 +5185,10 @@ namespace ERP.Infrastructure.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<string>("ReceivedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<Guid>("SalesOrderId")
                         .HasColumnType("uuid");

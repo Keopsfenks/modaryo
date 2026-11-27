@@ -16,6 +16,7 @@ public class Shipment : BaseAuditableEntity, ITenantOwned {
     /// <summary>Teslimat adresi (sevk anında dondurulur).</summary>
     public AddressSnapshot? DeliveryAddress { get; set; }
     public string?          CargoNote       { get; set; }
+    public string?          ReceivedBy      { get; set; }
     public string?          Notes           { get; set; }
     public string?          CancelReason    { get; set; }
 

@@ -1,4 +1,5 @@
 using ERP.Application.Sales.Orders;
+using ERP.Application.Sales.Shipments;
 using ERP.Application.Sales.Quotes;
 using ERP.Domain.Sales;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -29,6 +30,13 @@ public class Sales : IEndpointGroup {
         groupBuilder.MapPost(SalesCloseOrder, "orders/{id:guid}/close");
         groupBuilder.MapPut(SalesSetPlan, "orders/{id:guid}/installment-plan");
         groupBuilder.MapGet(SalesOrderProforma, "orders/{id:guid}/proforma.pdf");
+
+        groupBuilder.MapGet(SalesShipments, "shipments");
+        groupBuilder.MapPost(SalesCreateShipment, "shipments");
+        groupBuilder.MapGet(SalesGetShipment, "shipments/{id:guid}");
+        groupBuilder.MapPost(SalesDeliverShipment, "shipments/{id:guid}/deliver");
+        groupBuilder.MapPost(SalesCancelShipment, "shipments/{id:guid}/cancel");
+
     }
 
     [EndpointSummary("Siparişler")]
@@ -100,6 +108,37 @@ public class Sales : IEndpointGroup {
     public static async Task<FileContentHttpResult> SalesOrderProforma(ISender sender, Guid id) {
         var file = await sender.Send(new GetOrderProformaQuery(id));
         return TypedResults.File(file.Content, "application/pdf", file.FileName);
+    }
+
+    [EndpointSummary("Sevkler")]
+    [EndpointDescription("satis.read. Süzgeçler: status, orderId, currentAccountId, search (sevk no / sipariş no / müşteri), page, pageSize.")]
+    public static async Task<Ok<ShipmentListResult>> SalesShipments(ISender sender, ShipmentStatus? status, Guid? orderId, Guid? currentAccountId, string? search, int page = 1, int pageSize = 25) {
+        return TypedResults.Ok(await sender.Send(new ListShipmentsQuery(status, orderId, currentAccountId, search, page, pageSize)));
+    }
+
+    [EndpointSummary("Sevk oluştur")]
+    [EndpointDescription("satis.ship. Gövde: { orderId, warehouseId?, date?, deliveryAddressId?, cargoNote?, notes?, lines[{ orderLineId, quantity, lots?, serials? }] }. Rezervasyonu tüketir, SalesShipment stok çıkışı yazar; sipariş kısmen/tamamen sevk edilmiş olur. 400 ship_exceeds_open, 409 supply_pending (siparişe göre tedarik henüz gelmedi). 201 + sevk (durum shipped).")]
+    public static async Task<Created<ShipmentDto>> SalesCreateShipment(ISender sender, ShipmentInput input) {
+        var shipment = await sender.Send(new CreateShipmentCommand(input));
+        return TypedResults.Created($"/api/erp/sales/shipments/{shipment.Id}", shipment);
+    }
+
+    [EndpointSummary("Sevk detayı")]
+    [EndpointDescription("satis.read. Satırlar, teslimat adresi (sevk anında cari adreslerinden dondurulur), faturalanan miktarlar.")]
+    public static async Task<Ok<ShipmentDto>> SalesGetShipment(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetShipmentQuery(id)));
+    }
+
+    [EndpointSummary("Teslim edildi")]
+    [EndpointDescription("satis.ship. Gövde: { deliveredAt?, receivedBy? }. shipped -> delivered.")]
+    public static async Task<Ok<ShipmentDto>> SalesDeliverShipment(ISender sender, Guid id, DeliverInput? input) {
+        return TypedResults.Ok(await sender.Send(new DeliverShipmentCommand(id, input ?? new DeliverInput(null, null))));
+    }
+
+    [EndpointSummary("Sevki iptal et")]
+    [EndpointDescription("satis.ship. Gövde: { reason }. Stok çıkışı geri alınır, rezervasyon yeniden aktif olur. Faturaya bağlı sevk 409 shipment_invoiced.")]
+    public static async Task<Ok<ShipmentDto>> SalesCancelShipment(ISender sender, Guid id, ReasonBody body) {
+        return TypedResults.Ok(await sender.Send(new CancelShipmentCommand(id, body.Reason)));
     }
 
     [EndpointSummary("Teklifler")]

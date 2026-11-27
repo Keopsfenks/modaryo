@@ -161,6 +161,8 @@ public interface IApplicationDbContext {
 
     DbSet<ShipmentLine> ShipmentLines { get; }
 
+    DbSet<InvoicePlanConsumption> InvoicePlanConsumptions { get; }
+
     DbSet<SalesReturn> SalesReturns { get; }
 
     DbSet<SalesReturnLine> SalesReturnLines { get; }

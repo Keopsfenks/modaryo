@@ -182,6 +182,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
 
     public DbSet<ShipmentLine> ShipmentLines => Set<ShipmentLine>();
 
+    public DbSet<InvoicePlanConsumption> InvoicePlanConsumptions => Set<InvoicePlanConsumption>();
+
     public DbSet<SalesReturn> SalesReturns => Set<SalesReturn>();
 
     public DbSet<SalesReturnLine> SalesReturnLines => Set<SalesReturnLine>();

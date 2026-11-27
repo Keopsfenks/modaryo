@@ -61,6 +61,8 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Sales.Orders.ApprovalPipeline>();
         builder.Services.AddScoped<ERP.Application.Purchasing.IPurchaseLinkListener, ERP.Application.Sales.Orders.PurchaseLinkListener>();
         builder.Services.AddScoped<ERP.Application.Treasury.IPrepaymentWatcher, ERP.Application.Sales.Orders.PrepaymentWatcher>();
+        builder.Services.AddScoped<ERP.Application.Sales.Shipments.ShipmentService>();
+        builder.Services.AddScoped<ERP.Application.Sales.Shipments.ShipmentMapper>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Receipts.ReceiptMapper>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Receipts.ReceiptLineStock>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Returns.PurchaseReturnService>();
