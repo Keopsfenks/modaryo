@@ -41,7 +41,8 @@ public class SystemRolesTests
              "fatura.read", "fatura.manage", "fatura.issue", "fatura.cancel", "ayarlar.belgeler", "ayarlar.ebelge", "kur.manage",
              "finans.read", "finans.manage", "tahsilat.manage", "odeme.manage", "virman.manage", "masraf.manage", "ceksenet.manage", "muhasebe.manage", "muhasebe.export",
              "satinalma.read", "satinalma.manage", "satinalma.receive", "satinalma.quarantine", "ayarlar.satinalma",
-             "satis.read", "satis.manage", "satis.approve", "satis.limit-asimi", "satis.ship", "satis.return", "satis.recurring", "satis.targets", "ayarlar.satis"],
+             "satis.read", "satis.manage", "satis.approve", "satis.limit-asimi", "satis.ship", "satis.return", "satis.recurring", "satis.targets", "ayarlar.satis",
+             "sevkiyat.read", "sevkiyat.pick", "sevkiyat.pack", "sevkiyat.ship", "sevkiyat.deliver", "sevkiyat.plan", "ayarlar.sevkiyat"],
             ignoreOrder: true);
     }
 
@@ -50,7 +51,7 @@ public class SystemRolesTests
     {
         var member = SystemRoles.CreateDefaults(TenantId).Single(r => r.SystemKey == SystemRoles.Member);
 
-        member.Permissions.Select(p => p.Permission).ShouldBe(["members.read", "cari.read", "katalog.read", "fiyat.read", "stok.read", "fatura.read", "finans.read", "satinalma.read", "satis.read", "satis.manage"], ignoreOrder: true);
+        member.Permissions.Select(p => p.Permission).ShouldBe(["members.read", "cari.read", "katalog.read", "fiyat.read", "stok.read", "fatura.read", "finans.read", "satinalma.read", "satis.read", "satis.manage", "sevkiyat.read"], ignoreOrder: true);
     }
 
     [Test]

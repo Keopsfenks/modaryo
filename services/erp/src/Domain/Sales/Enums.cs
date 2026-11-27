@@ -9,7 +9,7 @@ public enum SalesOrderStatus { Draft, AwaitingLimitApproval, AwaitingPayment, Ap
 /// <summary>Siparişin faturalanma durumu (sipariş durumundan ayrı izlenir).</summary>
 public enum InvoiceState { None, Partial, Full }
 
-public enum ShipmentStatus { Draft, Shipped, Delivered, Cancelled }
+public enum ShipmentStatus { Draft, Shipped, Delivered, Cancelled, Picking, Packed, DeliveryFailed, Returned }
 
 public enum SalesReturnStatus { Draft, Posted, Cancelled }
 

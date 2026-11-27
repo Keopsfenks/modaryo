@@ -90,6 +90,14 @@ public static class PermissionCatalog
             new(Permissions.SalesTargets, null, "Satış", "Satış hedeflerini yönet", "Satış temsilcisi hedeflerini girebilir ve gerçekleşmeyi görebilir."),
             new(Permissions.SettingsSales, null, "Satış", "Satış ayarlarını yönet", "Teklif geçerlilik süresi, satış temsilcisi zorunluluğu ve taksit varsayılanlarını düzenleyebilir."),
 
+            new(Permissions.ShippingRead, null, "Sevkiyat", "Sevkiyat süreçlerini görüntüle", "Toplama listelerini, paketleri, teslimatları ve teslimat planlarını görüntüleyebilir."),
+            new(Permissions.ShippingPick, null, "Sevkiyat", "Mal topla", "Sevk için toplama listesi oluşturabilir ve toplama sonucunu girebilir."),
+            new(Permissions.ShippingPack, null, "Sevkiyat", "Paketle", "Sevkin kolilerini, ağırlık ve ölçülerini girebilir."),
+            new(Permissions.ShippingShip, null, "Sevkiyat", "Sevk et", "Paketlenmiş sevki kargoya verebilir; satış sevk işlemlerini de kapsar."),
+            new(Permissions.ShippingDeliver, null, "Sevkiyat", "Teslimatı kaydet", "Teslim kanıtı girebilir, teslim edilemeyen ve iade dönen sevkleri işleyebilir."),
+            new(Permissions.ShippingPlan, null, "Sevkiyat", "Teslimat planı yönet", "Teslimat planı oluşturabilir, durak ekleyebilir ve rota föyü alabilir."),
+            new(Permissions.SettingsShipping, null, "Sevkiyat", "Sevkiyat ayarlarını yönet", "Toplama-paketleme kullanımı, kargo firmaları ve müşteri bildirim ayarlarını düzenleyebilir."),
+
             new(Permissions.AuditRead, null, "Denetim", "Denetim kaydını görüntüle", "Firmadaki işlem geçmişini ve denetim kayıtlarını görüntüleyebilir."));
         CoreCount = Entries.Count;
     }

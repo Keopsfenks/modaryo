@@ -1,4 +1,5 @@
 using ERP.Domain.Invoicing;
+using ERP.Domain.Shipping;
 
 namespace ERP.Domain.Sales;
 
@@ -23,7 +24,22 @@ public class Shipment : BaseAuditableEntity, ITenantOwned {
     /// <summary>Faturalandıysa üretilen satış faturası.</summary>
     public Guid? InvoiceId { get; set; }
 
-    public List<ShipmentLine> Lines { get; set; } = new();
+    /// <summary>Kargo firması kodu (ShippingSettings.Carriers) ve takip numarası.</summary>
+    public string? CarrierCode { get; set; }
+    public string? TrackingNo  { get; set; }
+
+    /// <summary>İrsaliye numarası (IR{yyyy}{000001}, şube bazında) ve fiili çıkış zamanı.</summary>
+    public string?          IrsaliyeNo { get; set; }
+    public DateTimeOffset?  DispatchAt { get; set; }
+    public string?          Vehicle    { get; set; }
+    public string?          Driver     { get; set; }
+
+    /// <summary>Toplama listesi (Picking durumunda dolu).</summary>
+    public Guid?            PickListId { get; set; }
+
+    public List<ShipmentLine>    Lines    { get; set; } = new();
+    public List<Parcel>          Parcels  { get; set; } = new();
+    public List<DeliveryAttempt> Attempts { get; set; } = new();
 
     public uint Version  { get; set; }
     public Guid TenantId { get; set; }

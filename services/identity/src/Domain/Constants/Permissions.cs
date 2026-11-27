@@ -76,5 +76,13 @@ public static class Permissions
     public const string SalesTargets = "satis.targets";
     public const string SettingsSales = "ayarlar.satis";
 
+    public const string ShippingRead = "sevkiyat.read";
+    public const string ShippingPick = "sevkiyat.pick";
+    public const string ShippingPack = "sevkiyat.pack";
+    public const string ShippingShip = "sevkiyat.ship";
+    public const string ShippingDeliver = "sevkiyat.deliver";
+    public const string ShippingPlan = "sevkiyat.plan";
+    public const string SettingsShipping = "ayarlar.sevkiyat";
+
     public const string AuditRead = "denetim.read";
 }

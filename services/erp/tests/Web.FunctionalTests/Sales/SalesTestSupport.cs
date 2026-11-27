@@ -10,7 +10,7 @@ internal static class SalesTestSupport {
 
     public static readonly string[] Permissions = [
         .. AllPermissions, "satis.read", "satis.manage", "satis.approve", "satis.limit-asimi", "satis.ship", "satis.return", "satis.recurring", "satis.targets",
-        "ayarlar.satis", "fiyat.read", "fiyat.manage", "maliyet.read"
+        "ayarlar.satis", "sevkiyat.read", "sevkiyat.pick", "sevkiyat.pack", "sevkiyat.ship", "sevkiyat.deliver", "sevkiyat.plan", "ayarlar.sevkiyat", "fiyat.read", "fiyat.manage", "maliyet.read"
     ];
 
     public static Task<Env> NewSalesEnv(string[]? permissions = null, decimal? maxDiscount = null, string[]? modules = null) {

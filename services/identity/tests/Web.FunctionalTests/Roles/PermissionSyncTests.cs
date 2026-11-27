@@ -66,7 +66,10 @@ public class PermissionSyncTests : TestBase
     private static readonly string[] V10Codes =
         ["ayarlar.satis", "satis.approve", "satis.limit-asimi", "satis.manage", "satis.read", "satis.recurring", "satis.return", "satis.ship", "satis.targets"];
 
-    private static readonly string[] NewCodes = V2Codes.Concat(V3Codes).Concat(V4Codes).Concat(V5Codes).Concat(V6Codes).Concat(V7Codes).Concat(V8Codes).Concat(V9Codes).Concat(V10Codes).ToArray();
+    private static readonly string[] V11Codes =
+        ["ayarlar.sevkiyat", "sevkiyat.deliver", "sevkiyat.pack", "sevkiyat.pick", "sevkiyat.plan", "sevkiyat.read", "sevkiyat.ship"];
+
+    private static readonly string[] NewCodes = V2Codes.Concat(V3Codes).Concat(V4Codes).Concat(V5Codes).Concat(V6Codes).Concat(V7Codes).Concat(V8Codes).Concat(V9Codes).Concat(V10Codes).Concat(V11Codes).ToArray();
 
     private static TenantRole LegacyRole(Guid tenantId, string name, string? systemKey, string[] permissions)
     {
@@ -94,7 +97,7 @@ public class PermissionSyncTests : TestBase
         added.ShouldBeGreaterThanOrEqualTo(5);
         var admin = await PermissionsOfAsync(tenantId, "admin");
         admin.ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
-        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "fiyat.read", "katalog.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "stok.read"]);
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "fiyat.read", "katalog.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "sevkiyat.read", "stok.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
     }
 
@@ -107,7 +110,7 @@ public class PermissionSyncTests : TestBase
 
         added.ShouldBeGreaterThanOrEqualTo(3);
         (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
-        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "fiyat.read", "katalog.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "stok.read"]);
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "fiyat.read", "katalog.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "sevkiyat.read", "stok.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
     }
 
@@ -120,7 +123,7 @@ public class PermissionSyncTests : TestBase
 
         added.ShouldBeGreaterThanOrEqualTo(4);
         (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
-        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "fiyat.read", "katalog.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "stok.read"]);
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "fiyat.read", "katalog.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "sevkiyat.read", "stok.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
         PermissionCatalog.All.Where(p => p.Group == "Katalog").Select(p => p.Code).Order().ToArray()
             .ShouldBe(["ayarlar.katalog", "katalog.manage", "katalog.read"], ignoreOrder: true);
@@ -135,7 +138,7 @@ public class PermissionSyncTests : TestBase
 
         added.ShouldBeGreaterThanOrEqualTo(5);
         (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
-        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "fiyat.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "stok.read"]);
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "fiyat.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "sevkiyat.read", "stok.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
         PermissionCatalog.All.Where(p => p.Group == "Fiyatlandırma").Select(p => p.Code).ToArray()
             .ShouldBe(["fiyat.read", "fiyat.manage", "fiyat.alis", "ayarlar.fiyat"], ignoreOrder: true);
@@ -150,7 +153,7 @@ public class PermissionSyncTests : TestBase
 
         added.ShouldBeGreaterThanOrEqualTo(6);
         (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
-        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "stok.read"]);
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "sevkiyat.read", "stok.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
         PermissionCatalog.All.Where(p => p.Group == "Stok").Select(p => p.Code).ToArray()
             .ShouldBe(["stok.read", "stok.manage", "stok.sayim", "maliyet.read", "ayarlar.stok"], ignoreOrder: true);
@@ -165,7 +168,7 @@ public class PermissionSyncTests : TestBase
 
         added.ShouldBeGreaterThanOrEqualTo(7);
         (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
-        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "members.read", "satinalma.read", "satis.manage", "satis.read"]);
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "fatura.read", "finans.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "sevkiyat.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
         PermissionCatalog.All.Where(p => p.Group == "Fatura").Select(p => p.Code).ToArray()
             .ShouldBe(V7Codes, ignoreOrder: true);
@@ -179,9 +182,9 @@ public class PermissionSyncTests : TestBase
         var added = await SyncAsync();
 
         added.ShouldBeGreaterThanOrEqualTo(10);
-        SystemRoles.LatestPermissionSetVersion.ShouldBe(10);
+        SystemRoles.LatestPermissionSetVersion.ShouldBe(11);
         (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
-        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "finans.read", "members.read", "satinalma.read", "satis.manage", "satis.read"]);
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "finans.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "sevkiyat.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
         PermissionCatalog.All.Where(p => p.Group == "Finans").Select(p => p.Code).ToArray()
             .ShouldBe(V8Codes, ignoreOrder: true);
@@ -196,7 +199,7 @@ public class PermissionSyncTests : TestBase
 
         added.ShouldBeGreaterThanOrEqualTo(6);
         (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
-        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "members.read", "satinalma.read", "satis.manage", "satis.read"]);
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "members.read", "satinalma.read", "satis.manage", "satis.read", "sevkiyat.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
         PermissionCatalog.All.Where(p => p.Group == "Satın alma").Select(p => p.Code).ToArray()
             .ShouldBe(V9Codes, ignoreOrder: true);
@@ -211,10 +214,24 @@ public class PermissionSyncTests : TestBase
 
         added.ShouldBeGreaterThanOrEqualTo(11);
         (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
-        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "members.read", "satis.manage", "satis.read"]);
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "members.read", "satis.manage", "satis.read", "sevkiyat.read"]);
         (await PermissionsOfAsync(tenantId, "owner")).ShouldBe(["*"]);
         PermissionCatalog.All.Where(p => p.Group == "Satış").Select(p => p.Code).ToArray()
             .ShouldBe(V10Codes, ignoreOrder: true);
+    }
+
+    [Test]
+    public async Task Sync_AppliesVersion11ShippingPermissions()
+    {
+        var (tenantId, _) = await SeedLegacyTenantAsync(10, AdminV1.Concat(V2Codes).Concat(V3Codes).Concat(V4Codes).Concat(V5Codes).Concat(V6Codes).Concat(V7Codes).Concat(V8Codes).Concat(V9Codes).Concat(V10Codes).ToArray());
+
+        var added = await SyncAsync();
+
+        added.ShouldBeGreaterThanOrEqualTo(8);
+        SystemRoles.LatestPermissionSetVersion.ShouldBe(11);
+        (await PermissionsOfAsync(tenantId, "admin")).ShouldBe(AdminV1.Concat(NewCodes).Order().ToArray());
+        (await PermissionsOfAsync(tenantId, "member")).ShouldBe(["cari.read", "members.read", "sevkiyat.read"]);
+        PermissionCatalog.All.Where(p => p.Group == "Sevkiyat").Select(p => p.Code).ToArray().ShouldBe(V11Codes, ignoreOrder: true);
     }
 
     [Test]

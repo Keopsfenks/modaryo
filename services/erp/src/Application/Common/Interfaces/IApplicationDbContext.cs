@@ -6,6 +6,7 @@ using ERP.Domain.Invoicing;
 using ERP.Domain.Pricing;
 using ERP.Domain.Purchasing;
 using ERP.Domain.Sales;
+using ERP.Domain.Shipping;
 using ERP.Domain.Settings;
 using ERP.Domain.Treasury;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -160,6 +161,20 @@ public interface IApplicationDbContext {
     DbSet<Shipment> Shipments { get; }
 
     DbSet<ShipmentLine> ShipmentLines { get; }
+
+    DbSet<Parcel> Parcels { get; }
+
+    DbSet<DeliveryAttempt> DeliveryAttempts { get; }
+
+    DbSet<DeliveryProof> DeliveryProofs { get; }
+
+    DbSet<PickList> PickLists { get; }
+
+    DbSet<PickLine> PickLines { get; }
+
+    DbSet<DeliveryPlan> DeliveryPlans { get; }
+
+    DbSet<DeliveryStop> DeliveryStops { get; }
 
     DbSet<InvoicePlanConsumption> InvoicePlanConsumptions { get; }
 

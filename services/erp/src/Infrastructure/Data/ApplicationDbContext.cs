@@ -11,6 +11,7 @@ using ERP.Domain.Invoicing;
 using ERP.Domain.Pricing;
 using ERP.Domain.Purchasing;
 using ERP.Domain.Sales;
+using ERP.Domain.Shipping;
 using ERP.Domain.Settings;
 using ERP.Domain.Treasury;
 using Microsoft.EntityFrameworkCore;
@@ -181,6 +182,20 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<Shipment> Shipments => Set<Shipment>();
 
     public DbSet<ShipmentLine> ShipmentLines => Set<ShipmentLine>();
+
+    public DbSet<Parcel> Parcels => Set<Parcel>();
+
+    public DbSet<DeliveryAttempt> DeliveryAttempts => Set<DeliveryAttempt>();
+
+    public DbSet<DeliveryProof> DeliveryProofs => Set<DeliveryProof>();
+
+    public DbSet<PickList> PickLists => Set<PickList>();
+
+    public DbSet<PickLine> PickLines => Set<PickLine>();
+
+    public DbSet<DeliveryPlan> DeliveryPlans => Set<DeliveryPlan>();
+
+    public DbSet<DeliveryStop> DeliveryStops => Set<DeliveryStop>();
 
     public DbSet<InvoicePlanConsumption> InvoicePlanConsumptions => Set<InvoicePlanConsumption>();
 

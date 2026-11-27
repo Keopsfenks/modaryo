@@ -173,6 +173,11 @@ public class ShipmentConfiguration : IEntityTypeConfiguration<Shipment> {
         builder.Property(e => e.ReceivedBy).HasMaxLength(200);
         builder.Property(e => e.Notes).HasMaxLength(1000);
         builder.Property(e => e.CancelReason).HasMaxLength(200);
+        builder.Property(e => e.CarrierCode).HasMaxLength(30);
+        builder.Property(e => e.TrackingNo).HasMaxLength(100);
+        builder.Property(e => e.IrsaliyeNo).HasMaxLength(30);
+        builder.Property(e => e.Vehicle).HasMaxLength(100);
+        builder.Property(e => e.Driver).HasMaxLength(100);
         builder.Property(e => e.Version).AsXmin();
         builder.OwnsOne(e => e.DeliveryAddress, o => o.ToJson());
 
@@ -185,6 +190,7 @@ public class ShipmentConfiguration : IEntityTypeConfiguration<Shipment> {
         builder.HasIndex(e => new { e.TenantId, e.SalesOrderId });
         builder.HasIndex(e => new { e.TenantId, e.Status, e.Date });
         builder.HasIndex(e => e.InvoiceId);
+        builder.HasIndex(e => e.PickListId);
     }
 }
 
