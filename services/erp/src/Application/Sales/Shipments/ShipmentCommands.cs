@@ -35,7 +35,7 @@ public sealed class CreateShipmentCommandHandler(
             if (!await db.LockSalesOrderAsync(head.Id, ct)) throw new NotFoundException(head.Id.ToString(), "SalesOrder");
             db.ClearTracking();
             var order    = await OrderRules.LoadAsync(db, tenant, head.Id, true, ct);
-            var shipment = await shipments.ShipAsync(order, request.Input, ct);
+            var shipment = request.Input.Draft ? await shipments.CreateDraftAsync(order, request.Input, ct) : await shipments.ShipAsync(order, request.Input, ct);
             await tx.CommitAsync(ct);
             return await mapper.ToDtoAsync(shipment, ct);
         } catch (DbUpdateConcurrencyException) {

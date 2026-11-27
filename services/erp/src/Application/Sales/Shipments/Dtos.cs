@@ -12,7 +12,8 @@ public sealed record ShipmentInput(
     Guid?                            DeliveryAddressId,
     string?                          CargoNote,
     string?                          Notes,
-    IReadOnlyList<ShipmentLineInput> Lines
+    IReadOnlyList<ShipmentLineInput> Lines,
+    bool                             Draft = false
 );
 
 public sealed record DeliverInput(DateTimeOffset? DeliveredAt, string? ReceivedBy);
@@ -54,8 +55,25 @@ public sealed record ShipmentDto(
     string?                        CancelReason,
     Guid?                          InvoiceId,
     uint                           Version,
-    IReadOnlyList<ShipmentLineDto> Lines
+    IReadOnlyList<ShipmentLineDto> Lines,
+    string?                        CarrierCode,
+    string?                        TrackingNo,
+    string?                        IrsaliyeNo,
+    DateTimeOffset?                DispatchAt,
+    string?                        Vehicle,
+    string?                        Driver,
+    Guid?                          PickListId,
+    decimal                        TotalWeightKg,
+    decimal                        TotalDesi,
+    IReadOnlyList<ParcelDto>       Parcels,
+    IReadOnlyList<AttemptDto>      Attempts
 );
+
+public sealed record ParcelContentDto(Guid ShipmentLineId, decimal Quantity);
+
+public sealed record ParcelDto(Guid Id, int Index, decimal WeightKg, decimal WidthCm, decimal LengthCm, decimal HeightCm, decimal Desi, IReadOnlyList<ParcelContentDto> Contents);
+
+public sealed record AttemptDto(int AttemptNo, DateTimeOffset SentAt, string Outcome, DateTimeOffset? ResolvedAt, string? FailureReason);
 
 public sealed record ShipmentRowDto(
     Guid           Id,

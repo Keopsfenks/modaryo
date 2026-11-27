@@ -132,6 +132,26 @@ public sealed class QuestPdfRenderer(
         return await Task.Run(() => new SalesDocumentTemplate(model).GeneratePdf(), ct);
     }
 
+    public async Task<byte[]> RenderPickListAsync(Guid pickListId, CancellationToken ct) {
+        var list = await db.PickLists.AsNoTracking().Include(p => p.Lines).FirstOrDefaultAsync(p => p.Id == pickListId, ct)
+                   ?? throw new NotFoundException(pickListId.ToString(), "PickList");
+        var warehouse  = await db.Warehouses.AsNoTracking().Where(w => w.Id == list.WarehouseId).Select(w => w.Name).FirstOrDefaultAsync(ct);
+        var ids        = list.ShipmentIds.ToList();
+        var shipments  = await db.Shipments.AsNoTracking().Where(s => ids.Contains(s.Id)).OrderBy(s => s.Number).Select(s => s.Number).ToListAsync(ct);
+        var productIds = list.Lines.Select(l => l.ProductId).Distinct().ToList();
+        var products   = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).Select(p => new { p.Id, p.Code }).ToDictionaryAsync(p => p.Id, p => p.Code, ct);
+        var firm       = await settings.GetAsync<CompanyProfileSettings>(ct);
+        var document   = await settings.GetAsync<DocumentSettings>(ct);
+        var lines = list.Lines.OrderBy(l => l.Sort).Select(l => new PickPdfLine(
+                                                               l.Sort, products.GetValueOrDefault(l.ProductId) ?? string.Empty, l.Description, l.Unit, l.Quantity, l.PickedQuantity, l.Location,
+                                                               l.SuggestedLots is { Count: > 0 } lots
+                                                                   ? string.Join(", ", lots.Select(x => $"{x.LotNo} ({x.Quantity:0.######})"))
+                                                                   : null)).ToList();
+        var date  = DateOnly.FromDateTime(list.Created.ToOffset(TimeSpan.FromHours(3)).DateTime);
+        var model = new PickPdfModel(list.Number, list.Status, date, warehouse ?? string.Empty, firm.LegalName ?? string.Empty, shipments, lines, document.AccentColor, document.FooterNote);
+        return await Task.Run(() => new PickListTemplate(model).GeneratePdf(), ct);
+    }
+
     private async Task<List<SalesPdfLine>> SalesLinesAsync(
         IReadOnlyList<(int Sort, Guid ProductId, string Description, string Unit, decimal Quantity, decimal? Width, decimal? Length, decimal UnitPrice, decimal? DiscountPercent, int VatRate, decimal Net, decimal Total)> rows,
         CancellationToken ct) {

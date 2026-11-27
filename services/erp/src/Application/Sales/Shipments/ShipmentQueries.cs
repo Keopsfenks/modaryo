@@ -12,8 +12,13 @@ public sealed class ShipmentMapper(IApplicationDbContext db) {
         var lines = s.Lines.OrderBy(l => l.Sort)
                      .Select(l => new ShipmentLineDto(l.Id, l.Sort, l.SalesOrderLineId, l.ProductId, l.VariantId, l.Description, l.Unit, l.Factor, l.Quantity, l.Width, l.Length,
                                                       l.InvoicedQuantity, l.Lots, l.Serials)).ToList();
+        var parcels = (await db.Parcels.AsNoTracking().Where(p => p.ShipmentId == s.Id).OrderBy(p => p.Index).ToListAsync(ct))
+                      .Select(p => new ParcelDto(p.Id, p.Index, p.WeightKg, p.WidthCm, p.LengthCm, p.HeightCm, p.Desi, p.Contents.Select(c => new ParcelContentDto(c.ShipmentLineId, c.Quantity)).ToList())).ToList();
+        var attempts = (await db.DeliveryAttempts.AsNoTracking().Where(a => a.ShipmentId == s.Id).OrderBy(a => a.AttemptNo).ToListAsync(ct))
+                       .Select(a => new AttemptDto(a.AttemptNo, a.SentAt, a.Outcome.ToString(), a.ResolvedAt, a.FailureReason)).ToList();
         return new ShipmentDto(s.Id, s.Number, s.Status, s.SalesOrderId, order ?? string.Empty, s.CurrentAccountId, customer ?? string.Empty, s.BranchId, s.WarehouseId, s.Date,
-                               s.ShippedAt, s.DeliveredAt, s.ReceivedBy, s.DeliveryAddress, s.CargoNote, s.Notes, s.CancelReason, s.InvoiceId, s.Version, lines);
+                               s.ShippedAt, s.DeliveredAt, s.ReceivedBy, s.DeliveryAddress, s.CargoNote, s.Notes, s.CancelReason, s.InvoiceId, s.Version, lines,
+                               s.CarrierCode, s.TrackingNo, s.IrsaliyeNo, s.DispatchAt, s.Vehicle, s.Driver, s.PickListId, parcels.Sum(p => p.WeightKg), parcels.Sum(p => p.Desi), parcels, attempts);
     }
 }
 

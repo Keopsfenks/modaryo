@@ -19,4 +19,7 @@ public interface IDocumentPdf {
 
     /// <summary>Satış siparişinin A4 PDF'i: proforma false ise sipariş onayı, true ise proforma fatura.</summary>
     Task<byte[]> RenderSalesOrderAsync(Guid orderId, bool proforma, CancellationToken ct);
+
+    /// <summary>Toplama listesinin A4 PDF'i (kalem, miktar, konum, önerilen lotlar ve işaret kutusu). Yetki ve şube denetimi çağıranındır.</summary>
+    Task<byte[]> RenderPickListAsync(Guid pickListId, CancellationToken ct);
 }

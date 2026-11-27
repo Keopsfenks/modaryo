@@ -5,6 +5,8 @@ using ERP.Application.Sales.Recurring;
 using ERP.Application.Sales.Targets;
 using ERP.Application.Sales.Returns;
 using ERP.Application.Sales.Shipments;
+using ERP.Application.Shipping.Packing;
+using ERP.Application.Shipping.Picking;
 using ERP.Application.Sales.Quotes;
 using ERP.Domain.Sales;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -43,6 +45,8 @@ public class Sales : IEndpointGroup {
         groupBuilder.MapGet(SalesGetShipment, "shipments/{id:guid}");
         groupBuilder.MapPost(SalesDeliverShipment, "shipments/{id:guid}/deliver");
         groupBuilder.MapPost(SalesCancelShipment, "shipments/{id:guid}/cancel");
+        groupBuilder.MapPost(SalesShipmentPickList, "shipments/{id:guid}/pick-list");
+        groupBuilder.MapPut(SalesShipmentParcels, "shipments/{id:guid}/parcels");
 
         groupBuilder.MapGet(SalesReturns, "returns");
         groupBuilder.MapPost(SalesCreateReturn, "returns");
@@ -146,7 +150,7 @@ public class Sales : IEndpointGroup {
     }
 
     [EndpointSummary("Sevk oluştur")]
-    [EndpointDescription("satis.ship. Gövde: { orderId, warehouseId?, date?, deliveryAddressId?, cargoNote?, notes?, lines[{ orderLineId, quantity, lots?, serials? }] }. Rezervasyonu tüketir, SalesShipment stok çıkışı yazar; sipariş kısmen/tamamen sevk edilmiş olur. 400 ship_exceeds_open, 409 supply_pending (siparişe göre tedarik henüz gelmedi). 201 + sevk (durum shipped).")]
+    [EndpointDescription("satis.ship. Gövde: { orderId, warehouseId?, date?, deliveryAddressId?, cargoNote?, notes?, draft?, lines[{ orderLineId, quantity, lots?, serials? }] }. draft true ise stok çıkışı yapılmadan taslak sevk (201, durum draft) oluşturulur; toplama-paketleme akışı buradan başlar. Rezervasyonu tüketir, SalesShipment stok çıkışı yazar; sipariş kısmen/tamamen sevk edilmiş olur. 400 ship_exceeds_open, 409 supply_pending (siparişe göre tedarik henüz gelmedi). 201 + sevk (durum shipped).")]
     public static async Task<Created<ShipmentDto>> SalesCreateShipment(ISender sender, ShipmentInput input) {
         var shipment = await sender.Send(new CreateShipmentCommand(input));
         return TypedResults.Created($"/api/erp/sales/shipments/{shipment.Id}", shipment);
@@ -168,6 +172,19 @@ public class Sales : IEndpointGroup {
     [EndpointDescription("satis.ship. Gövde: { reason }. Stok çıkışı geri alınır, rezervasyon yeniden aktif olur. Faturaya bağlı sevk 409 shipment_invoiced.")]
     public static async Task<Ok<ShipmentDto>> SalesCancelShipment(ISender sender, Guid id, ReasonBody body) {
         return TypedResults.Ok(await sender.Send(new CancelShipmentCommand(id, body.Reason)));
+    }
+
+    [EndpointSummary("Sevk için toplama listesi")]
+    [EndpointDescription("sevkiyat.pick. Taslak sevk için FEFO lot önerili toplama listesi oluşturur; sevk picking olur. Toplu liste: POST /api/erp/shipping/pick-lists/batch.")]
+    public static async Task<Created<PickListDto>> SalesShipmentPickList(ISender sender, Guid id) {
+        var list = await sender.Send(new CreatePickListCommand(id));
+        return TypedResults.Created($"/api/erp/shipping/pick-lists/{list.Id}", list);
+    }
+
+    [EndpointSummary("Sevk kolileri")]
+    [EndpointDescription("sevkiyat.pack. Gövde: { parcels[{ weightKg, widthCm, lengthCm, heightCm, contents[{ shipmentLineId, qty }] }] }. Kolileri değiştirir (desi = en x boy x yükseklik / 3000, 0,1'e yukarı) ve sevki packed yapar. 409 parcel_required | pick_incomplete | invalid_shipment_transition, 400 parcel_contents_mismatch.")]
+    public static async Task<Ok<ShipmentDto>> SalesShipmentParcels(ISender sender, Guid id, PackInput input) {
+        return TypedResults.Ok(await sender.Send(new PackShipmentCommand(id, input)));
     }
 
     [EndpointSummary("Sevklerden fatura taslağı")]

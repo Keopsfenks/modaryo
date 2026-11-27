@@ -174,8 +174,99 @@ public sealed class ShipmentService(
         return shipment;
     }
 
+    /// <summary>
+    ///     Taslak sevk (toplama-paketleme akışı): stok çıkışı ve sevk edilen miktar sevk anında (Dispatch) işlenir; taslak yalnızca açık miktarı ayırır.
+    ///     Aynı siparişin diğer canlı taslakları (Draft/Picking/Packed) açık miktardan düşülür. Sipariş kilidi çağıranda alınmış olmalıdır.
+    /// </summary>
+    public async Task<Shipment> CreateDraftAsync(SalesOrder order, ShipmentInput input, CancellationToken ct) {
+        if (order.Status is not (SalesOrderStatus.Approved or SalesOrderStatus.PartiallyShipped))
+            throw SalesErrors.Conflict("order_not_shippable", "Yalnızca onaylı ya da kısmen sevk edilmiş siparişler sevk edilebilir.");
+        if (input.Lines.Count == 0) throw SalesErrors.Bad("lines_required", "Sevk için en az bir satır seçilmelidir.");
+
+        var live = new[] { ShipmentStatus.Draft, ShipmentStatus.Picking, ShipmentStatus.Packed };
+        var pending = (await db.ShipmentLines.AsNoTracking()
+                               .Where(l => db.Shipments.Any(s => s.Id == l.ShipmentId && s.SalesOrderId == order.Id && live.Contains(s.Status)))
+                               .Select(l => new { l.SalesOrderLineId, l.Quantity }).ToListAsync(ct))
+                      .GroupBy(l => l.SalesOrderLineId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+
+        var wanted = new List<Wanted>();
+        foreach (var group in input.Lines.GroupBy(l => l.OrderLineId)) {
+            var line     = order.Lines.FirstOrDefault(l => l.Id == group.Key) ?? throw SalesErrors.Bad("order_line_invalid", "Sevk satırı siparişe ait değil.");
+            var quantity = group.Sum(g => g.Quantity);
+            if (quantity <= 0m) throw SalesErrors.Bad("quantity_required", "Sevk miktarı sıfırdan büyük olmalıdır.");
+            if (Math.Round(quantity, 6) != quantity) throw SalesErrors.Bad("quantity_scale", "Sevk miktarı en fazla 6 ondalık basamak içerebilir.");
+            var available = line.OpenQuantity - pending.GetValueOrDefault(line.Id);
+            if (quantity > available)
+                throw SalesErrors.Bad("ship_exceeds_open", $"\"{line.Description}\" için sevk edilebilecek en fazla miktar {Math.Max(0m, available):0.######}.");
+            var merged = group.Count() == 1
+                             ? group.First()
+                             : new ShipmentLineInput(group.Key, quantity, group.SelectMany(g => g.Lots ?? []).ToList(), group.SelectMany(g => g.Serials ?? []).ToList());
+            wanted.Add(new Wanted(line, quantity, merged));
+        }
+
+        var lineIds  = wanted.Select(w => w.Line.Id).ToList();
+        var reserved = (await db.Reservations.AsNoTracking()
+                                .Where(r => r.SourceType == SalesStock.SourceType && r.SourceId == order.Id && lineIds.Contains(r.SourceLineId) && r.Status == ReservationStatus.Active)
+                                .ToListAsync(ct)).GroupBy(r => r.SourceLineId).ToDictionary(g => g.Key, g => g.ToList());
+        var productIds = wanted.Select(w => w.Line.ProductId).Distinct().ToList();
+        var products   = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+
+        Warehouse warehouse;
+        if (input.WarehouseId is { } wid) {
+            warehouse = await db.Warehouses.AsNoTracking().FirstOrDefaultAsync(w => w.Id == wid, ct) ?? throw new NotFoundException(wid.ToString(), "Warehouse");
+            BranchGuard.Ensure(tenant, warehouse.BranchId);
+            if (warehouse.BranchId != order.BranchId) throw SalesErrors.Bad("warehouse_branch_mismatch", "Depo, siparişin şubesine ait değil.");
+            if (!warehouse.IsActive) throw SalesErrors.Conflict("warehouse_inactive", "Depo pasif.");
+        } else {
+            var first = reserved.Values.SelectMany(r => r).OrderBy(r => r.Id).FirstOrDefault();
+            warehouse = first is not null
+                            ? await db.Warehouses.AsNoTracking().FirstAsync(w => w.Id == first.WarehouseId, ct)
+                            : await defaults.EnsureAsync(order.BranchId, ct);
+        }
+
+        foreach (var w in wanted) {
+            var product = products[w.Line.ProductId];
+            if (product.Kind == ProductKind.Service || product.IsBundle) continue;
+            if (!reserved.TryGetValue(w.Line.Id, out var rows) || rows.Count == 0)
+                throw SalesErrors.Conflict("reservation_missing", $"\"{w.Line.Description}\" için aktif rezervasyon yok.");
+            if (rows.Any(r => r.ExpectedReceiptSourceId != null))
+                throw SalesErrors.Conflict("supply_pending", $"\"{w.Line.Description}\" için tedarik henüz tamamen gelmedi; mal kabulden sonra sevk edilebilir.");
+            if (input.WarehouseId is not null && rows.Any(r => r.WarehouseId != warehouse.Id))
+                throw SalesErrors.Bad("warehouse_mismatch", $"\"{w.Line.Description}\" başka bir depoda rezerve edilmiş; sevk deposu rezervasyon deposuyla aynı olmalıdır.");
+        }
+
+        var date     = input.Date ?? DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime.AddHours(3));
+        var shipment = new Shipment {
+            Number = await DocumentNumbers.NextAsync(db, "SV", date, ct), Status = ShipmentStatus.Draft, SalesOrderId = order.Id, CurrentAccountId = order.CurrentAccountId,
+            BranchId = order.BranchId, WarehouseId = warehouse.Id, Date = date,
+            DeliveryAddress = await ResolveAddressAsync(order.CurrentAccountId, input.DeliveryAddressId, ct),
+            CargoNote = string.IsNullOrWhiteSpace(input.CargoNote) ? null : input.CargoNote.Trim(),
+            Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim()
+        };
+        var sort = 1;
+        foreach (var w in wanted.OrderBy(w => w.Line.Sort)) {
+            shipment.Lines.Add(new ShipmentLine {
+                ShipmentId = shipment.Id, Sort = sort++, SalesOrderLineId = w.Line.Id, ProductId = w.Line.ProductId, VariantId = w.Line.VariantId, Description = w.Line.Description,
+                Unit = w.Line.Unit, Factor = w.Line.Factor, Quantity = w.Quantity, Width = w.Line.Width, Length = w.Line.Length, WarehouseId = warehouse.Id,
+                Lots = w.Input.Lots is { Count: > 0 } ? w.Input.Lots : null, Serials = InvoiceRules.NormalizeSerials(w.Input.Serials)
+            });
+        }
+
+        db.Shipments.Add(shipment);
+        await db.SaveChangesAsync(ct);
+        return shipment;
+    }
+
     /// <summary>Sevki iptal eder: stok geri alınır, rezervasyon yeniden aktif olur (stok kontrolü yapılmaz). Sipariş kilidi çağıranda alınmış olmalıdır.</summary>
     public async Task CancelAsync(SalesOrder order, Shipment shipment, string reason, CancellationToken ct) {
+        // Taslak sevk: stok hareketi yok, yalnızca açık miktar ayrımı bırakılır (durum makinesi: Draft -> Cancelled).
+        if (shipment.Status == ShipmentStatus.Draft) {
+            shipment.Status       = ShipmentStatus.Cancelled;
+            shipment.CancelReason = reason.Trim();
+            await db.SaveChangesAsync(ct);
+            return;
+        }
+
         if (shipment.Status != ShipmentStatus.Shipped)
             throw SalesErrors.Conflict("shipment_not_cancellable", shipment.Status == ShipmentStatus.Cancelled ? "Sevk zaten iptal edilmiş." : "Yalnızca sevk edilmiş (teslim edilmemiş) sevkler iptal edilebilir.");
         if (order.Status is SalesOrderStatus.Closed or SalesOrderStatus.Cancelled)
