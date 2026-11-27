@@ -1,6 +1,8 @@
 using ERP.Application.Invoicing;
 using ERP.Application.Sales.Invoicing;
 using ERP.Application.Sales.Orders;
+using ERP.Application.Sales.Recurring;
+using ERP.Application.Sales.Targets;
 using ERP.Application.Sales.Returns;
 using ERP.Application.Sales.Shipments;
 using ERP.Application.Sales.Quotes;
@@ -46,6 +48,18 @@ public class Sales : IEndpointGroup {
         groupBuilder.MapPost(SalesCreateReturn, "returns");
         groupBuilder.MapGet(SalesGetReturn, "returns/{id:guid}");
         groupBuilder.MapPost(SalesCancelReturn, "returns/{id:guid}/cancel");
+
+        groupBuilder.MapGet(SalesRecurringList, "recurring");
+        groupBuilder.MapPost(SalesCreateRecurring, "recurring");
+        groupBuilder.MapGet(SalesGetRecurring, "recurring/{id:guid}");
+        groupBuilder.MapPut(SalesUpdateRecurring, "recurring/{id:guid}");
+        groupBuilder.MapPost(SalesPauseRecurring, "recurring/{id:guid}/pause");
+        groupBuilder.MapPost(SalesResumeRecurring, "recurring/{id:guid}/resume");
+        groupBuilder.MapGet(SalesRecurringRuns, "recurring/{id:guid}/runs");
+
+        groupBuilder.MapGet(SalesTargets, "targets");
+        groupBuilder.MapPut(SalesPutTargets, "targets");
+        groupBuilder.MapGet(SalesTargetActuals, "targets/actuals");
     }
 
     [EndpointSummary("Siparişler")]
@@ -241,5 +255,68 @@ public class Sales : IEndpointGroup {
     public static async Task<FileContentHttpResult> SalesQuotePdf(ISender sender, Guid id, int? revision) {
         var file = await sender.Send(new GetQuotePdfQuery(id, revision));
         return TypedResults.File(file.Content, "application/pdf", file.FileName);
+    }
+
+    [EndpointSummary("Tekrarlayan fatura şablonları")]
+    [EndpointDescription("satis.recurring. active? ve currentAccountId? süzgeçleri. Her satırda nextPeriod (üretilmemiş ilk dönem) ve lastPeriod bulunur.")]
+    public static async Task<Ok<IReadOnlyList<RecurringListItem>>> SalesRecurringList(ISender sender, bool? active, Guid? currentAccountId) {
+        return TypedResults.Ok(await sender.Send(new ListRecurringQuery(active, currentAccountId)));
+    }
+
+    [EndpointSummary("Tekrarlayan fatura şablonu oluştur")]
+    [EndpointDescription("satis.recurring. Gövde: { name?, currentAccountId, branchId, currency, interval (monthly|quarterly|yearly), dayOfMonth (1-28), startDate, endDate?, mode (draft|autoIssue), notes?, lines[{ productId?, variantId?, description?, unit?, quantity, unitPrice, vatIncluded, discountPercent?, vatRate?, fixedPrice (varsayılan true) }] }. Numara AB0001. fixedPrice=false olan kalemli satırlar üretim gününde fiyat listesinden yeniden fiyatlanır. Günlük iş (06:00 İstanbul) bugüne kadar üretilmemiş dönemlerin faturasını oluşturur; dönem başına tek fatura. 201 + şablon.")]
+    public static async Task<Created<RecurringDto>> SalesCreateRecurring(ISender sender, RecurringInput input) {
+        var template = await sender.Send(new CreateRecurringCommand(input));
+        return TypedResults.Created($"/api/erp/sales/recurring/{template.Id}", template);
+    }
+
+    [EndpointSummary("Tekrarlayan fatura şablonu detayı")]
+    [EndpointDescription("satis.recurring.")]
+    public static async Task<Ok<RecurringDto>> SalesGetRecurring(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetRecurringQuery(id)));
+    }
+
+    [EndpointSummary("Tekrarlayan fatura şablonunu güncelle")]
+    [EndpointDescription("satis.recurring. Değişiklik yalnızca sonraki üretimleri etkiler; üretilmiş faturalara dokunulmaz.")]
+    public static async Task<Ok<RecurringDto>> SalesUpdateRecurring(ISender sender, Guid id, RecurringInput input) {
+        return TypedResults.Ok(await sender.Send(new UpdateRecurringCommand(id, input)));
+    }
+
+    [EndpointSummary("Şablonu duraklat")]
+    [EndpointDescription("satis.recurring. Duraklatılan şablon fatura üretmez ve nakit akışı tahminine girmez.")]
+    public static async Task<Ok<RecurringDto>> SalesPauseRecurring(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new SetRecurringActiveCommand(id, false)));
+    }
+
+    [EndpointSummary("Şablonu sürdür")]
+    [EndpointDescription("satis.recurring. Duraklama sırasında atlanan dönemler (bitiş tarihine kadar) sonraki günlük işte geriye dönük üretilir.")]
+    public static async Task<Ok<RecurringDto>> SalesResumeRecurring(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new SetRecurringActiveCommand(id, true)));
+    }
+
+    [EndpointSummary("Şablonun ürettiği faturalar")]
+    [EndpointDescription("satis.recurring. Dönem sırasıyla; invoiceStatus draft|issued|cancelled, taslağı silinmişse deleted.")]
+    public static async Task<Ok<IReadOnlyList<RecurringRunDto>>> SalesRecurringRuns(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new ListRecurringRunsQuery(id)));
+    }
+
+    public sealed record TargetsBody(IReadOnlyList<TargetRowInput> Rows);
+
+    [EndpointSummary("Satış hedefleri")]
+    [EndpointDescription("satis.targets. year verilmezse içinde bulunulan yıl. Satırlar: temsilci x ay hedefi (amountTry).")]
+    public static async Task<Ok<TargetsDto>> SalesTargets(ISender sender, int? year) {
+        return TypedResults.Ok(await sender.Send(new GetTargetsQuery(year)));
+    }
+
+    [EndpointSummary("Satış hedeflerini kaydet")]
+    [EndpointDescription("satis.targets. Gövde: { rows[{ userId, month (1-12), amountTry }] }. Yılın tüm hedefleri bu satırlarla değiştirilir. 400 sales_rep_invalid (üye değil).")]
+    public static async Task<Ok<TargetsDto>> SalesPutTargets(ISender sender, int year, TargetsBody body) {
+        return TypedResults.Ok(await sender.Send(new PutTargetsCommand(year, body.Rows)));
+    }
+
+    [EndpointSummary("Hedef ve gerçekleşen")]
+    [EndpointDescription("satis.targets. Temsilci x ay: targetTry, actualTry (kesilmiş satış faturalarının KDV hariç TL net tutarı - kesilmiş iade faturaları), percent. Temsilci: sevkten kesilen faturada siparişin, iade belgesinde siparişin ya da asıl faturanın, diğerlerinde carinin varsayılan temsilcisi.")]
+    public static async Task<Ok<TargetActualsDto>> SalesTargetActuals(ISender sender, int? year) {
+        return TypedResults.Ok(await sender.Send(new GetTargetActualsQuery(year)));
     }
 }

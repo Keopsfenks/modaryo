@@ -230,6 +230,17 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
         return locked.Count > 0;
     }
 
+    public async Task<bool> LockRecurringTemplateAsync(Guid id, CancellationToken cancellationToken) {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Şablon kilidi yalnızca açık bir işlem içinde alınabilir.");
+
+        var tenantId = CurrentTenantId;
+        var locked = await Database
+                         .SqlQuery<Guid>($"SELECT \"Id\" AS \"Value\" FROM recurring_templates WHERE \"Id\" = {id} AND \"TenantId\" = {tenantId} FOR UPDATE")
+                         .ToListAsync(cancellationToken);
+        return locked.Count > 0;
+    }
+
     public async Task<bool> LockSalesOrderAsync(Guid id, CancellationToken cancellationToken) {
         if (Database.CurrentTransaction is null)
             throw new InvalidOperationException("Sipariş kilidi yalnızca açık bir işlem içinde alınabilir.");

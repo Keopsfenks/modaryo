@@ -217,6 +217,9 @@ public interface IApplicationDbContext {
     /// <summary>Satış siparişi satırını işlem sonuna kadar kilitler (FOR UPDATE); yoksa false.</summary>
     Task<bool> LockSalesOrderAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>Tekrarlayan fatura şablonu satırını işlem sonuna kadar kilitler (FOR UPDATE); yoksa false. Aynı dönemin iki kez üretilmesini önler. Açık işlem gerekir.</summary>
+    Task<bool> LockRecurringTemplateAsync(Guid id, CancellationToken cancellationToken);
+
     Task LockReceiptsAsync(IEnumerable<Guid> receiptIds, CancellationToken cancellationToken);
 
     /// <summary>

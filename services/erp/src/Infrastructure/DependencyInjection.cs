@@ -68,8 +68,11 @@ public static class DependencyInjection {
         builder.Services.AddSingleton<IDocumentMailer, ERP.Infrastructure.Documents.SmtpDocumentMailer>();
         builder.Services.AddSingleton<ERP.Infrastructure.Inventory.RevaluationWorker>();
         builder.Services.AddSingleton<ERP.Infrastructure.Sales.QuoteExpiryJob>();
-        if (builder.Configuration.GetValue("Sales:JobsEnabled", true))
+        builder.Services.AddSingleton<ERP.Infrastructure.Sales.RecurringInvoiceJob>();
+        if (builder.Configuration.GetValue("Sales:JobsEnabled", true)) {
             builder.Services.AddHostedService(sp => sp.GetRequiredService<ERP.Infrastructure.Sales.QuoteExpiryJob>());
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<ERP.Infrastructure.Sales.RecurringInvoiceJob>());
+        }
         if (builder.Configuration.GetValue("Inventory:RevaluationEnabled", true))
             builder.Services.AddHostedService(sp => sp.GetRequiredService<ERP.Infrastructure.Inventory.RevaluationWorker>());
         if (builder.Configuration.GetValue(OutboxOptions.Section + ":RelayEnabled", true))

@@ -9,7 +9,7 @@ using ERP.Domain.Treasury;
 
 namespace ERP.Application.Treasury.Reports;
 
-/// <summary>Kaynağa göre tutar (TL): açık vade satırları, açık çek/senetler, planlanan tekrarlı faturalar (P7 doldurur, şimdilik 0).</summary>
+/// <summary>Kaynağa göre tutar (TL): açık vade satırları, açık çek/senetler, henüz üretilmemiş tekrarlayan fatura dönemleri (yalnızca giriş).</summary>
 public sealed record CashFlowSources(decimal DueLines, decimal Instruments, decimal Recurring) {
     public decimal Total => DueLines + Instruments + Recurring;
 }
@@ -40,6 +40,7 @@ public sealed class CashFlowQueryHandler(
     OpenItemsReader       reader,
     IExchangeRates        rates,
     ITenantSettings       settings,
+    IRecurringForecast    recurring,
     TimeProvider          time
 ) : IRequestHandler<CashFlowQuery, CashFlowReportDto> {
     public async Task<CashFlowReportDto> Handle(CashFlowQuery request, CancellationToken ct) {
@@ -69,6 +70,7 @@ public sealed class CashFlowQueryHandler(
         var dueOut = new decimal[count];
         var insIn  = new decimal[count];
         var insOut = new decimal[count];
+        var recIn  = new decimal[count];
 
         // Gecikmiş kalemler ilk döneme; ufuktan sonrası dışarıda.
         int? Slot(DateOnly due) {
@@ -103,10 +105,17 @@ public sealed class CashFlowQueryHandler(
             else insOut[slot]                                                    += tl;
         }
 
+        // Tekrarlayan faturalar: yalnızca üretilmemiş gelecek dönemler (üretilenler fatura vadesi olarak yukarıda sayılır).
+        foreach (var item in await recurring.UpcomingAsync(start, horizon, ct)) {
+            if (Slot(item.Date) is not { } slot) continue;
+
+            recIn[slot] += await Tl(item.Amount, item.Currency);
+        }
+
         var periods = new List<CashFlowPeriodDto>();
         var closing = opening;
         for (var i = 0; i < count; i++) {
-            var inflow  = new CashFlowSources(dueIn[i], insIn[i], 0m);
+            var inflow  = new CashFlowSources(dueIn[i], insIn[i], recIn[i]);
             var outflow = new CashFlowSources(dueOut[i], insOut[i], 0m);
             var net     = inflow.Total - outflow.Total;
             closing += net;
