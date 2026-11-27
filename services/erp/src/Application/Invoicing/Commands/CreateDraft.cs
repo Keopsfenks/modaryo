@@ -24,6 +24,8 @@ public sealed class CreateDraftCommandHandler(
         var invoice = new Invoice { Status = InvoiceStatus.Draft, SourceType = "manual" };
         InvoiceBuilder.Apply(invoice, input, built);
         foreach (var line in built.Lines) {
+            // Elle kesilen satış faturasında sevk satırı bağı kurulamaz (bağ yalnızca sevkten fatura akışında oluşur).
+            if (input.Kind == InvoiceKind.Sales) line.SourceLineId = null;
             line.InvoiceId = invoice.Id;
             invoice.Lines.Add(line);
         }

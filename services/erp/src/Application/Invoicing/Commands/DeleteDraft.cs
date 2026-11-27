@@ -21,6 +21,10 @@ public sealed class DeleteDraftCommandHandler(
         BranchGuard.Ensure(tenant, invoice.BranchId);
         if (invoice.Status != InvoiceStatus.Draft) throw InvoiceErrors.NotDraft(invoice.Status);
 
+        // İade belgesinden gelen taslak silinemez: stok girişi belgededir; iade belgesi iptal edilir (taslak onunla silinir).
+        if (invoice.Kind == InvoiceKind.SalesReturn && invoice.SourceType == "sales-return")
+            throw InvoiceErrors.Conflict("return_invoice_locked", "İade belgesinden gelen taslak silinemez; iade belgesini iptal edin.");
+
         // Silinen kur farkı faturası taslağı işlenmiş kur farkını serbest bırakır (aynı kaydetmede).
         if (invoice.SourceType == "kur-farki") await Settlement.ReleaseAsync(db, invoice.Id, ct);
 

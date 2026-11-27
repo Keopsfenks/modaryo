@@ -227,9 +227,13 @@ public sealed class InvoiceBuilder(
 
         // Mal kabulden kesilen alış faturalarında satır bağı (mal kabul satırı) taslak düzenlenirken de korunur; geçersiz bağ atılır.
         var receiptLineIds = new HashSet<Guid>();
-        if (original is null && input.Kind == InvoiceKind.Purchase) {
+        if (original is null && input.Kind is InvoiceKind.Purchase or InvoiceKind.Sales) {
             var wanted = lines.Where(r => r.Line.SourceLineId != null).Select(r => r.Line.SourceLineId!.Value).ToList();
-            if (wanted.Count > 0) receiptLineIds = (await db.GoodsReceiptLines.AsNoTracking().Where(g => wanted.Contains(g.Id)).Select(g => g.Id).ToListAsync(ct)).ToHashSet();
+            if (wanted.Count > 0 && input.Kind == InvoiceKind.Purchase)
+                receiptLineIds = (await db.GoodsReceiptLines.AsNoTracking().Where(g => wanted.Contains(g.Id)).Select(g => g.Id).ToListAsync(ct)).ToHashSet();
+            // Sevkten kesilen satış faturalarında satır bağı (sevk satırı) taslak düzenlenirken de korunur.
+            else if (wanted.Count > 0)
+                receiptLineIds = (await db.ShipmentLines.AsNoTracking().Where(g => wanted.Contains(g.Id)).Select(g => g.Id).ToListAsync(ct)).ToHashSet();
         }
 
         var calc  = Calculate(lines.Select(r => r.Calc).ToList(), input);

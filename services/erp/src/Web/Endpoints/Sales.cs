@@ -1,4 +1,7 @@
+using ERP.Application.Invoicing;
+using ERP.Application.Sales.Invoicing;
 using ERP.Application.Sales.Orders;
+using ERP.Application.Sales.Returns;
 using ERP.Application.Sales.Shipments;
 using ERP.Application.Sales.Quotes;
 using ERP.Domain.Sales;
@@ -30,13 +33,19 @@ public class Sales : IEndpointGroup {
         groupBuilder.MapPost(SalesCloseOrder, "orders/{id:guid}/close");
         groupBuilder.MapPut(SalesSetPlan, "orders/{id:guid}/installment-plan");
         groupBuilder.MapGet(SalesOrderProforma, "orders/{id:guid}/proforma.pdf");
+        groupBuilder.MapPost(SalesQuickInvoice, "orders/{id:guid}/quick-invoice");
 
         groupBuilder.MapGet(SalesShipments, "shipments");
         groupBuilder.MapPost(SalesCreateShipment, "shipments");
+        groupBuilder.MapPost(SalesInvoiceDraft, "shipments/invoice-draft");
         groupBuilder.MapGet(SalesGetShipment, "shipments/{id:guid}");
         groupBuilder.MapPost(SalesDeliverShipment, "shipments/{id:guid}/deliver");
         groupBuilder.MapPost(SalesCancelShipment, "shipments/{id:guid}/cancel");
 
+        groupBuilder.MapGet(SalesReturns, "returns");
+        groupBuilder.MapPost(SalesCreateReturn, "returns");
+        groupBuilder.MapGet(SalesGetReturn, "returns/{id:guid}");
+        groupBuilder.MapPost(SalesCancelReturn, "returns/{id:guid}/cancel");
     }
 
     [EndpointSummary("Siparişler")]
@@ -110,6 +119,12 @@ public class Sales : IEndpointGroup {
         return TypedResults.File(file.Content, "application/pdf", file.FileName);
     }
 
+    [EndpointSummary("Hızlı fatura")]
+    [EndpointDescription("satis.ship + fatura.issue. Gövde: { warehouseId? }. Siparişin tüm açık miktarlarını sevk edip faturalayarak keser; tek işlemde (stok yetersizse hepsi geri alınır). Sonuç: { shipmentId, invoiceId, invoice }.")]
+    public static async Task<Ok<QuickInvoiceResult>> SalesQuickInvoice(ISender sender, Guid id, QuickInvoiceInput? input) {
+        return TypedResults.Ok(await sender.Send(new QuickInvoiceCommand(id, input?.WarehouseId)));
+    }
+
     [EndpointSummary("Sevkler")]
     [EndpointDescription("satis.read. Süzgeçler: status, orderId, currentAccountId, search (sevk no / sipariş no / müşteri), page, pageSize.")]
     public static async Task<Ok<ShipmentListResult>> SalesShipments(ISender sender, ShipmentStatus? status, Guid? orderId, Guid? currentAccountId, string? search, int page = 1, int pageSize = 25) {
@@ -139,6 +154,38 @@ public class Sales : IEndpointGroup {
     [EndpointDescription("satis.ship. Gövde: { reason }. Stok çıkışı geri alınır, rezervasyon yeniden aktif olur. Faturaya bağlı sevk 409 shipment_invoiced.")]
     public static async Task<Ok<ShipmentDto>> SalesCancelShipment(ISender sender, Guid id, ReasonBody body) {
         return TypedResults.Ok(await sender.Send(new CancelShipmentCommand(id, body.Reason)));
+    }
+
+    [EndpointSummary("Sevklerden fatura taslağı")]
+    [EndpointDescription("satis.manage + fatura.manage. Gövde: { shipmentIds[], date? } (aynı sipariş). Faturalanmamış sevk miktarlarıyla satış faturası taslağı; fiyat/iskonto/KDV siparişten donmuş gelir, vade planı siparişin taksit planından önizlenir (kesimde tüketilir). 409 nothing_to_invoice.")]
+    public static async Task<Created<InvoiceDto>> SalesInvoiceDraft(ISender sender, InvoiceFromShipmentsInput input) {
+        var invoice = await sender.Send(new CreateInvoiceFromShipmentsCommand(input));
+        return TypedResults.Created($"/api/erp/invoices/{invoice.Id}", invoice);
+    }
+
+    [EndpointSummary("İadeler")]
+    [EndpointDescription("satis.read. Süzgeçler: status, invoiceId, currentAccountId, page, pageSize.")]
+    public static async Task<Ok<ReturnListResult>> SalesReturns(ISender sender, SalesReturnStatus? status, Guid? invoiceId, Guid? currentAccountId, int page = 1, int pageSize = 25) {
+        return TypedResults.Ok(await sender.Send(new ListReturnsQuery(status, invoiceId, currentAccountId, page, pageSize)));
+    }
+
+    [EndpointSummary("İade oluştur")]
+    [EndpointDescription("satis.return. Gövde: { invoiceId, warehouseKind (normal|quarantine|damaged), warehouseId, date?, reason?, lines[{ invoiceLineId, quantity, lots?, serials? }] }. Stok girişi (SalesReturn, asıl çıkış maliyetiyle) yazar ve SalesReturn fatura taslağı üretir. 400 return_exceeds_invoiced, warehouse_kind_mismatch.")]
+    public static async Task<Created<ReturnDto>> SalesCreateReturn(ISender sender, ReturnInput input) {
+        var created = await sender.Send(new CreateReturnCommand(input));
+        return TypedResults.Created($"/api/erp/sales/returns/{created.Id}", created);
+    }
+
+    [EndpointSummary("İade detayı")]
+    [EndpointDescription("satis.read.")]
+    public static async Task<Ok<ReturnDto>> SalesGetReturn(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetReturnQuery(id)));
+    }
+
+    [EndpointSummary("İadeyi iptal et")]
+    [EndpointDescription("satis.return. Gövde: { reason }. Taslak iade faturası silinir, stok girişi geri alınır. Kesilmiş iade faturası varsa 409 return_invoice_issued (önce faturayı iptal edin).")]
+    public static async Task<Ok<ReturnDto>> SalesCancelReturn(ISender sender, Guid id, ReasonBody body) {
+        return TypedResults.Ok(await sender.Send(new CancelReturnCommand(id, body.Reason)));
     }
 
     [EndpointSummary("Teklifler")]

@@ -44,6 +44,14 @@ public sealed class InvoicePoster(
         return invoice.ExternalNumber is { Length: > 0 } external ? $"{title} (Tedarikçi no: {external})" : title;
     }
 
+    /// <summary>
+    ///     Kesimden önce (seri numarası ve stok kilitlerinden önce) eklentilerin belge kilitlerini ve vade planı gibi hazırlıklarını yapar.
+    ///     Kilit sırası her kesim yolunda aynıdır: cari, belge (sipariş vb.), seri numarası, stok.
+    /// </summary>
+    public async Task BeforeIssueAsync(Invoice invoice, CancellationToken ct) {
+        foreach (var hook in hooks) await hook.BeforePostAsync(invoice, false, ct);
+    }
+
     public async Task PostAsync(Invoice invoice, CancellationToken ct) {
         var cari = await db.CurrentAccounts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == invoice.CurrentAccountId, ct)
                    ?? throw new NotFoundException(invoice.CurrentAccountId.ToString(), "CurrentAccount");
@@ -102,6 +110,8 @@ public sealed class InvoicePoster(
     }
 
     public async Task ReverseAsync(Invoice invoice, string reason, CancellationToken ct) {
+        foreach (var hook in hooks) await hook.BeforePostAsync(invoice, true, ct);
+
         // Stok kilitleri tek seferde, defter değişikliklerinden önce.
         var keys = await db.StockMovements.AsNoTracking().Where(m => m.SourceType == StockSource && m.SourceId == invoice.Id && m.Quantity != 0m)
                            .Select(m => new { m.WarehouseId, m.ProductId, m.VariantId, Tracked = m.LotLines.Any() }).Distinct().ToListAsync(ct);

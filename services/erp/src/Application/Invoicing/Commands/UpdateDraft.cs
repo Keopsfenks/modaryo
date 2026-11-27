@@ -2,6 +2,8 @@ using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.Purchasing.Invoices;
+using ERP.Application.Sales.Invoicing;
+using ERP.Application.Sales.Returns;
 using ERP.Domain.Invoicing;
 
 namespace ERP.Application.Invoicing.Commands;
@@ -21,6 +23,8 @@ public sealed class UpdateDraftCommandHandler(
     ICurrentSession       session,
     InvoiceBuilder        builder,
     ReceiptInvoiceGuard   receiptGuard,
+    ShipmentInvoiceGuard  shipmentGuard,
+    ReturnService         returns,
     TimeProvider          clock
 ) : IRequestHandler<UpdateDraftCommand, InvoiceDto> {
     public async Task<InvoiceDto> Handle(UpdateDraftCommand request, CancellationToken ct) {
@@ -34,7 +38,14 @@ public sealed class UpdateDraftCommandHandler(
         var input = request.Input;
         var linked = ReceiptInvoiceGuard.IsReceiptLinked(invoice);
         if (linked) ReceiptInvoiceGuard.EnsureDraftFieldsLocked(invoice, input);
+        var shipmentLinked = ShipmentInvoiceLinks.IsLinked(invoice);
+        if (shipmentLinked) ShipmentInvoiceGuard.EnsureDraftFieldsLocked(invoice, input);
+        var returnLinked = invoice.Kind == InvoiceKind.SalesReturn && invoice.SourceType == ReturnService.Source;
+        if (returnLinked) ReturnService.EnsureDraftFieldsLocked(invoice, input);
         var built = await builder.BuildAsync(input, invoice.Id, false, ct);
+        // Sevke bağlı olmayan satış faturalarında sevk satırı bağı tutulmaz.
+        if (!shipmentLinked && invoice.Kind == InvoiceKind.Sales)
+            foreach (var line in built.Lines) line.SourceLineId = null;
 
         await using var tx = await db.BeginTransactionAsync(ct);
         try {
@@ -45,6 +56,15 @@ public sealed class UpdateDraftCommandHandler(
                 await receiptGuard.EnsureNotOverInvoicedAsync(receiptIds, invoice.Id,
                                                               built.Lines.Where(l => l.SourceLineId != null).Select(l => (l.SourceLineId!.Value, l.Quantity * l.Factor)), ct);
             }
+
+            if (shipmentLinked && await shipmentGuard.OrderIdAsync(invoice, ct) is { } orderId) {
+                // Sipariş kilidi altında faturalanan miktar (diğer taslaklar ve kesilmiş faturalar dahil) sevk miktarını aşamaz.
+                await db.LockSalesOrderAsync(orderId, ct);
+                await ShipmentInvoiceLinks.EnsureNotOverInvoicedAsync(db, invoice.Id,
+                                                                      built.Lines.Where(l => l.SourceLineId != null).Select(l => (l.SourceLineId!.Value, l.Quantity * l.Factor)), ct);
+            }
+
+            if (returnLinked) await returns.EnsureDraftQuantitiesAsync(invoice, built.Lines, ct);
 
             // Önce eski satırları sil (satır sırası tekil indeksi), sonra yenilerini ve başlığı yaz.
             db.InvoiceLines.RemoveRange(invoice.Lines);

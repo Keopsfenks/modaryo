@@ -61,8 +61,14 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Sales.Orders.ApprovalPipeline>();
         builder.Services.AddScoped<ERP.Application.Purchasing.IPurchaseLinkListener, ERP.Application.Sales.Orders.PurchaseLinkListener>();
         builder.Services.AddScoped<ERP.Application.Treasury.IPrepaymentWatcher, ERP.Application.Sales.Orders.PrepaymentWatcher>();
+        builder.Services.AddScoped<ERP.Application.Invoicing.InvoiceIssuer>();
         builder.Services.AddScoped<ERP.Application.Sales.Shipments.ShipmentService>();
         builder.Services.AddScoped<ERP.Application.Sales.Shipments.ShipmentMapper>();
+        builder.Services.AddScoped<ERP.Application.Sales.Invoicing.ShipmentInvoiceBuilder>();
+        builder.Services.AddScoped<ERP.Application.Sales.Invoicing.ShipmentInvoiceGuard>();
+        builder.Services.AddScoped<ERP.Application.Sales.Returns.ReturnService>();
+        builder.Services.AddScoped<ERP.Application.Sales.Returns.ReturnMapper>();
+        builder.Services.AddScoped<ERP.Application.Invoicing.Posting.IInvoicePostHook, ERP.Application.Sales.Invoicing.SalesInvoiceHook>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Receipts.ReceiptMapper>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Receipts.ReceiptLineStock>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Returns.PurchaseReturnService>();

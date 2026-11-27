@@ -158,7 +158,10 @@ public sealed class OrderMapper(
             .Select(r => new OrderReservationDto(r.SourceLineId, r.WarehouseId, r.Quantity, r.Status.ToString(), r.ExpectedReceiptSourceId)).ToList();
         var shipments = (await db.Shipments.AsNoTracking().Where(s => s.SalesOrderId == order.Id).OrderBy(s => s.Date).ThenBy(s => s.Number).ToListAsync(ct))
             .Select(s => new OrderShipmentRefDto(s.Id, s.Number, s.Status.ToString(), s.Date)).ToList();
-        var invoiceIds = await db.Shipments.AsNoTracking().Where(s => s.SalesOrderId == order.Id && s.InvoiceId != null).Select(s => s.InvoiceId!.Value).Distinct().ToListAsync(ct);
+        var shipmentLineIds = await db.ShipmentLines.AsNoTracking().Join(db.Shipments.Where(s => s.SalesOrderId == order.Id), l => l.ShipmentId, s => s.Id, (l, _) => l.Id).ToListAsync(ct);
+        var invoiceIds = await db.InvoiceLines.AsNoTracking().Where(l => l.SourceLineId != null && shipmentLineIds.Contains(l.SourceLineId.Value))
+                                 .Join(db.Invoices.Where(i => i.SourceType == "sales-shipment" && i.Status != ERP.Domain.Invoicing.InvoiceStatus.Cancelled), l => l.InvoiceId, i => i.Id, (l, i) => i.Id)
+                                 .Distinct().ToListAsync(ct);
         var invoices = (await db.Invoices.AsNoTracking().Where(i => invoiceIds.Contains(i.Id)).OrderBy(i => i.Date).ToListAsync(ct))
             .Select(i => new OrderInvoiceRefDto(i.Id, i.Number ?? string.Empty, i.Status.ToString(), i.Date)).ToList();
 
