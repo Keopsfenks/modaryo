@@ -96,6 +96,14 @@ public sealed class FinancePoster(
                    ?? throw new NotFoundException(input.CurrentAccountId.ToString(), "CurrentAccount");
         if (!cari.IsActive) throw CariErrors.AccountInactive();
 
+        // Siparişe bağlı tahsilat yalnızca aynı carinin, erişilebilir şubedeki siparişine bağlanabilir (başka carinin siparişini ön ödemeyle serbest bırakamaz).
+        // Kilit sırası genel kuraldır: cari -> sipariş; sipariş burada yalnızca okunur, kilidi izleyici/işlem hattında cari kilidinden sonra alınır.
+        if (collection && salesOrderId is { } linkedOrder) {
+            var head = await db.SalesOrders.AsNoTracking().Where(o => o.Id == linkedOrder).Select(o => new { o.CurrentAccountId, o.BranchId }).FirstOrDefaultAsync(ct);
+            if (head is null || head.CurrentAccountId != input.CurrentAccountId || !tenant.CanAccessBranch(head.BranchId))
+                throw new AppException(400, "sales_order_mismatch", "Satış siparişi bu cariye ait değil ya da şubesine erişiminiz yok.");
+        }
+
         var account = await AccountRules.FindAsync(db, tenant, input.AccountId, ct);
         if (!account.IsActive) throw TreasuryErrors.AccountInactive();
 

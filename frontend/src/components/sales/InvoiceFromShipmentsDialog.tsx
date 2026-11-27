@@ -17,7 +17,7 @@ import { errorMessage } from "@/lib/api/errorMessages";
 import { SHIPMENT_STATUS_LABELS, sales, type OrderRef, type ShipmentStatus } from "@/lib/api/sales";
 import { formatDate } from "@/lib/date";
 
-type Props = { shipments: OrderRef[]; onClose(): void };
+type Props = { shipments: OrderRef<ShipmentStatus>[]; onClose(): void };
 
 /** Seçilen sevklerin faturalanmamış miktarlarından satış faturası taslağı oluşturur ve taslağa gider. */
 export default function InvoiceFromShipmentsDialog({ shipments, onClose }: Props) {
@@ -52,7 +52,7 @@ export default function InvoiceFromShipmentsDialog({ shipments, onClose }: Props
                         <FormControlLabel
                             key={s.id}
                             control={<Checkbox checked={selected.includes(s.id)} onChange={(e) => setSelected((cur) => (e.target.checked ? [...cur, s.id] : cur.filter((id) => id !== s.id)))} />}
-                            label={`${s.number} · ${formatDate(s.date)} · ${SHIPMENT_STATUS_LABELS[s.status as ShipmentStatus] ?? s.status}`}
+                            label={`${s.number} · ${formatDate(s.date)} · ${SHIPMENT_STATUS_LABELS[s.status] ?? s.status}`}
                         />
                     ))}
                 </Stack>

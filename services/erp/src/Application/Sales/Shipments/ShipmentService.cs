@@ -181,6 +181,13 @@ public sealed class ShipmentService(
         if (order.Status is SalesOrderStatus.Closed or SalesOrderStatus.Cancelled)
             throw SalesErrors.Conflict("order_not_open", "Kapatılmış ya da iptal edilmiş siparişin sevki iptal edilemez.");
 
+        // Sevkin faturasına aktif iade belgesi bağlıysa sevk iptal edilemez (iade edilen mal stoğa ikinci kez girerdi). Sipariş kilidi altında okunur;
+        // iade kesimi de sipariş kilidini alır.
+        var shipmentLineIds = shipment.Lines.Select(l => l.Id).ToList();
+        var returnedInvoices = db.InvoiceLines.Where(l => l.SourceLineId != null && shipmentLineIds.Contains(l.SourceLineId.Value)).Select(l => l.InvoiceId);
+        if (await db.SalesReturns.AnyAsync(r => r.Status != SalesReturnStatus.Cancelled && returnedInvoices.Contains(r.InvoiceId), ct))
+            throw SalesErrors.Conflict("has_returns", "Sevkin faturasına bağlı iade belgesi var; önce iadeyi iptal edin.");
+
         if (await ShipmentInvoiceLinks.IsInvoicedAsync(db, shipment.Lines.Select(l => l.Id).ToList(), ct) || shipment.Lines.Any(l => l.InvoicedQuantity > 0m))
             throw SalesErrors.Conflict("shipment_invoiced", "Faturaya bağlı sevk iptal edilemez; önce faturayı iptal edin ya da taslağı silin.");
 

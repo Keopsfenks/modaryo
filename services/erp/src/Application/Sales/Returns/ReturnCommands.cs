@@ -44,13 +44,14 @@ public sealed record ReturnRowDto(Guid Id, string Number, SalesReturnStatus Stat
 
 public sealed record ReturnListResult(IReadOnlyList<ReturnRowDto> Items, int Total);
 
-public sealed class ReturnMapper(IApplicationDbContext db) {
+public sealed class ReturnMapper(IApplicationDbContext db, ICurrentSession session) {
     public async Task<ReturnDto> ToDtoAsync(SalesReturn r, CancellationToken ct) {
+        var showCost = session.HasPermission(SalesPermissions.Cost); // birim maliyet maliyet.read ister
         var invoice  = await db.Invoices.AsNoTracking().Where(i => i.Id == r.InvoiceId).Select(i => i.Number).FirstOrDefaultAsync(ct);
         var customer = await db.CurrentAccounts.AsNoTracking().Where(c => c.Id == r.CurrentAccountId).Select(c => c.Name).FirstOrDefaultAsync(ct);
         return new ReturnDto(r.Id, r.Number, r.Status, r.InvoiceId, invoice, r.SalesOrderId, r.CurrentAccountId, customer ?? string.Empty, r.Date, r.WarehouseId, r.WarehouseKind, r.Reason,
                              r.ReturnInvoiceId, r.Version,
-                             r.Lines.OrderBy(l => l.Sort).Select(l => new ReturnLineDto(l.Id, l.Sort, l.InvoiceLineId, l.SalesOrderLineId, l.Description, l.Unit, l.Quantity, l.Width, l.Length, l.UnitCost)).ToList());
+                             r.Lines.OrderBy(l => l.Sort).Select(l => new ReturnLineDto(l.Id, l.Sort, l.InvoiceLineId, l.SalesOrderLineId, l.Description, l.Unit, l.Quantity, l.Width, l.Length, showCost ? l.UnitCost : null)).ToList());
     }
 }
 
@@ -139,10 +140,13 @@ public sealed class CreateReturnCommandHandler(
             // Stok: ürünlü, hizmet olmayan satırlar asıl çıkış maliyetiyle depoya girer.
             var productIds = picked.Where(p => p.Line.ProductId != null).Select(p => p.Line.ProductId!.Value).Distinct().ToList();
             var products   = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+            // Stok girişi yalnızca asıl çıkışı olan faturalarda: sevkten kesilen fatura (çıkış sevkte) ya da stoku etkileyen fatura. Aksi halde yalnızca cari alacaklanır.
+            var issuedStock = original.SourceType == ShipmentInvoiceLinks.Source || original.AffectsStock;
             var stockLines = new List<StockLine>();
             var costs      = new Dictionary<Guid, decimal?>();
             var keys       = new List<(Guid, Guid, Guid?)>();
             foreach (var (line, l) in picked) {
+                if (!issuedStock) continue;
                 if (line.ProductId is not { } pid || products[pid] is not { Kind: not ProductKind.Service } product) continue;
                 if (product.IsBundle) throw SalesErrors.Bad("bundle_return_unsupported", $"\"{line.Description}\" set ürünüdür; bileşenleri ayrı iade edilmelidir.");
 

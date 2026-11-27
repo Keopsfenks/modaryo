@@ -27,7 +27,7 @@ import TotalsPanel from "@/components/invoicing/TotalsPanel";
 import ReasonDialog from "@/components/purchasing/ReasonDialog";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessages";
-import { INVOICE_STATE_LABELS, ORDER_STATUS_LABELS, SHIPMENT_STATUS_LABELS, sales, type OrderDto, type OrderStatus, type ShipmentStatus } from "@/lib/api/sales";
+import { INVOICE_STATE_LABELS, ORDER_STATUS_LABELS, SHIPMENT_STATUS_LABELS, sales, type OrderDto, type OrderStatus } from "@/lib/api/sales";
 import { formatDate } from "@/lib/date";
 import { formatMoney, type Currency } from "@/lib/money";
 import { useSession } from "@/session/SessionProvider";
@@ -295,7 +295,7 @@ export default function OrderDetail({ order, planEditable, onChanged, defaultIns
                             <Stack spacing={0.5}>
                                 {order.shipments.map((s) => (
                                     <Typography key={s.id} variant="body2">
-                                        <Link href={`/satis/sevkler/${s.id}`}>{s.number}</Link> · {formatDate(s.date)} · {SHIPMENT_STATUS_LABELS[s.status as ShipmentStatus] ?? s.status}
+                                        <Link href={`/satis/sevkler/${s.id}`}>{s.number}</Link> · {formatDate(s.date)} · {SHIPMENT_STATUS_LABELS[s.status] ?? s.status}
                                     </Typography>
                                 ))}
                             </Stack>

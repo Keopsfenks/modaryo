@@ -159,7 +159,8 @@ export type OrderLineDto = Omit<SalesLineDto, "supplierId"> & {
 export type PlanRowDto = { sequence: number; dueDate: string; amount: number; remaining: number };
 export type PlanDto = { downPayment: number; downPaymentRemaining: number; installmentCount: number; firstDueDate: string; rows: PlanRowDto[] };
 export type AdvanceDto = { documentId: string; number: string; date: string; amount: number; currency: string };
-export type OrderRef = { id: string; number: string; status: string; date: string };
+/** Sunucu durumları diğer tüm enum'lar gibi camelCase gelir. */
+export type OrderRef<S extends string = string> = { id: string; number: string; status: S; date: string };
 
 export type OrderDto = {
     id: string;
@@ -192,8 +193,8 @@ export type OrderDto = {
     version: number;
     lines: OrderLineDto[];
     reservations: { lineId: string; warehouseId: string; quantity: number; status: string; expectedReceiptSourceId: string | null }[];
-    shipments: OrderRef[];
-    invoices: OrderRef[];
+    shipments: OrderRef<ShipmentStatus>[];
+    invoices: OrderRef<"draft" | "issued" | "cancelled">[];
     plan: PlanDto | null;
     advances: AdvanceDto[];
     warnings: string[];

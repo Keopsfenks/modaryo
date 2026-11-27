@@ -155,15 +155,15 @@ public sealed class OrderMapper(
         }
 
         var reservations = (await db.Reservations.AsNoTracking().Where(r => r.SourceType == SalesStock.SourceType && r.SourceId == order.Id).OrderBy(r => r.Id).ToListAsync(ct))
-            .Select(r => new OrderReservationDto(r.SourceLineId, r.WarehouseId, r.Quantity, r.Status.ToString(), r.ExpectedReceiptSourceId)).ToList();
+            .Select(r => new OrderReservationDto(r.SourceLineId, r.WarehouseId, r.Quantity, Camel(r.Status), r.ExpectedReceiptSourceId)).ToList();
         var shipments = (await db.Shipments.AsNoTracking().Where(s => s.SalesOrderId == order.Id).OrderBy(s => s.Date).ThenBy(s => s.Number).ToListAsync(ct))
-            .Select(s => new OrderShipmentRefDto(s.Id, s.Number, s.Status.ToString(), s.Date)).ToList();
+            .Select(s => new OrderShipmentRefDto(s.Id, s.Number, Camel(s.Status), s.Date)).ToList();
         var shipmentLineIds = await db.ShipmentLines.AsNoTracking().Join(db.Shipments.Where(s => s.SalesOrderId == order.Id), l => l.ShipmentId, s => s.Id, (l, _) => l.Id).ToListAsync(ct);
         var invoiceIds = await db.InvoiceLines.AsNoTracking().Where(l => l.SourceLineId != null && shipmentLineIds.Contains(l.SourceLineId.Value))
                                  .Join(db.Invoices.Where(i => i.SourceType == "sales-shipment" && i.Status != ERP.Domain.Invoicing.InvoiceStatus.Cancelled), l => l.InvoiceId, i => i.Id, (l, i) => i.Id)
                                  .Distinct().ToListAsync(ct);
         var invoices = (await db.Invoices.AsNoTracking().Where(i => invoiceIds.Contains(i.Id)).OrderBy(i => i.Date).ToListAsync(ct))
-            .Select(i => new OrderInvoiceRefDto(i.Id, i.Number ?? string.Empty, i.Status.ToString(), i.Date)).ToList();
+            .Select(i => new OrderInvoiceRefDto(i.Id, i.Number ?? string.Empty, Camel(i.Status), i.Date)).ToList();
 
         var plan = order.Plan is { } p
             ? new PlanDto(p.DownPayment, p.DownPaymentRemaining, p.InstallmentCount, p.FirstDueDate,
@@ -183,10 +183,14 @@ public sealed class OrderMapper(
                             order.Version, lines, reservations, shipments, invoices, plan, advances, warnings ?? []);
     }
 
+    /// <summary>Referans durumları da diğer tüm enum'lar gibi camelCase serileşir (JsonStringEnumConverter ile aynı biçim).</summary>
+    private static string Camel(Enum value) => System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(value.ToString());
+
     /// <summary>Cari para biriminde, siparişe bağlı iptal edilmemiş tahsilatlar (defter alacağı).</summary>
     public async Task<(IReadOnlyList<AdvanceDto> Items, decimal Total)> AdvancesAsync(Guid orderId, CancellationToken ct) {
         var docs = await db.FinanceDocuments.AsNoTracking()
-                           .Where(d => d.SalesOrderId == orderId && d.Kind == FinanceDocumentKind.Collection && d.CancelledAt == null)
+                           .Where(d => d.SalesOrderId == orderId && d.Kind == FinanceDocumentKind.Collection && d.CancelledAt == null
+                                       && db.SalesOrders.Any(o => o.Id == orderId && o.CurrentAccountId == d.CurrentAccountId))
                            .OrderBy(d => d.Date).ThenBy(d => d.Number).ToListAsync(ct);
         var docIds = docs.Select(d => d.Id).ToList();
         var credits = await db.LedgerEntries.AsNoTracking()

@@ -38,6 +38,11 @@ public sealed class SalesInvoiceHook(
             return;
         }
 
+        // Aktif iade belgesi olan satış faturası iptal edilemez: iptal edilirse sevk de iptal edilebilir ve iade edilen mal stoğa ikinci kez girerdi.
+        // Çağıran cari kilidini tutar; iade kesimi aynı cari kilidini alır, böylece iki işlem birbirini kilit altında görür.
+        if (cancelling && invoice.Kind == InvoiceKind.Sales && await db.SalesReturns.AnyAsync(r => r.InvoiceId == invoice.Id && r.Status != SalesReturnStatus.Cancelled, ct))
+            throw SalesErrors.Conflict("has_returns", "Faturaya bağlı iade belgesi var; önce iadeyi iptal edin.");
+
         var ctx = await LoadAsync(invoice, false, ct);
         if (ctx is null) {
             // Sevkten kesilen fatura bağsız kesilemez: faturalanan miktar ve taksit planı bağ olmadan izlenemez.

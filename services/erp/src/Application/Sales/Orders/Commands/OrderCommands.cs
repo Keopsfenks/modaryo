@@ -3,6 +3,8 @@ using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.Inventory;
 using ERP.Application.Inventory.Documents;
+using ERP.Application.Purchasing;
+using ERP.Application.Purchasing.Orders;
 using ERP.Domain.Purchasing;
 using ERP.Domain.Sales;
 
@@ -151,6 +153,7 @@ public sealed class CancelOrderCommandHandler(
     ICurrentTenant        tenant,
     IStockService         stock,
     IOutbox               outbox,
+    IPurchaseLinkListener links,
     OrderMapper           mapper
 ) : IRequestHandler<CancelOrderCommand, OrderDto> {
     public async Task<OrderDto> Handle(CancelOrderCommand request, CancellationToken ct) {
@@ -166,24 +169,35 @@ public sealed class CancelOrderCommandHandler(
         if (await db.Shipments.AnyAsync(s => s.SalesOrderId == order.Id && s.Status != ShipmentStatus.Cancelled, ct))
             throw SalesErrors.Conflict("order_has_shipments", "Sevkiyatı olan sipariş iptal edilemez.");
 
-        await stock.ReleaseAsync(SalesStock.SourceType, order.Id, null, ct);
-
+        // GLOBAL KİLİT SIRASI: cari -> satış siparişi -> satın alma siparişi -> stok (bkz. PoCancellation). Satın alma siparişleri (id sırasıyla) stok kilidinden önce
+        // kilitlenir ve Draft durumu kilit altında yeniden doğrulanır; P6 iptali PO -> stok sırasıyla çalıştığı için iki yol birbirini kilitleyemez.
         // Yalnızca bu siparişe ait taslak satın alma siparişleri iptal edilir; onaylanmış olanlara dokunulmaz.
-        var poIds = order.Lines.Where(l => l.PurchaseOrderId is not null).Select(l => l.PurchaseOrderId!.Value).Distinct().ToList();
-        if (poIds.Count > 0) {
-            var lineIds = order.Lines.Select(l => l.Id).ToHashSet();
-            foreach (var po in await db.PurchaseOrders.Include(p => p.Lines).Where(p => poIds.Contains(p.Id) && p.Status == PurchaseOrderStatus.Draft).ToListAsync(ct))
-                if (po.Lines.All(l => l.SalesOrderLineId is { } s && lineIds.Contains(s))) {
-                    po.Status       = PurchaseOrderStatus.Cancelled;
-                    po.CancelReason = "Satış siparişi iptal edildi";
-                }
+        var poIds = order.Lines.Where(l => l.PurchaseOrderId is not null).Select(l => l.PurchaseOrderId!.Value).Distinct().Order().ToList();
+        var lineIds = order.Lines.Select(l => l.Id).ToHashSet();
+        var lockedPos = new List<Guid>();
+        foreach (var poId in poIds) {
+            if (!await db.LockPurchaseOrderAsync(poId, ct)) continue;
+            lockedPos.Add(poId);
         }
+
+        if (lockedPos.Count > 0)
+            foreach (var po in await db.PurchaseOrders.Include(p => p.Lines).Where(p => lockedPos.Contains(p.Id) && p.Status == PurchaseOrderStatus.Draft).OrderBy(p => p.Id).ToListAsync(ct))
+                if (po.Lines.All(l => l.SalesOrderLineId is { } s && lineIds.Contains(s)))
+                    await PoCancellation.CancelLockedAsync(db, stock, outbox, links, po, "Satış siparişi iptal edildi", ct);
+
+        await stock.ReleaseAsync(SalesStock.SourceType, order.Id, null, ct);
 
         order.Status       = SalesOrderStatus.Cancelled;
         order.CancelReason = request.Reason.Trim();
         outbox.Enqueue("sales.order-cancelled", new { orderId = order.Id, number = order.Number, reason = order.CancelReason });
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        try {
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        } catch (DbUpdateConcurrencyException) {
+            db.ClearTracking();
+            throw SalesErrors.VersionConflict();
+        }
+
         return await mapper.ToDtoAsync(order, null, ct);
     }
 }

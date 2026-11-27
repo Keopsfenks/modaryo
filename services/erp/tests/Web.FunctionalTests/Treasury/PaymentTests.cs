@@ -187,9 +187,9 @@ public class PaymentTests : TestBase {
 
     [Test]
     public async Task AdvanceThenInvoice_AutoAllocates() {
-        var env  = await NewEnv();
+        var env  = await ERP.Web.FunctionalTests.Sales.OrderTestSupport.NewOrderEnv();
         var kasa = await Account(env, "Merkez Kasa");
-        var orderId = Guid.NewGuid();
+        var orderId = await ERP.Web.FunctionalTests.Sales.OrderTestSupport.NewOrder(env); // siparişe bağlı tahsilat aynı carinin gerçek siparişi olmalıdır
         var advance = await CollectOk(env, kasa, 80m, extra: new { isAdvance = true, salesOrderId = orderId }, date: new DateOnly(2026, 2, 20));
         (await Documents(env.Tenant)).Single().IsAdvance.ShouldBeTrue();
         (await Documents(env.Tenant)).Single().SalesOrderId.ShouldBe(orderId);

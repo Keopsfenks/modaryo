@@ -113,7 +113,7 @@ public sealed class CancelPoCommandHandler(
     PoMapper              mapper
 ) : IRequestHandler<CancelPoCommand, PoDto> {
     public async Task<PoDto> Handle(CancelPoCommand request, CancellationToken ct) {
-        // Kapatmayla aynı sıra: sipariş kilidi, kilit altında okuma, rezervasyon depolarının stok kilitleri, bırakma. Sipariş kilidi iptal ile mal kabul yarışını da sıraya sokar.
+        // Global kilit sırası PoCancellation içinde belgelidir (cari -> satış siparişi -> satın alma siparişi -> stok). Kapatmayla aynı sıra: sipariş kilidi, kilit altında okuma, rezervasyon depolarının stok kilitleri, bırakma. Sipariş kilidi iptal ile mal kabul yarışını da sıraya sokar.
         await using var tx = await db.BeginTransactionAsync(ct);
         if (!await db.LockPurchaseOrderAsync(request.Id, ct)) throw new NotFoundException(request.Id.ToString(), "PurchaseOrder");
         var po = await PoRules.LoadAsync(db, tenant, request.Id, true, ct);
@@ -124,20 +124,7 @@ public sealed class CancelPoCommandHandler(
                           || await db.GoodsReceipts.AnyAsync(r => r.PurchaseOrderId == po.Id && r.Status == GoodsReceiptStatus.Posted, ct);
         if (hasReceipts) throw PurchasingErrors.PoHasReceipts();
 
-        po.Status       = PurchaseOrderStatus.Cancelled;
-        po.CancelReason = request.Reason.Trim();
-
-        var keys = await db.Reservations.AsNoTracking().Where(r => r.ExpectedReceiptSourceId == po.Id && r.Status == ReservationStatus.Active)
-                           .Select(r => new { r.WarehouseId, r.ProductId, r.VariantId }).Distinct().ToListAsync(ct);
-        await db.LockStockAsync(keys.Select(k => (k.WarehouseId, k.ProductId, k.VariantId)), ct);
-        var released = await stock.ReleaseExpectedAsync(po.Id, ct);
-        await links.OnPoClosedAsync(po.Id, ct);
-
-        outbox.Enqueue("purchase.order-cancelled", new {
-            poId = po.Id, number = po.Number, reason = po.CancelReason,
-            lines = po.Lines.Select(l => new { poLineId = l.Id, salesOrderLineId = l.SalesOrderLineId, productId = l.ProductId, variantId = l.VariantId, quantity = l.Quantity }).ToList(),
-            releasedReservations = released.Select(r => new { sourceType = r.SourceType, sourceId = r.SourceId, sourceLineId = r.SourceLineId, productId = r.ProductId, variantId = r.VariantId, quantity = r.Quantity }).ToList()
-        });
+        await PoCancellation.CancelLockedAsync(db, stock, outbox, links, po, request.Reason, ct);
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
         return await mapper.ToDtoAsync(po, ct);
