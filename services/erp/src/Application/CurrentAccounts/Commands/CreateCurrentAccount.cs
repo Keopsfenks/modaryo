@@ -41,6 +41,8 @@ public sealed record CreateCurrentAccountCommand : IRequest<CurrentAccountDto>, 
     public decimal? CreditLimit { get; init; }
 
     public Guid? CustomerGroupId { get; init; }
+
+    public Guid? SalesRepUserId { get; init; }
 }
 
 public sealed class CreateCurrentAccountCommandValidator : AbstractValidator<CreateCurrentAccountCommand> {
@@ -71,7 +73,9 @@ public sealed class CreateCurrentAccountCommandHandler(
     IOutbox               outbox,
     TimeProvider          time,
     IPeriodLock           periodLock,
-    AutoAllocator         allocator
+    AutoAllocator         allocator,
+    IMemberDirectory      members,
+    ICurrentTenant        tenant
 )
     : IRequestHandler<CreateCurrentAccountCommand, CurrentAccountDto> {
     public async Task<CurrentAccountDto> Handle(CreateCurrentAccountCommand request, CancellationToken ct) {
@@ -86,6 +90,7 @@ public sealed class CreateCurrentAccountCommandHandler(
             throw CariErrors.TaxNumberTaken();
 
         await CardRules.EnsureCustomerGroupAsync(db, request.CustomerGroupId, ct);
+        await CardRules.EnsureSalesRepAsync(members, tenant, request.SalesRepUserId, ct);
 
         await using var transaction = await db.BeginTransactionAsync(ct);
 

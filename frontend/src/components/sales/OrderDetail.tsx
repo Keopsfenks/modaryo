@@ -7,7 +7,6 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import Stack from "@mui/material/Stack";
@@ -19,7 +18,6 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Tabs from "@mui/material/Tabs";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import FormAlert from "@/components/auth/FormAlert";
 import PageHeader from "@/components/common/PageHeader";
@@ -31,12 +29,14 @@ import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessages";
 import { INVOICE_STATE_LABELS, ORDER_STATUS_LABELS, SHIPMENT_STATUS_LABELS, sales, type OrderDto, type OrderStatus, type ShipmentStatus } from "@/lib/api/sales";
 import { formatDate } from "@/lib/date";
-import { formatMoney, parseAmount, type Currency } from "@/lib/money";
+import { formatMoney, type Currency } from "@/lib/money";
 import { useSession } from "@/session/SessionProvider";
 import ApprovalBanner from "./ApprovalBanner";
 import DownPaymentDialog from "./DownPaymentDialog";
 import InstallmentPlanEditor from "./InstallmentPlanEditor";
+import InvoiceFromShipmentsDialog from "./InvoiceFromShipmentsDialog";
 import LineTimeline from "./LineTimeline";
+import ShipmentForm from "./ShipmentForm";
 import { ProfitCell, ProfitHeaderCell, useCanSeeProfit } from "./ProfitColumn";
 
 export const ORDER_BASE = "/satis/siparisler";
@@ -57,12 +57,12 @@ const SHIPPABLE: OrderStatus[] = ["approved", "partiallyShipped"];
 
 type ActionsProps = { order: OrderDto; onChanged(): void; onError(error: ApiError | string | null): void };
 
-/** Başlık işlemleri: Onayla, Peşinat al, Sevk et, Hızlı fatura, Proforma, Kapat, İptal. */
+/** Başlık işlemleri: Onayla, Peşinat al, Sevk et, Sevklerden fatura, Hızlı fatura, Proforma, Kapat, İptal. */
 export function OrderActions({ order, onChanged, onError }: ActionsProps) {
     const router = useRouter();
     const { hasPermission } = useSession();
     const [busy, setBusy] = useState(false);
-    const [dialog, setDialog] = useState<"cancel" | "close" | "pdf" | "ship" | "advance" | null>(null);
+    const [dialog, setDialog] = useState<"cancel" | "close" | "pdf" | "ship" | "advance" | "invoice" | null>(null);
 
     async function run(action: () => Promise<void>) {
         setBusy(true);
@@ -134,6 +134,11 @@ export function OrderActions({ order, onChanged, onError }: ActionsProps) {
                         Hızlı fatura
                     </Button>
                 )}
+                {hasPermission("satis.manage") && hasPermission("fatura.manage") && order.shipments.some((x) => x.status !== "cancelled") && live && (
+                    <Button variant="outlined" onClick={() => setDialog("invoice")}>
+                        Sevklerden fatura
+                    </Button>
+                )}
                 <Button variant="outlined" onClick={() => setDialog("pdf")}>
                     Proforma PDF
                 </Button>
@@ -179,7 +184,7 @@ export function OrderActions({ order, onChanged, onError }: ActionsProps) {
             </Dialog>
             <DownPaymentDialog open={dialog === "advance"} order={order} onClose={() => setDialog(null)} />
             {dialog === "ship" && (
-                <ShipDialog
+                <ShipmentForm
                     order={order}
                     onClose={() => setDialog(null)}
                     onDone={() => {
@@ -188,74 +193,8 @@ export function OrderActions({ order, onChanged, onError }: ActionsProps) {
                     }}
                 />
             )}
+            {dialog === "invoice" && <InvoiceFromShipmentsDialog shipments={order.shipments} onClose={() => setDialog(null)} />}
         </>
-    );
-}
-
-function ShipDialog({ order, onClose, onDone }: { order: OrderDto; onClose(): void; onDone(): void }) {
-    const open = order.lines.filter((l) => l.openQuantity > 0);
-    const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(open.map((l) => [l.id, String(l.openQuantity).replace(".", ",")])));
-    const [cargoNote, setCargoNote] = useState("");
-    const [error, setError] = useState<ApiError | string | null>(null);
-    const [busy, setBusy] = useState(false);
-
-    async function submit() {
-        const lines = open
-            .map((l) => ({ orderLineId: l.id, quantity: parseAmount(values[l.id] ?? "", { maxDecimals: 4 }) ?? 0, max: l.openQuantity }))
-            .filter((l) => l.quantity > 0);
-        if (lines.length === 0) return setError("Sevk edilecek miktar girilmelidir.");
-        if (lines.some((l) => l.quantity > l.max)) return setError(errorMessage(new ApiError(400, "", "ship_exceeds_open")));
-        setBusy(true);
-        setError(null);
-        try {
-            await sales.shipments.create({ orderId: order.id, cargoNote: cargoNote.trim() || null, lines: lines.map(({ orderLineId, quantity }) => ({ orderLineId, quantity })) });
-            onDone();
-        } catch (e) {
-            if (!(e instanceof ApiError)) throw e;
-            setError(errorMessage(e));
-        } finally {
-            setBusy(false);
-        }
-    }
-
-    return (
-        <Dialog open onClose={onClose} fullWidth maxWidth="md">
-            <DialogTitle>Sevk et</DialogTitle>
-            <DialogContent>
-                <Stack spacing={2} sx={{ pt: 1 }}>
-                    <FormAlert error={error} />
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow>
-                                <TableCell>Kalem</TableCell>
-                                <TableCell align="right">Açık</TableCell>
-                                <TableCell sx={{ width: 150 }}>Sevk miktarı</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {open.map((l) => (
-                                <TableRow key={l.id}>
-                                    <TableCell>{l.productName}</TableCell>
-                                    <TableCell align="right">
-                                        {qty(l.openQuantity)} {l.unit}
-                                    </TableCell>
-                                    <TableCell>
-                                        <TextField size="small" value={values[l.id] ?? ""} onChange={(e) => setValues((cur) => ({ ...cur, [l.id]: e.target.value }))} slotProps={{ htmlInput: { "aria-label": `${l.productName} sevk miktarı`, inputMode: "decimal" } }} />
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                    <TextField size="small" label="Kargo / teslimat notu" value={cargoNote} onChange={(e) => setCargoNote(e.target.value)} fullWidth />
-                </Stack>
-            </DialogContent>
-            <DialogActions>
-                <Button onClick={onClose}>Vazgeç</Button>
-                <Button variant="contained" disabled={busy} onClick={() => void submit()}>
-                    {busy ? "Sevk ediliyor..." : "Sevk et"}
-                </Button>
-            </DialogActions>
-        </Dialog>
     );
 }
 
@@ -356,7 +295,7 @@ export default function OrderDetail({ order, planEditable, onChanged, defaultIns
                             <Stack spacing={0.5}>
                                 {order.shipments.map((s) => (
                                     <Typography key={s.id} variant="body2">
-                                        {s.number} · {formatDate(s.date)} · {SHIPMENT_STATUS_LABELS[s.status as ShipmentStatus] ?? s.status}
+                                        <Link href={`/satis/sevkler/${s.id}`}>{s.number}</Link> · {formatDate(s.date)} · {SHIPMENT_STATUS_LABELS[s.status as ShipmentStatus] ?? s.status}
                                     </Typography>
                                 ))}
                             </Stack>

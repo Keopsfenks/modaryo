@@ -39,6 +39,8 @@ public sealed record UpdateCurrentAccountCommand : IRequest<CurrentAccountDto>, 
     public decimal? CreditLimit { get; init; }
 
     public Guid? CustomerGroupId { get; init; }
+
+    public Guid? SalesRepUserId { get; init; }
 }
 
 public sealed class UpdateCurrentAccountCommandValidator : AbstractValidator<UpdateCurrentAccountCommand> {
@@ -49,7 +51,9 @@ public sealed class UpdateCurrentAccountCommandValidator : AbstractValidator<Upd
 
 public sealed class UpdateCurrentAccountCommandHandler(
     IApplicationDbContext db,
-    TimeProvider          time
+    TimeProvider          time,
+    IMemberDirectory      members,
+    ICurrentTenant        tenant
 )
     : IRequestHandler<UpdateCurrentAccountCommand, CurrentAccountDto> {
     public async Task<CurrentAccountDto> Handle(UpdateCurrentAccountCommand request, CancellationToken ct) {
@@ -71,6 +75,7 @@ public sealed class UpdateCurrentAccountCommandHandler(
             throw CariErrors.CurrencyLocked();
 
         await CardRules.EnsureCustomerGroupAsync(db, request.CustomerGroupId, ct);
+        await CardRules.EnsureSalesRepAsync(members, tenant, request.SalesRepUserId, ct);
 
         CardRules.Apply(account, request);
 

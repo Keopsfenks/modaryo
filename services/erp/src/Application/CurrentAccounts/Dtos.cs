@@ -53,6 +53,7 @@ public sealed record CurrentAccountDto(
     int                       DefaultDueDays,
     decimal?                  CreditLimit,
     Guid?                     CustomerGroupId,
+    Guid?                     SalesRepUserId,
     bool                      IsActive,
     decimal                   Balance,
     decimal                   OverdueAmount,
@@ -97,6 +98,8 @@ public interface ICardFields {
     decimal? CreditLimit { get; }
 
     Guid? CustomerGroupId { get; }
+
+    Guid? SalesRepUserId { get; }
 }
 
 public sealed record AddressInput {

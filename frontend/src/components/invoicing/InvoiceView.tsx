@@ -21,6 +21,7 @@ import { formatMoney, type Currency } from "@/lib/money";
 import { useSession } from "@/session/SessionProvider";
 import CancelDialog from "./CancelDialog";
 import EmailDialog from "./EmailDialog";
+import ReturnForm from "@/components/sales/ReturnForm";
 import PdfPreview from "./PdfPreview";
 import TotalsPanel from "./TotalsPanel";
 
@@ -33,9 +34,11 @@ export default function InvoiceView({ invoice, onChanged, emailDefault = "" }: I
     const [cancelOpen, setCancelOpen] = useState(false);
     const [emailOpen, setEmailOpen] = useState(false);
     const [sent, setSent] = useState(false);
+    const [returnOpen, setReturnOpen] = useState(false);
     const currency = invoice.currency as Currency;
     const issued = invoice.status === "issued";
     const cancelAllowed = hasPermission("fatura.cancel") && issued && (!isPurchaseKind(invoice.kind) || hasPermission("fiyat.alis"));
+    const returnAllowed = hasPermission("satis.return") && issued && invoice.kind === "sales";
     const emailAllowed = hasPermission("fatura.issue") && issued;
     const title = invoice.number ?? `${KIND_LABELS[invoice.kind]} (${STATUS_LABELS[invoice.status].toLowerCase()})`;
 
@@ -63,6 +66,11 @@ export default function InvoiceView({ invoice, onChanged, emailDefault = "" }: I
                         {emailAllowed && (
                             <Button variant="outlined" onClick={() => setEmailOpen(true)}>
                                 E-posta gönder
+                            </Button>
+                        )}
+                        {returnAllowed && (
+                            <Button variant="outlined" onClick={() => setReturnOpen(true)}>
+                                İade al
                             </Button>
                         )}
                         {cancelAllowed && (
@@ -135,6 +143,16 @@ export default function InvoiceView({ invoice, onChanged, emailDefault = "" }: I
                     </DashboardCard>
                 </Stack>
             </Stack>
+            {returnOpen && (
+                <ReturnForm
+                    invoice={invoice}
+                    onClose={() => setReturnOpen(false)}
+                    onDone={() => {
+                        setReturnOpen(false);
+                        onChanged();
+                    }}
+                />
+            )}
             <CancelDialog
                 open={cancelOpen}
                 invoiceId={invoice.id}

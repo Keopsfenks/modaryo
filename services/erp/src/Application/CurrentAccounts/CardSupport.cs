@@ -88,6 +88,16 @@ public static class CardRules {
         account.DefaultDueDays     = f.DefaultDueDays;
         account.CreditLimit        = f.CreditLimit;
         account.CustomerGroupId    = f.CustomerGroupId;
+        account.SalesRepUserId     = f.SalesRepUserId;
+    }
+
+    /// <summary>Satış temsilcisi verilmişse aktif firmanın üyesi olmalı.</summary>
+    public static async Task EnsureSalesRepAsync(IMemberDirectory members, ICurrentTenant tenant, Guid? userId, CancellationToken ct) {
+        if (userId is not { } id) return;
+
+        var tenantId = tenant.TenantId ?? throw new InvalidOperationException("Aktif firma yok.");
+        if (await members.GetAsync(tenantId, id, ct) is null)
+            throw new AppException(400, "sales_rep_invalid", "Satış temsilcisi bu firmanın üyesi değil.");
     }
 
     /// <summary>Müşteri grubu verilmişse aktif firmaya ait olmalı (başka firmanın grubu sorgu filtresiyle görünmez).</summary>
@@ -201,7 +211,7 @@ public static class CurrentAccountReader {
                                      account.TaxOffice,
                                      account.IsEInvoiceTaxpayer, account.IsCustomer, account.IsSupplier, account.IsEmployee, account.Phone,
                                      account.Email, account.Notes,
-                                     account.Currency, account.DefaultDueDays, account.CreditLimit, account.CustomerGroupId,
+                                     account.Currency, account.DefaultDueDays, account.CreditLimit, account.CustomerGroupId, account.SalesRepUserId,
                                      account.IsActive,
                                      Statement.Balance(entries), Overdue(openItems), entries.Count > 0,
                                      account.Addresses.OrderBy(a => a.Title).ThenBy(a => a.Id).Select(ToDto).ToList());

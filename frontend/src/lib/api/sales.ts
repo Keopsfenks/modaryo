@@ -236,16 +236,163 @@ export type PlanInput = {
     firstDueDate?: string;
 };
 
+export type TrackedLot = { lotNo: string; expiry: string | null; quantity: number; lotId?: string | null };
+
 export type ShipmentInput = {
     orderId: string;
     warehouseId?: string | null;
     date?: string | null;
+    deliveryAddressId?: string | null;
     cargoNote?: string | null;
     notes?: string | null;
-    lines: { orderLineId: string; quantity: number }[];
+    lines: { orderLineId: string; quantity: number; lots?: TrackedLot[]; serials?: string[] }[];
 };
 
-export type ShipmentDto = { id: string; number: string; status: ShipmentStatus; orderNumber: string; date: string };
+export type ShipmentLineDto = {
+    id: string;
+    sort: number;
+    salesOrderLineId: string;
+    productId: string;
+    variantId: string | null;
+    description: string;
+    unit: string;
+    factor: number;
+    quantity: number;
+    width: number | null;
+    length: number | null;
+    invoicedQuantity: number;
+};
+
+export type ShipmentDto = {
+    id: string;
+    number: string;
+    status: ShipmentStatus;
+    salesOrderId: string;
+    orderNumber: string;
+    currentAccountId: string;
+    customerName: string;
+    branchId: string;
+    warehouseId: string;
+    date: string;
+    shippedAt: string | null;
+    deliveredAt: string | null;
+    receivedBy: string | null;
+    cargoNote: string | null;
+    notes: string | null;
+    cancelReason: string | null;
+    invoiceId: string | null;
+    version: number;
+    lines: ShipmentLineDto[];
+};
+
+export type ShipmentRow = {
+    id: string;
+    number: string;
+    status: ShipmentStatus;
+    salesOrderId: string;
+    orderNumber: string;
+    currentAccountId: string;
+    customerName: string;
+    date: string;
+    invoiceId: string | null;
+};
+
+export type ReturnWarehouseKind = "normal" | "quarantine" | "damaged";
+export const RETURN_KIND_LABELS: Record<ReturnWarehouseKind, string> = { normal: "Normal depo", quarantine: "Karantina", damaged: "Hasarlı" };
+
+export type ReturnInput = {
+    invoiceId: string;
+    warehouseKind: ReturnWarehouseKind;
+    warehouseId: string;
+    date?: string | null;
+    reason?: string | null;
+    lines: { invoiceLineId: string; quantity: number; lots?: TrackedLot[]; serials?: string[] }[];
+};
+
+export type ReturnRow = {
+    id: string;
+    number: string;
+    status: string;
+    invoiceId: string;
+    invoiceNumber: string | null;
+    currentAccountId: string;
+    customerName: string;
+    date: string;
+};
+
+export type ReturnDto = ReturnRow & {
+    salesOrderId: string | null;
+    warehouseId: string;
+    warehouseKind: ReturnWarehouseKind;
+    reason: string | null;
+    returnInvoiceId: string | null;
+    lines: { id: string; sort: number; invoiceLineId: string; description: string; unit: string; quantity: number }[];
+};
+
+export type RecurrenceInterval = "monthly" | "quarterly" | "yearly";
+export type RecurringMode = "draft" | "autoIssue";
+export const INTERVAL_LABELS: Record<RecurrenceInterval, string> = { monthly: "Aylık", quarterly: "Üç aylık", yearly: "Yıllık" };
+export const RECURRING_MODE_LABELS: Record<RecurringMode, string> = { draft: "Taslak oluştur", autoIssue: "Otomatik kes" };
+
+export type RecurringLineInput = {
+    productId?: string | null;
+    variantId?: string | null;
+    description?: string | null;
+    unit?: string | null;
+    quantity: number;
+    unitPrice: number;
+    vatIncluded: boolean;
+    discountPercent?: number | null;
+    vatRate?: number | null;
+    fixedPrice: boolean;
+};
+
+export type RecurringInput = {
+    name?: string | null;
+    currentAccountId: string;
+    branchId: string;
+    currency: string;
+    interval: RecurrenceInterval;
+    dayOfMonth: number;
+    startDate: string;
+    endDate?: string | null;
+    mode: RecurringMode;
+    notes?: string | null;
+    lines: RecurringLineInput[];
+};
+
+export type RecurringRow = {
+    id: string;
+    number: string;
+    name: string;
+    currentAccountId: string;
+    currentAccountName: string;
+    currency: string;
+    interval: RecurrenceInterval;
+    dayOfMonth: number;
+    startDate: string;
+    endDate: string | null;
+    mode: RecurringMode;
+    isActive: boolean;
+    total: number;
+    nextPeriod: string | null;
+    lastPeriod: string | null;
+};
+
+export type RecurringDto = RecurringRow & {
+    branchId: string;
+    notes: string | null;
+    net: number;
+    vat: number;
+    lines: (RecurringLineInput & { id: string; sort: number; description: string; unit: string; vatRate: number })[];
+};
+
+export type RecurringRun = { id: string; period: string; invoiceId: string; invoiceNumber: string | null; invoiceStatus: string; payable: number | null; generatedAt: string };
+
+export type TargetRow = { userId: string; userName: string | null; month: number; amountTry: number };
+export type TargetsDto = { year: number; rows: TargetRow[] };
+export type TargetActualRow = { userId: string; userName: string | null; month: number; targetTry: number; actualTry: number; percent: number | null };
+export type TargetActualsDto = { year: number; rows: TargetActualRow[] };
 
 export type SalesSettings = { quoteValidityDays: number; requireSalesRep: boolean; defaultInstallmentCount: number; prepaymentDefaultOff: boolean };
 
@@ -288,7 +435,33 @@ export const sales = {
         proforma: (id: string) => fetchBlob(`${BASE}/orders/${id}/proforma.pdf`),
     },
     shipments: {
+        list: (q: { status?: string; orderId?: string; currentAccountId?: string; search?: string; page?: number; pageSize?: number } = {}) =>
+            apiFetch<Paged<ShipmentRow>>(`${BASE}/shipments${qs({ ...q })}`),
+        get: (id: string) => apiFetch<ShipmentDto>(`${BASE}/shipments/${id}`),
         create: (body: ShipmentInput) => apiFetch<ShipmentDto>(`${BASE}/shipments`, { method: "POST", body }),
+        deliver: (id: string, body: { deliveredAt?: string | null; receivedBy?: string | null } = {}) => apiFetch<ShipmentDto>(`${BASE}/shipments/${id}/deliver`, { method: "POST", body }),
+        cancel: (id: string, reason: string) => apiFetch<ShipmentDto>(`${BASE}/shipments/${id}/cancel`, { method: "POST", body: { reason } }),
+        invoiceDraft: (shipmentIds: string[], date?: string) => apiFetch<InvoiceDto>(`${BASE}/shipments/invoice-draft`, { method: "POST", body: { shipmentIds, date: date ?? null } }),
+    },
+    returns: {
+        list: (q: { status?: string; invoiceId?: string; currentAccountId?: string; page?: number; pageSize?: number } = {}) => apiFetch<Paged<ReturnRow>>(`${BASE}/returns${qs({ ...q })}`),
+        get: (id: string) => apiFetch<ReturnDto>(`${BASE}/returns/${id}`),
+        create: (body: ReturnInput) => apiFetch<ReturnDto>(`${BASE}/returns`, { method: "POST", body }),
+        cancel: (id: string, reason: string) => apiFetch<ReturnDto>(`${BASE}/returns/${id}/cancel`, { method: "POST", body: { reason } }),
+    },
+    recurring: {
+        list: (q: { active?: boolean; currentAccountId?: string } = {}) => apiFetch<RecurringRow[]>(`${BASE}/recurring${qs({ ...q })}`),
+        get: (id: string) => apiFetch<RecurringDto>(`${BASE}/recurring/${id}`),
+        create: (body: RecurringInput) => apiFetch<RecurringDto>(`${BASE}/recurring`, { method: "POST", body }),
+        update: (id: string, body: RecurringInput) => apiFetch<RecurringDto>(`${BASE}/recurring/${id}`, { method: "PUT", body }),
+        pause: (id: string) => apiFetch<RecurringDto>(`${BASE}/recurring/${id}/pause`, { method: "POST" }),
+        resume: (id: string) => apiFetch<RecurringDto>(`${BASE}/recurring/${id}/resume`, { method: "POST" }),
+        runs: (id: string) => apiFetch<RecurringRun[]>(`${BASE}/recurring/${id}/runs`),
+    },
+    targets: {
+        get: (year: number) => apiFetch<TargetsDto>(`${BASE}/targets${qs({ year })}`),
+        put: (year: number, rows: { userId: string; month: number; amountTry: number }[]) => apiFetch<TargetsDto>(`${BASE}/targets${qs({ year })}`, { method: "PUT", body: { rows } }),
+        actuals: (year: number) => apiFetch<TargetActualsDto>(`${BASE}/targets/actuals${qs({ year })}`),
     },
     settings: () => apiFetch<{ version: number; value: SalesSettings }>("/api/erp/settings/satis"),
 };

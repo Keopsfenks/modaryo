@@ -353,6 +353,29 @@ public class CardTests : TestBase {
     }
 
     [Test]
+    public async Task SalesRep_RoundTripsOnCreateAndUpdate_AndRejectsNonMember() {
+        using var client = await Manager();
+        var       rep    = Factory.Members.Seed(Tenant, Guid.CreateVersion7(), "Ayşe Temsilci");
+
+        var withRep = Card();
+        withRep["salesRepUserId"] = rep.UserId;
+        var id = await CreateAsync(client, withRep);
+        (await GetAsync(client, id)).GetProperty("salesRepUserId").GetGuid().ShouldBe(rep.UserId);
+
+        var cleared = Card();
+        cleared["salesRepUserId"] = null;
+        using var update = await client.PutAsJsonAsync($"{Url}/{id}", cleared);
+        update.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await GetAsync(client, id)).GetProperty("salesRepUserId").ValueKind.ShouldBe(JsonValueKind.Null);
+
+        var stranger = Card("C0002");
+        stranger["salesRepUserId"] = Guid.CreateVersion7();
+        using var bad = await client.PostAsJsonAsync(Url, stranger);
+        bad.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await bad.ErrorCodeAsync()).ShouldBe("sales_rep_invalid");
+    }
+
+    [Test]
     public async Task Update_CodeOfAnotherCard_Returns409CodeTaken() {
         using var client = await Manager();
         await CreateAsync(client, Card("C0001"));
