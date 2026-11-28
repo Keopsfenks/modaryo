@@ -26,8 +26,9 @@ public class AuthorizationBehaviour<TRequest, TResponse> : IPipelineBehavior<TRe
         if (attributes.Length > 0) {
             if (_session.UserId is null) throw new UnauthorizedAccessException();
 
+            // Birden çok [Authorize] AND ile birleşir; tek özniteliğin Permission değeri "a|b" ise a VEYA b yeterlidir (ör. "satis.ship|sevkiyat.ship").
             foreach (var permission in attributes.Select(a => a.Permission).Where(p => !string.IsNullOrWhiteSpace(p)))
-                if (_session.TenantId is null || !_session.HasPermission(permission))
+                if (_session.TenantId is null || !permission.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Any(_session.HasPermission))
                     throw new ForbiddenAccessException();
         }
 

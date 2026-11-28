@@ -99,7 +99,7 @@ public class OutboxTests : TestBase {
         var tenant = new FixedTenant(Tenant);
 
         await using (var db = new ApplicationDbContext(options, tenant)) {
-            new Outbox(db, tenant, TimeProvider.System).Enqueue("test.event", new { a = 1 });
+            new Outbox(db, tenant, TimeProvider.System, []).Enqueue("test.event", new { a = 1 });
             // Aynı kod iki kez: benzersiz indeks SaveChanges'i, Enqueue'dan sonra ama kayıttan önce bozar.
             db.CurrentAccounts.Add(NewAccount());
             db.CurrentAccounts.Add(NewAccount());

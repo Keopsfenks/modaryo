@@ -7,8 +7,8 @@ namespace ERP.Domain.Shipping;
 public static class ShipmentStatusMachine {
     private static readonly Dictionary<string, string[]> Table = new(StringComparer.Ordinal) {
         ["Draft"]          = ["Picking", "Cancelled"],
-        ["Picking"]        = ["Packed", "Draft"],
-        ["Packed"]         = ["Shipped"],
+        ["Picking"]        = ["Packed", "Draft", "Cancelled"],
+        ["Packed"]         = ["Shipped", "Draft", "Cancelled"],
         ["Shipped"]        = ["Delivered", "DeliveryFailed"],
         ["DeliveryFailed"] = ["Shipped", "Returned"],
         ["Delivered"]      = [],

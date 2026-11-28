@@ -90,9 +90,17 @@ public sealed class PendingOrdersQueryHandler(
                                    Line = l
                                }).ToListAsync(ct);
 
+        // Teslim edilemeyen (DeliveryFailed) sevkin faturalanmamış miktarı faturalanamaz (yalnızca Shipped/Delivered faturalanır); faturalanacak miktardan düşülür.
+        var lineIds = rows.Select(r => r.Line.Id).ToList();
+        var failedOpen = (await db.ShipmentLines.AsNoTracking()
+                                  .Where(l => lineIds.Contains(l.SalesOrderLineId) && db.Shipments.Any(s => s.Id == l.ShipmentId && s.Status == ShipmentStatus.DeliveryFailed))
+                                  .Select(l => new { l.SalesOrderLineId, Open = l.Quantity - l.InvoicedQuantity }).ToListAsync(ct))
+                         .GroupBy(l => l.SalesOrderLineId).ToDictionary(g => g.Key, g => g.Sum(l => Math.Max(0m, l.Open)));
+
         var all = rows.Select(r => new PendingLineDto(r.Id, r.Number, r.CurrentAccountId, r.CustomerName ?? string.Empty, r.Line.Id, r.Line.Sort, r.Line.ProductId, r.Line.Description,
                                                       r.Line.Unit, r.Line.Quantity, r.Line.ShippedQuantity, r.Line.InvoicedQuantity,
-                                                      Math.Max(0m, r.Line.Quantity - r.Line.ShippedQuantity), Math.Max(0m, r.Line.ShippedQuantity - r.Line.InvoicedQuantity)))
+                                                      Math.Max(0m, r.Line.Quantity - r.Line.ShippedQuantity),
+                                                      Math.Max(0m, r.Line.ShippedQuantity - r.Line.InvoicedQuantity - failedOpen.GetValueOrDefault(r.Line.Id))))
                       .Where(l => (l.OpenToShip > 0m && request.ToInvoice != true) || (l.OpenToInvoice > 0m && request.ToShip != true))
                       .Where(l => request.ToShip != true || l.OpenToShip > 0m)
                       .Where(l => request.ToInvoice != true || l.OpenToInvoice > 0m)

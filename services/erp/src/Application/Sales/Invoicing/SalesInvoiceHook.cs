@@ -56,8 +56,7 @@ public sealed class SalesInvoiceHook(
         if (invoice.Lines.Any(l => l.SourceLineId is null))
             throw SalesErrors.Conflict("sales_invoice_unlinked", "Sevkten kesilen faturanın satırları sevk satırlarına bağlı olmalıdır.");
 
-        if (ctx.Shipments.Any(s => s.Status == ShipmentStatus.Cancelled))
-            throw SalesErrors.Conflict("shipment_cancelled", "İptal edilmiş sevk faturalanamaz.");
+        ShipmentInvoiceLinks.EnsureInvoiceable(ctx.Shipments);
 
         // Kilit altında yeniden denetim: bu fatura dahil iptal edilmemiş faturaların toplamı sevk miktarını aşamaz.
         await ShipmentInvoiceLinks.EnsureNotOverInvoicedAsync(db, invoice.Id,

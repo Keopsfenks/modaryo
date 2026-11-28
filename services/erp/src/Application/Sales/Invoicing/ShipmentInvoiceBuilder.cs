@@ -59,7 +59,7 @@ public sealed class ShipmentInvoiceBuilder(
 
         var first = shipments[0];
         if (shipments.Any(s => s.SalesOrderId != first.SalesOrderId)) throw SalesErrors.Bad("order_mismatch", "Faturalanacak sevklerin siparişi aynı olmalıdır.");
-        if (shipments.Any(s => s.Status == ShipmentStatus.Cancelled)) throw SalesErrors.Conflict("shipment_cancelled", "İptal edilmiş sevk faturalanamaz.");
+        ShipmentInvoiceLinks.EnsureInvoiceable(shipments);
 
         var order = await db.SalesOrders.AsNoTracking().Include(o => o.Lines).Include(o => o.Plan).ThenInclude(p => p!.Rows).FirstAsync(o => o.Id == first.SalesOrderId, ct);
         var lineIds  = shipments.SelectMany(s => s.Lines).Select(l => l.Id).ToList();

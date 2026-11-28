@@ -208,14 +208,22 @@ public class DeliveryTests : TestBase {
         using var withDraft = await Act(env, shipment, "return", new { reason = "x1" });
         await Fail(withDraft, HttpStatusCode.Conflict, "shipment_invoice_draft");
 
-        // Kısmen faturalanmış sevk: karışık durum desteklenmez.
-        using var put = await PutDraft(env, draft, 1m);
+        // Teslim edilemeyen (DeliveryFailed) sevkin taslağı artık kesilemez (yalnızca Shipped/Delivered faturalanır).
+        using var issueFailed = await env.Client.PostAsync($"{Url}/{draft.GetProperty("id").GetGuid()}/issue", null);
+        await Fail(issueFailed, HttpStatusCode.Conflict, "shipment_not_invoiceable");
+
+        // Kısmen faturalanmış sevk: karışık durum desteklenmez (kısmi fatura sevk edilmişken kesilir, sonra teslimat başarısız olur).
+        var (env2, _, shipment2, _, _) = await DispatchSupport.Packed(4m);
+        await DispatchSupport.ShipOk(env2, shipment2);
+        var draft2 = await Draft(env2.Client, shipment2);
+        using var put = await PutDraft(env2, draft2, 1m);
         put.StatusCode.ShouldBe(HttpStatusCode.OK, await put.Content.ReadAsStringAsync());
-        var current = await GetInvoice(env.Client, draft.GetProperty("id").GetGuid());
-        await Issue(env.Client, current.GetProperty("id").GetGuid());
-        using var partial = await Act(env, shipment, "return", new { reason = "x2" });
+        var current = await GetInvoice(env2.Client, draft2.GetProperty("id").GetGuid());
+        await Issue(env2.Client, current.GetProperty("id").GetGuid());
+        await ActOk(env2, shipment2, "fail", FailBody());
+        using var partial = await Act(env2, shipment2, "return", new { reason = "x2" });
         await Fail(partial, HttpStatusCode.Conflict, "shipment_partially_invoiced");
-        (await PickSupport.GetShipment(env, shipment)).GetProperty("status").GetString().ShouldBe("deliveryFailed");
+        (await PickSupport.GetShipment(env2, shipment2)).GetProperty("status").GetString().ShouldBe("deliveryFailed");
     }
 
     [Test]

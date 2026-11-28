@@ -8,7 +8,7 @@ public class StatusMachineTests {
     private static readonly string[] All = ["Draft", "Picking", "Packed", "Shipped", "Delivered", "DeliveryFailed", "Returned", "Cancelled"];
 
     private static readonly (string From, string To)[] Allowed = [
-        ("Draft", "Picking"), ("Draft", "Cancelled"), ("Picking", "Packed"), ("Picking", "Draft"), ("Packed", "Shipped"),
+        ("Draft", "Picking"), ("Draft", "Cancelled"), ("Picking", "Packed"), ("Picking", "Draft"), ("Picking", "Cancelled"), ("Packed", "Shipped"), ("Packed", "Draft"), ("Packed", "Cancelled"),
         ("Shipped", "Delivered"), ("Shipped", "DeliveryFailed"), ("DeliveryFailed", "Shipped"), ("DeliveryFailed", "Returned")
     ];
 

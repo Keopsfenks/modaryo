@@ -32,7 +32,8 @@ public sealed record ShipmentLineDto(
     decimal?                   Length,
     decimal                    InvoicedQuantity,
     IReadOnlyList<InvoiceLot>? Lots,
-    IReadOnlyList<string>?     Serials
+    IReadOnlyList<string>?     Serials,
+    bool                       IsService
 );
 
 public sealed record ShipmentDto(
@@ -82,16 +83,32 @@ public sealed record ParcelDto(Guid Id, int Index, decimal WeightKg, decimal Wid
 
 public sealed record AttemptDto(int AttemptNo, DateTimeOffset SentAt, string Outcome, DateTimeOffset? ResolvedAt, string? FailureReason);
 
+/// <summary>Liste satırındaki kalem özeti (ilk 3 satır); toplam satır sayısı LineCount'tadır.</summary>
+public sealed record ShipmentRowItemDto(string Description, string Unit, decimal Quantity, bool IsService);
+
 public sealed record ShipmentRowDto(
-    Guid           Id,
-    string         Number,
-    ShipmentStatus Status,
-    Guid           SalesOrderId,
-    string         OrderNumber,
-    Guid           CurrentAccountId,
-    string         CustomerName,
-    DateOnly       Date,
-    Guid?          InvoiceId
+    Guid                              Id,
+    string                            Number,
+    ShipmentStatus                    Status,
+    Guid                              SalesOrderId,
+    string                            OrderNumber,
+    Guid                              CurrentAccountId,
+    string                            CustomerName,
+    DateOnly                          Date,
+    Guid?                             InvoiceId,
+    DateTimeOffset?                   ShippedAt,
+    DateTimeOffset?                   DeliveredAt,
+    string?                           CarrierCode,
+    string?                           CarrierName,
+    string?                           TrackingNo,
+    string?                           TrackingUrl,
+    string?                           IrsaliyeNo,
+    Guid?                             PickListId,
+    int                               LineCount,
+    int                               ParcelCount,
+    IReadOnlyList<ShipmentRowItemDto> Items,
+    bool                              CustomerEmailMissing,
+    DateTimeOffset                    Created
 );
 
 public sealed record ShipmentListResult(IReadOnlyList<ShipmentRowDto> Items, int Total);

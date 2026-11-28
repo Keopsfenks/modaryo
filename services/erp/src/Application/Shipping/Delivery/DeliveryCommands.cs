@@ -2,6 +2,7 @@ using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.Invoicing;
+using ERP.Application.Sales;
 using ERP.Application.Sales.Invoicing;
 using ERP.Application.Sales.Orders;
 using ERP.Application.Sales.Returns;
@@ -146,6 +147,7 @@ public sealed class ReturnShipmentCommandValidator : AbstractValidator<ReturnShi
 public sealed class ReturnShipmentCommandHandler(
     IApplicationDbContext db,
     ICurrentTenant        tenant,
+    ICurrentSession       session,
     IOutbox               outbox,
     ShipmentService       shipments,
     ReturnCreator         returns,
@@ -170,6 +172,8 @@ public sealed class ReturnShipmentCommandHandler(
             if (links.Count == 0) {
                 await shipments.ReturnUninvoicedAsync(order, shipment, request.Reason, ct);
             } else {
+                // Faturalı iade P7 iade belgesi (stok girişi + iade faturası) keser: sevkiyat.ship yetmez, satis.return da gerekir (yalnızca bu dalda; faturasız iade değil).
+                if (!session.HasPermission(SalesPermissions.Return)) throw new ForbiddenAccessException();
                 if (links.Any(x => x.Status == InvoiceStatus.Draft))
                     throw ShippingErrors.Conflict("shipment_invoice_draft", "Sevke bağlı kesilmemiş taslak fatura var; önce taslağı silin ya da faturayı kesin.");
                 foreach (var line in shipment.Lines) {

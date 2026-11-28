@@ -10,6 +10,15 @@ public static class ShippingPermissions {
     public const string Deliver  = "sevkiyat.deliver";
     public const string Plan     = "sevkiyat.plan";
     public const string Settings = "ayarlar.sevkiyat";
+
+    /// <summary>Sevk oluşturma/iptal: P7 satış sevk izni ya da sevkiyat sevk izni yeterlidir (AuthorizationBehaviour "a|b" = VEYA).</summary>
+    public const string ShipOrSalesShip = "satis.ship|sevkiyat.ship";
+
+    /// <summary>Sevk listesi/detayı: satış okuma ya da sevkiyat okuma izni yeterlidir.</summary>
+    public const string ReadOrSalesRead = "satis.read|sevkiyat.read";
+
+    /// <summary>Toplamayı geri alma: toplama ya da paketleme izni yeterlidir.</summary>
+    public const string PickOrPack = "sevkiyat.pick|sevkiyat.pack";
 }
 
 public static class ShippingErrors {

@@ -14,6 +14,19 @@ public static class ShipmentInvoiceLinks {
 
     private const decimal Tolerance = 0.001m;
 
+    /// <summary>Faturalanabilen sevk durumları: stok çıkmış ve geri alınmamış olanlar (Shipped, Delivered).</summary>
+    public static bool IsInvoiceable(ShipmentStatus status) {
+        return status is ShipmentStatus.Shipped or ShipmentStatus.Delivered;
+    }
+
+    /// <summary>İptal edilmiş sevk 409 shipment_cancelled; stoğu çıkmamış (Draft/Picking/Packed) ya da geri alınmış (Returned/DeliveryFailed) sevk 409 shipment_not_invoiceable.</summary>
+    public static void EnsureInvoiceable(IEnumerable<Shipment> shipments) {
+        var list = shipments.ToList();
+        if (list.Any(s => s.Status == ShipmentStatus.Cancelled)) throw SalesErrors.Conflict("shipment_cancelled", "İptal edilmiş sevk faturalanamaz.");
+        if (list.Any(s => !IsInvoiceable(s.Status)))
+            throw SalesErrors.Conflict("shipment_not_invoiceable", "Yalnızca sevk edilmiş ya da teslim edilmiş sevkler faturalanabilir; sevk çıkmadan ya da iade edildikten sonra fatura kesilemez.");
+    }
+
     public static bool IsLinked(Invoice invoice) {
         return invoice.Kind == InvoiceKind.Sales && invoice.SourceType == Source;
     }

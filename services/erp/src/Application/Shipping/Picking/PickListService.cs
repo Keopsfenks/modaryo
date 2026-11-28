@@ -200,7 +200,8 @@ internal sealed class PickListService(
         if (!force && list.Lines.Any(l => l.PickedQuantity is null)) throw ShippingErrors.PickIncomplete();
 
         var ids       = list.ShipmentIds.ToList();
-        var shipments = await db.Shipments.Include(s => s.Lines).Where(s => ids.Contains(s.Id)).ToListAsync(ct);
+        // Yalnızca bu listeye bağlı, hâlâ Picking olan sevkler işlenir (liste açıkken iptal/geri alınan sevke dokunulmaz).
+        var shipments = await db.Shipments.Include(s => s.Lines).Where(s => ids.Contains(s.Id) && s.Status == ShipmentStatus.Picking && s.PickListId == listId).ToListAsync(ct);
         var byLine    = shipments.SelectMany(s => s.Lines).ToDictionary(l => l.Id);
 
         foreach (var line in list.Lines) {
@@ -276,10 +277,40 @@ public sealed class PickListMapper(IApplicationDbContext db) {
                                     CustomerName = db.CurrentAccounts.Where(c => c.Id == s.CurrentAccountId).Select(c => c.Name).FirstOrDefault()
                                 }).ToListAsync(ct);
         var productIds = list.Lines.Select(l => l.ProductId).Distinct().ToList();
-        var codes      = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, p => p.Code, ct);
+        var products   = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        var variantIds = list.Lines.Where(l => l.VariantId != null).Select(l => l.VariantId!.Value).Distinct().ToList();
+        var variants   = await db.ProductVariants.AsNoTracking().Where(v => variantIds.Contains(v.Id)).ToDictionaryAsync(v => v.Id, ct);
+        var registry   = await db.Barcodes.AsNoTracking().Where(b => productIds.Contains(b.ProductId)).ToListAsync(ct);
+        var unitIds    = registry.Where(b => b.Owner == BarcodeOwner.Unit).Select(b => b.OwnerId).ToList();
+        var unitFactor = await db.ProductUnits.AsNoTracking().Where(u => unitIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Factor, ct);
+
+        // Okutma eşleşmesi ürün kataloğundaki barkod arama kuralına uyar: varyantsız satırda ürün ve birim barkodları, varyantlı satırda yalnızca o varyantın barkodu.
+        List<PickBarcodeDto> BarcodesOf(PickLine l) {
+            var result = new List<PickBarcodeDto>();
+            foreach (var b in registry.Where(b => b.ProductId == l.ProductId)) {
+                if (l.VariantId is { } variantId) {
+                    if (b.Owner == BarcodeOwner.Variant && b.OwnerId == variantId) result.Add(new PickBarcodeDto(b.Value, b.Owner, variantId, 1m));
+                } else if (b.Owner == BarcodeOwner.Product) {
+                    result.Add(new PickBarcodeDto(b.Value, b.Owner, null, 1m));
+                } else if (b.Owner == BarcodeOwner.Unit) {
+                    result.Add(new PickBarcodeDto(b.Value, b.Owner, null, unitFactor.GetValueOrDefault(b.OwnerId, 1m)));
+                }
+            }
+
+            return result;
+        }
+
+        string Tracking(Guid productId) {
+            if (!products.TryGetValue(productId, out var p) || !TrackingValidator.IsTracked(p) || p.IsBundle) return "none";
+            return TrackingValidator.ModeOf(p) == TrackingMode.Serial ? "serial" : "lot";
+        }
+
         var lines = list.Lines.OrderBy(l => l.Sort)
-                        .Select(l => new PickLineDto(l.Id, l.Sort, l.WarehouseId, l.ProductId, l.VariantId, codes.GetValueOrDefault(l.ProductId) ?? string.Empty, l.Description, l.Unit,
-                                                     l.Factor, l.Quantity, l.PickedQuantity, l.Location, l.SuggestedLots, l.PickedLots, l.PickedSerials, l.Sources)).ToList();
+                        .Select(l => new PickLineDto(l.Id, l.Sort, l.WarehouseId, l.ProductId, l.VariantId, products.GetValueOrDefault(l.ProductId)?.Code ?? string.Empty, l.Description, l.Unit,
+                                                     l.Factor, l.Quantity, l.PickedQuantity, l.Location, l.SuggestedLots, l.PickedLots, l.PickedSerials, l.Sources,
+                                                     l.VariantId is { } v ? variants.GetValueOrDefault(v)?.Code : null,
+                                                     l.VariantId is { } v2 && variants.TryGetValue(v2, out var variant) && variant.Values.Count > 0 ? string.Join(" / ", variant.Values.Values) : null,
+                                                     Tracking(l.ProductId), BarcodesOf(l))).ToList();
         return new PickListDto(list.Id, list.Number, list.Status, list.BranchId, list.WarehouseId, warehouse ?? string.Empty,
                                shipments.Select(s => new PickListShipmentDto(s.Id, s.Number, s.OrderNumber ?? string.Empty, s.CustomerName ?? string.Empty)).ToList(), list.Version, lines);
     }

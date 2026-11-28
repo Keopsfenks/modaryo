@@ -1,7 +1,11 @@
+using ERP.Domain.Catalog;
 using ERP.Domain.Invoicing;
 using ERP.Domain.Shipping;
 
 namespace ERP.Application.Shipping.Picking;
+
+/// <summary>Okutulabilir barkod: Kind product/variant/unit; UnitFactor birim barkodunda 1 {birim} = UnitFactor x temel birim (diğerlerinde 1). Eşleşme için satırın Factor değeriyle karşılaştırılır.</summary>
+public sealed record PickBarcodeDto(string Value, BarcodeOwner Kind, Guid? VariantId, decimal UnitFactor);
 
 public sealed record PickSourceDto(Guid ShipmentLineId, decimal Quantity);
 
@@ -21,7 +25,11 @@ public sealed record PickLineDto(
     IReadOnlyList<PickLot>?    SuggestedLots,
     IReadOnlyList<PickLot>?    PickedLots,
     IReadOnlyList<string>?     PickedSerials,
-    IReadOnlyList<PickSource>? Sources
+    IReadOnlyList<PickSource>? Sources,
+    string?                    VariantCode,
+    string?                    VariantLabel,
+    string                     TrackingMode,
+    IReadOnlyList<PickBarcodeDto> Barcodes
 );
 
 public sealed record PickListShipmentDto(Guid Id, string Number, string OrderNumber, string CustomerName);

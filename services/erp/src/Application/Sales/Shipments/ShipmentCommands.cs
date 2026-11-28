@@ -2,11 +2,12 @@ using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
 using ERP.Application.Sales.Orders;
+using ERP.Application.Shipping;
 using ERP.Domain.Sales;
 
 namespace ERP.Application.Sales.Shipments;
 
-[Authorize(Permission = SalesPermissions.Ship)]
+[Authorize(Permission = ShippingPermissions.ShipOrSalesShip)]
 public sealed record CreateShipmentCommand(ShipmentInput Input) : IRequest<ShipmentDto>;
 
 public sealed class CreateShipmentCommandValidator : AbstractValidator<CreateShipmentCommand> {
@@ -45,7 +46,7 @@ public sealed class CreateShipmentCommandHandler(
     }
 }
 
-[Authorize(Permission = SalesPermissions.Ship)]
+[Authorize(Permission = ShippingPermissions.ShipOrSalesShip)]
 public sealed record CancelShipmentCommand(Guid Id, string Reason) : IRequest<ShipmentDto>;
 
 public sealed class CancelShipmentCommandValidator : AbstractValidator<CancelShipmentCommand> {

@@ -58,6 +58,7 @@ public static class DependencyInjection {
                                                                      ERP.Application.Shipping.Notifications.ShipmentEmailHandler.Handles,
                                                                      typeof(ERP.Application.Shipping.Notifications.ShipmentEmailHandler)));
         builder.Services.AddSingleton<OutboxRelay>();
+        builder.Services.AddSingleton<OutboxSubscriberWorker>();
         builder.Services.AddSingleton(sp => new StoredAllocationsBackfill(
                                           sp.GetRequiredService<RelayDatabase>(),
                                           sp.GetRequiredService<TimeProvider>(),
@@ -81,5 +82,7 @@ public static class DependencyInjection {
             builder.Services.AddHostedService(sp => sp.GetRequiredService<ERP.Infrastructure.Inventory.RevaluationWorker>());
         if (builder.Configuration.GetValue(OutboxOptions.Section + ":RelayEnabled", true))
             builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxRelay>());
+        if (builder.Configuration.GetValue(OutboxOptions.Section + ":RelayEnabled", true))
+            builder.Services.AddHostedService(sp => sp.GetRequiredService<OutboxSubscriberWorker>());
     }
 }

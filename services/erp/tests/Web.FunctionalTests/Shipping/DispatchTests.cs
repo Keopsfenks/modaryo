@@ -23,6 +23,14 @@ internal static class DispatchSupport {
 
     public static OutboxRelay Relay => TestEnvironment.Factory.Services.GetRequiredService<OutboxRelay>();
 
+    public static OutboxSubscriberWorker Subscribers => TestEnvironment.Factory.Services.GetRequiredService<OutboxSubscriberWorker>();
+
+    /// <summary>Yayın ve abone döngüsünü birer kez çalıştırır (arka plan hizmetleri testte kapalıdır).</summary>
+    public static async Task Pump() {
+        await Relay.PublishPendingAsync(CancellationToken.None);
+        await Subscribers.RunOnceAsync(CancellationToken.None);
+    }
+
     public static TestMailerGate Mailer => TestEnvironment.Factory.Services.GetRequiredService<TestMailerGate>();
 
     /// <summary>Toplaması ve paketlemesi bitmiş (Packed) sevk: (env, sipariş, sevk, sevk satırı, depo).</summary>
@@ -70,7 +78,7 @@ internal static class DispatchSupport {
     /// <summary>Alıcıya giden son postayı Mailpit'te arar (röle çalıştırılarak, en çok ~5 sn).</summary>
     public static async Task<JsonElement?> MailTo(string address, bool pump = true) {
         for (var attempt = 0; attempt < (pump ? 25 : 2); attempt++) {
-            if (pump) await Relay.PublishPendingAsync(CancellationToken.None);
+            if (pump) await Pump();
             var list = JsonDocument.Parse(await Http.GetStringAsync($"{Mailpit}/messages?limit=200")).RootElement;
             foreach (var message in list.GetProperty("messages").EnumerateArray())
                 if (message.GetProperty("To").EnumerateArray().Any(t => string.Equals(t.GetProperty("Address").GetString(), address, StringComparison.OrdinalIgnoreCase)))
@@ -211,7 +219,7 @@ public class DispatchTests : TestBase {
         await DispatchSupport.SetCustomerEmail(env, null);
 
         var shipped = await DispatchSupport.ShipOk(env, shipment);
-        await DispatchSupport.Relay.PublishPendingAsync(CancellationToken.None);
+        await DispatchSupport.Pump();
 
         shipped.GetProperty("customerEmailMissing").GetBoolean().ShouldBeTrue();
         var state = (await DispatchSupport.States(env)).ShouldHaveSingleItem();
@@ -229,7 +237,7 @@ public class DispatchTests : TestBase {
             var shipped = await DispatchSupport.ShipOk(env, shipment);
             shipped.GetProperty("status").GetString().ShouldBe("shipped");
 
-            await DispatchSupport.Relay.PublishPendingAsync(CancellationToken.None);
+            await DispatchSupport.Pump();
 
             var failed = (await DispatchSupport.States(env)).ShouldHaveSingleItem();
             failed.Attempts.ShouldBe(1);

@@ -10,6 +10,7 @@ using ERP.Application.Invoicing;
 using ERP.Application.Sales.Invoicing;
 using ERP.Application.Sales.Orders;
 using ERP.Application.Settings;
+using ERP.Application.Shipping;
 using ERP.Application.Settings.Categories;
 using ERP.Domain.Catalog;
 using ERP.Domain.Inventory;
@@ -331,8 +332,10 @@ public sealed class ShipmentService(
 
     /// <summary>Sevki iptal eder: stok geri alınır, rezervasyon yeniden aktif olur (stok kontrolü yapılmaz). Sipariş kilidi çağıranda alınmış olmalıdır.</summary>
     public async Task CancelAsync(SalesOrder order, Shipment shipment, string reason, CancellationToken ct) {
-        // Taslak sevk: stok hareketi yok, yalnızca açık miktar ayrımı bırakılır (durum makinesi: Draft -> Cancelled).
-        if (shipment.Status == ShipmentStatus.Draft) {
+        // Stoğu henüz çıkmamış sevk (Draft/Picking/Packed): stok hareketi yok, yalnızca açık miktar ayrımı bırakılır; faturaya bağlıysa diğer iptallerle aynı denetim uygulanır.
+        // Toplama listesi tamamlanmış olsa da iptal edilebilir (Picking -> Cancelled, Packed -> Cancelled): sevk satırları tutulur ama canlı olmadığından açık miktar serbest kalır.
+        if (shipment.Status is ShipmentStatus.Draft or ShipmentStatus.Picking or ShipmentStatus.Packed) {
+            await EnsureNotInvoicedAsync(shipment, ct);
             shipment.Status       = ShipmentStatus.Cancelled;
             shipment.CancelReason = reason.Trim();
             await db.SaveChangesAsync(ct);
@@ -340,7 +343,7 @@ public sealed class ShipmentService(
         }
 
         if (shipment.Status != ShipmentStatus.Shipped)
-            throw SalesErrors.Conflict("shipment_not_cancellable", shipment.Status == ShipmentStatus.Cancelled ? "Sevk zaten iptal edilmiş." : "Yalnızca sevk edilmiş (teslim edilmemiş) sevkler iptal edilebilir.");
+            throw SalesErrors.Conflict("shipment_not_cancellable", shipment.Status == ShipmentStatus.Cancelled ? "Sevk zaten iptal edilmiş." : "Yalnızca taslak, toplamada, paketlenmiş ya da sevk edilmiş (teslim edilmemiş) sevkler iptal edilebilir.");
         if (order.Status is SalesOrderStatus.Closed or SalesOrderStatus.Cancelled)
             throw SalesErrors.Conflict("order_not_open", "Kapatılmış ya da iptal edilmiş siparişin sevki iptal edilemez.");
 
@@ -351,8 +354,7 @@ public sealed class ShipmentService(
         if (await db.SalesReturns.AnyAsync(r => r.Status != SalesReturnStatus.Cancelled && returnedInvoices.Contains(r.InvoiceId), ct))
             throw SalesErrors.Conflict("has_returns", "Sevkin faturasına bağlı iade belgesi var; önce iadeyi iptal edin.");
 
-        if (await ShipmentInvoiceLinks.IsInvoicedAsync(db, shipment.Lines.Select(l => l.Id).ToList(), ct) || shipment.Lines.Any(l => l.InvoicedQuantity > 0m))
-            throw SalesErrors.Conflict("shipment_invoiced", "Faturaya bağlı sevk iptal edilemez; önce faturayı iptal edin ya da taslağı silin.");
+        await EnsureNotInvoicedAsync(shipment, ct);
 
         await ReverseStockAsync(order, shipment, ct);
 
@@ -360,6 +362,26 @@ public sealed class ShipmentService(
         shipment.CancelReason = reason.Trim();
         Recalculate(order);
         outbox.Enqueue("sales.shipment-cancelled", new { shipmentId = shipment.Id, number = shipment.Number, orderId = order.Id, reason = shipment.CancelReason });
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task EnsureNotInvoicedAsync(Shipment shipment, CancellationToken ct) {
+        if (await ShipmentInvoiceLinks.IsInvoicedAsync(db, shipment.Lines.Select(l => l.Id).ToList(), ct) || shipment.Lines.Any(l => l.InvoicedQuantity > 0m))
+            throw SalesErrors.Conflict("shipment_invoiced", "Faturaya bağlı sevk iptal edilemez; önce faturayı iptal edin ya da taslağı silin.");
+    }
+
+    /// <summary>
+    ///     Toplamayı geri alır: Picking ya da Packed sevk Draft'a döner (toplama listesi bağı ve koliler silinir). Stok hareketi yoktur; sevk satırları (kısa toplamayla
+    ///     düşmüş miktarlar dahil) olduğu gibi kalır. Sipariş kilidi çağıranda alınmış olmalıdır.
+    /// </summary>
+    public async Task UnpickAsync(Shipment shipment, CancellationToken ct) {
+        if (shipment.Status is not (ShipmentStatus.Picking or ShipmentStatus.Packed)) throw ShippingErrors.InvalidTransition(shipment.Status.ToString(), "Draft");
+        await EnsureNotInvoicedAsync(shipment, ct);
+        var parcels = await db.Parcels.Where(p => p.ShipmentId == shipment.Id).ToListAsync(ct);
+        db.Parcels.RemoveRange(parcels);
+        shipment.Parcels.Clear();
+        shipment.Status     = ShipmentStatus.Draft;
+        shipment.PickListId = null;
         await db.SaveChangesAsync(ct);
     }
 
