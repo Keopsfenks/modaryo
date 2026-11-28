@@ -76,7 +76,7 @@ function RegisterDialog({ register, lookups, onClose, onSaved }: { register: Reg
                         <TextField label="Kod" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} helperText="En çok 10 harf/rakam; fiş numarasında kullanılır." slotProps={{ htmlInput: { maxLength: 10 } }} sx={{ width: 220 }} />
                         <TextField label="Ad" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} fullWidth />
                     </Stack>
-                    <TextField select label="Şube" value={form.branchId} onChange={(e) => setBranch(e.target.value)}>
+                    <TextField select id="register-branch" label="Şube" value={form.branchId} onChange={(e) => setBranch(e.target.value)}>
                         {lookups.branches.filter((b) => b.isActive).map((b) => (
                             <MenuItem key={b.id} value={b.id}>
                                 {b.name}
@@ -84,21 +84,21 @@ function RegisterDialog({ register, lookups, onClose, onSaved }: { register: Reg
                         ))}
                     </TextField>
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                        <TextField select fullWidth label="Depo" value={form.warehouseId} onChange={(e) => setForm({ ...form, warehouseId: e.target.value })} disabled={!form.branchId}>
+                        <TextField select fullWidth id="register-warehouse" label="Depo" value={form.warehouseId} onChange={(e) => setForm({ ...form, warehouseId: e.target.value })} disabled={!form.branchId}>
                             {warehouses.map((w) => (
                                 <MenuItem key={w.id} value={w.id}>
                                     {w.name}
                                 </MenuItem>
                             ))}
                         </TextField>
-                        <TextField select fullWidth label="Nakit hesabı" value={form.cashAccountId} onChange={(e) => setForm({ ...form, cashAccountId: e.target.value })} disabled={!form.branchId}>
+                        <TextField select fullWidth id="register-cash-account" label="Nakit hesabı" value={form.cashAccountId} onChange={(e) => setForm({ ...form, cashAccountId: e.target.value })} disabled={!form.branchId}>
                             {cashAccounts.map((a) => (
                                 <MenuItem key={a.id} value={a.id}>
                                     {a.name}
                                 </MenuItem>
                             ))}
                         </TextField>
-                        <TextField select fullWidth label="Kart hesabı" value={form.cardAccountId} onChange={(e) => setForm({ ...form, cardAccountId: e.target.value })} disabled={!form.branchId}>
+                        <TextField select fullWidth id="register-card-account" label="Kart hesabı" value={form.cardAccountId} onChange={(e) => setForm({ ...form, cardAccountId: e.target.value })} disabled={!form.branchId}>
                             {cardAccounts.map((a) => (
                                 <MenuItem key={a.id} value={a.id}>
                                     {a.name}

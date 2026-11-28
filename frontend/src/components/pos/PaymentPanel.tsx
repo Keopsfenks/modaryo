@@ -24,10 +24,12 @@ type PaymentPanelProps = {
     /** Değişim farkında veresiye verilmez. */
     allowOnAccount?: boolean;
     submitLabel?: string;
+    /** Sunucu tutarı henüz hesaplanıyor ya da alınamadı: tutar kesin değildir, ödeme kapalıdır. */
+    pending?: boolean;
 };
 
 /** Ödeme paneli: hızlı nakit düğmeleri, kart alanı, devasa para üstü ve (müşteri seçiliyse) veresiye. Nakit fazlası para üstüdür; kart toplamı aşamaz. */
-export default function PaymentPanel({ total, customer, busy, offline, onSubmit, allowOnAccount = true, submitLabel = "Öde" }: PaymentPanelProps) {
+export default function PaymentPanel({ total, customer, busy, offline, onSubmit, allowOnAccount = true, submitLabel = "Öde", pending = false }: PaymentPanelProps) {
     const [cash, setCash] = useState("");
     const [card, setCard] = useState("");
 
@@ -38,9 +40,9 @@ export default function PaymentPanel({ total, customer, busy, offline, onSubmit,
     const paid = round2(cashV + cardV);
     const change = cardOver ? 0 : round2(Math.max(0, cashV - afterCard));
     const missing = round2(total - paid);
-    const canPay = !busy && !offline && total > 0 && !cardOver && missing <= 0;
+    const canPay = !busy && !offline && !pending && total > 0 && !cardOver && missing <= 0;
     const onAccount = round2(total - Math.min(cashV, afterCard) - Math.min(cardV, total));
-    const canVeresiye = allowOnAccount && !busy && !offline && !!customer && total > 0 && !cardOver && onAccount > 0;
+    const canVeresiye = allowOnAccount && !busy && !offline && !pending && !!customer && total > 0 && !cardOver && onAccount > 0;
 
     const payments = (extra?: SalePaymentInput): SalePaymentInput[] => {
         const list: SalePaymentInput[] = [];
@@ -59,9 +61,14 @@ export default function PaymentPanel({ total, customer, busy, offline, onSubmit,
                 <Typography variant="h3" aria-label="Ödenecek tutar">
                     {money(total)}
                 </Typography>
+                {pending && (
+                    <Typography variant="body2" color="warning.main" role="status">
+                        Tutar hesaplanıyor...
+                    </Typography>
+                )}
             </Box>
             <Stack direction="row" useFlexGap sx={{ flexWrap: "wrap", gap: 1 }}>
-                <Button variant="outlined" sx={TOUCH} onClick={() => setCash(String(afterCard).replace(".", ","))}>
+                <Button variant="outlined" sx={TOUCH} disabled={pending} onClick={() => setCash(String(afterCard).replace(".", ","))}>
                     Tam
                 </Button>
                 {QUICK_CASH.map((n) => (

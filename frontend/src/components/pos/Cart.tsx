@@ -21,14 +21,11 @@ export type CartLine = {
     discountPercent: number;
 };
 
-/** Satır toplamı (KDV dahil) tahmini: sunucu kesin tutarı hesaplar. Terazi tutar barkodunda satır tutarı sabittir. */
-export function lineTotal(line: CartLine): number {
+/** Yer tutucu: sunucu önizlemesi gelene kadar gösterilen ham tutar (KDV/kampanya hesabı yok; kesin tutar sunucudan gelir). */
+export function lineEstimate(line: CartLine): number {
     const { info } = line;
     if (info.fixedTotal !== null) return info.fixedTotal;
-    let gross = line.quantity * info.unitPrice * (1 - line.discountPercent / 100);
-    if (!info.vatIncluded) gross *= 1 + info.item.vatRate / 100;
-    const campaign = info.campaign && line.baseQuantity > 0 ? (info.campaign.discountAmount * line.quantity) / line.baseQuantity : 0;
-    return Math.max(0, round2(gross - campaign));
+    return Math.max(0, round2(line.quantity * info.unitPrice * (1 - line.discountPercent / 100)));
 }
 
 type CartProps = {
@@ -36,6 +33,8 @@ type CartProps = {
     onQuantity: (key: string, quantity: number) => void;
     onDiscount: (key: string, percent: number) => void;
     onRemove: (key: string) => void;
+    /** Sunucu önizlemesinden satır toplamları (satır sırasıyla); yoksa yer tutucu tutar soluk gösterilir. */
+    serverTotals?: number[] | null;
     /** Satır iskontosu yetkisi: izin verilen en yüksek yüzde (0 → iskonto yok). */
     maxDiscount: number;
 };
@@ -61,7 +60,7 @@ function QuantityField({ line, onQuantity }: { line: CartLine; onQuantity: CartP
 }
 
 /** Sepet: büyük satırlar, miktar +/−/düzenleme, iskonto (yetkiliyse) ve diğer şubelerin stoğu. */
-export default function Cart({ lines, onQuantity, onDiscount, onRemove, maxDiscount }: CartProps) {
+export default function Cart({ lines, onQuantity, onDiscount, onRemove, maxDiscount, serverTotals = null }: CartProps) {
     if (lines.length === 0) {
         return (
             <Box sx={{ flexGrow: 1, display: "grid", placeItems: "center", color: "text.disabled" }}>
@@ -71,7 +70,7 @@ export default function Cart({ lines, onQuantity, onDiscount, onRemove, maxDisco
     }
     return (
         <Stack spacing={1} sx={{ flexGrow: 1, overflowY: "auto", pr: 0.5 }}>
-            {lines.map((l) => {
+            {lines.map((l, idx) => {
                 const name = l.info.item.name;
                 const step = 1;
                 return (
@@ -108,8 +107,8 @@ export default function Cart({ lines, onQuantity, onDiscount, onRemove, maxDisco
                         <IconButton aria-label={`Artır ${name}`} sx={{ width: 48, height: 48 }} disabled={l.info.fixedTotal !== null} onClick={() => onQuantity(l.key, round2(l.quantity + step))}>
                             <IconPlus />
                         </IconButton>
-                        <Typography variant="h6" sx={{ minWidth: 110, textAlign: "right" }}>
-                            {money(lineTotal(l))}
+                        <Typography variant="h6" sx={{ minWidth: 110, textAlign: "right" }} color={serverTotals?.[idx] === undefined ? "text.disabled" : "text.primary"}>
+                            {money(serverTotals?.[idx] ?? lineEstimate(l))}
                         </Typography>
                         <IconButton aria-label={`Sil ${name}`} color="error" sx={{ width: 48, height: 48 }} onClick={() => onRemove(l.key)}>
                             <IconTrash />

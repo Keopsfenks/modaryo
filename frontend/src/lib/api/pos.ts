@@ -68,6 +68,39 @@ export type SaleLineInput = {
 export type SalePaymentInput = { method: PaymentMethod; amount: number };
 export type SaleInput = { clientSaleId: string; registerId: string; customerId?: string | null; lines: SaleLineInput[]; payments: SalePaymentInput[] };
 
+export type SalePreviewInput = { registerId?: string | null; customerId?: string | null; lines: SaleLineInput[] };
+export type SalePreviewLine = {
+    sort: number;
+    productId: string;
+    variantId: string | null;
+    description: string;
+    unit: string;
+    quantity: number;
+    unitPrice: number;
+    vatRate: number;
+    discount: number;
+    campaignDiscount: number;
+    discountGross: number;
+    campaignDiscountGross: number;
+    campaignId: string | null;
+    net: number;
+    vat: number;
+    total: number;
+    listTotal: number;
+};
+export type SalePreview = { lines: SalePreviewLine[]; subtotal: number; discount: number; vatTotal: number; total: number };
+export type ReturnPreviewInput = { saleNumber: string; registerId?: string | null; lines: { saleLineId: string; quantity: number }[]; exchangeLines?: SaleLineInput[] };
+export type ReturnPreview = {
+    returnValue: number;
+    returnNet: number;
+    onAccountShare: number;
+    exchangeCredit: number;
+    payDue: number;
+    refundDue: number;
+    lines: { saleLineId: string; quantity: number; amount: number; net: number }[];
+    exchange: SalePreview | null;
+};
+
 export type SlipLine = { description: string; quantity: number; unit: string; unitPrice: number; discount: number; campaignDiscount: number; vatRate: number; total: number };
 export type SlipVat = { rate: number; base: number; vat: number };
 export type SlipPayment = { method: PaymentMethod | "returnCredit"; amount: number };
@@ -239,6 +272,8 @@ export const pos = {
     setButtons: (id: string, pages: (QuickButtonInput | null)[][]) => send<RegisterDto>("PUT", `/registers/${id}/buttons`, { pages }),
     lookup: (code: string, registerId?: string) => get<PosLookup>(`/lookup${q({ code, registerId })}`),
     search: (text: string) => get<SellableItem[]>(`/lookup/search${q({ q: text })}`),
+    previewSale: (body: SalePreviewInput) => send<SalePreview>("POST", "/sales/preview", body),
+    previewReturn: (body: ReturnPreviewInput) => send<ReturnPreview>("POST", "/returns/preview", body),
     createSale: (body: SaleInput) => send<SaleResult>("POST", "/sales", body),
     sale: (id: string) => get<SaleDto>(`/sales/${id}`),
     saleByNumber: (number: string) => get<SaleDto>(`/sales/by-number/${encodeURIComponent(number)}`),

@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
-import type { ReturnInput } from "@/lib/api/pos";
+import type { ReturnInput, ReturnPreview } from "@/lib/api/pos";
 import { problem } from "@/test/fixtures";
 import { renderWithTheme } from "@/test/render";
 import { server } from "@/test/server";
@@ -13,8 +13,10 @@ vi.setConfig({ testTimeout: 20000 });
 describe("ReturnScreen", () => {
     it("ReturnScreen_ScanReceiptLoadsLines", async () => {
         let body: ReturnInput | undefined;
+        const preview: ReturnPreview = { returnValue: 24.99, returnNet: 20.83, onAccountShare: 0, exchangeCredit: 0, payDue: 0, refundDue: 24.99, lines: [{ saleLineId: "line-1", quantity: 1, amount: 24.99, net: 20.83 }], exchange: null };
         server.use(
             http.get("*/api/erp/pos/sales/by-number/PSK1202611280001", () => HttpResponse.json(saleDto())),
+            http.post("*/api/erp/pos/returns/preview", () => HttpResponse.json(preview)),
             http.post("*/api/erp/pos/returns", async ({ request }) => {
                 body = (await request.json()) as ReturnInput;
                 return HttpResponse.json({ id: "ret-1", number: "IAD1", returnValue: 25, cashRefund: 25, cardRefund: 0, onAccountCredit: 0, exchangeCredit: 0, difference: -25, returnInvoiceId: null, replayed: false, warnings: [], exchangeSale: null });
@@ -27,7 +29,9 @@ describe("ReturnScreen", () => {
 
         expect(await screen.findByRole("cell", { name: "Kalem" })).toBeInTheDocument();
         await user.type(screen.getByRole("textbox", { name: "İade miktarı Kalem" }), "1");
-        expect(screen.getByLabelText("İade değeri")).toHaveTextContent("25,00 ₺");
+        // Önizleme gelene kadar iade tamamlanamaz; değer sunucudan gelir (istemci 25,00 hesaplardı).
+        expect(screen.getByRole("button", { name: "İadeyi tamamla" })).toBeDisabled();
+        await waitFor(() => expect(screen.getByLabelText("İade değeri")).toHaveTextContent("24,99 ₺"));
         await user.click(screen.getByRole("button", { name: "İadeyi tamamla" }));
 
         await waitFor(() => expect(body).toBeDefined());
@@ -35,7 +39,7 @@ describe("ReturnScreen", () => {
             saleNumber: "PSK1202611280001",
             registerId: "reg-1",
             lines: [{ saleLineId: "line-1", quantity: 1 }],
-            refund: [{ method: "cash", amount: 25 }],
+            refund: [{ method: "cash", amount: 24.99 }],
         });
         expect(typeof body?.clientReturnId).toBe("string");
         await waitFor(() => expect(onDone).toHaveBeenCalled());

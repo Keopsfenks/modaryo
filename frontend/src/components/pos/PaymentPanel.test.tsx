@@ -41,4 +41,16 @@ describe("PaymentPanel", () => {
 
         expect(onSubmit).toHaveBeenCalledWith([{ method: "onAccount", amount: 347.5 }]);
     });
+
+    it("PaymentPanel_PendingTotalBlocksPayment", async () => {
+        const onSubmit = vi.fn();
+        const { user } = renderWithTheme(<PaymentPanel total={100} customer={{ id: "c1", name: "Akın" }} busy={false} offline={false} pending onSubmit={onSubmit} />);
+
+        await user.type(screen.getByRole("textbox", { name: "Nakit" }), "100");
+
+        expect(screen.getByText("Tutar hesaplanıyor...")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Öde" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Tam" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Veresiye" })).toBeDisabled();
+    });
 });

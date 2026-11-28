@@ -21,12 +21,14 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useDebounced } from "@/components/pricing/useDebounced";
 import type { SellableItem } from "@/lib/api/catalog";
+import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessages";
 import { newClientId, pos, type PosLookup, type QuickButtonDto, type RegisterDto, type SaleInput, type SaleResult, type ShiftDto } from "@/lib/api/pos";
 import { useSession } from "@/session/SessionProvider";
-import Cart, { lineTotal, type CartLine } from "./Cart";
+import Cart, { lineEstimate, type CartLine } from "./Cart";
 import CustomerPicker, { type PosCustomer } from "./CustomerPicker";
 import { money, round2 } from "./format";
+import { usePreview } from "./usePreview";
 import PaymentPanel, { CASH_FIELD_ID } from "./PaymentPanel";
 import QuickButtons from "./QuickButtons";
 import { CashMoveDialog } from "./ShiftClose";
@@ -121,8 +123,23 @@ export default function SellScreen({ register, shift, onReturn, onCloseShift, on
     const scanRef = useRef<HTMLInputElement>(null);
 
     const anyDialog = searchOpen || pickerOpen || clearOpen || cashMoveOpen || done !== null;
-    const total = round2(lines.reduce((s, l) => s + lineTotal(l), 0));
     const canSell = hasPermission("pos.sell");
+
+    // Satış satırları: fiyat her zaman sunucudan gelir (müşteriye özel liste, kampanya, yuvarlama); elle fiyat gönderilmez.
+    const saleLines = lines.map((l) => ({
+        productId: l.info.item.productId,
+        variantId: l.info.item.variantId,
+        unit: l.info.unit,
+        quantity: l.quantity,
+        manualDiscountPercent: l.discountPercent > 0 ? l.discountPercent : undefined,
+        fixedTotal: l.info.fixedTotal ?? undefined,
+    }));
+    const previewKey = lines.length === 0 ? "" : JSON.stringify({ registerId: register.id, customerId: customer?.id ?? null, lines: saleLines });
+    const preview = usePreview(previewKey, () => pos.previewSale({ registerId: register.id, customerId: customer?.id ?? null, lines: saleLines }));
+    // Ödeme yalnızca sunucu toplamıyla yapılır; önizleme gelene (ya da hata verirse düzelene) kadar tutar yer tutucudur.
+    const serverTotal = preview.data?.total ?? null;
+    const total = lines.length === 0 ? 0 : (serverTotal ?? round2(lines.reduce((s, l) => s + lineEstimate(l), 0)));
+    const unsettled = lines.length > 0 && serverTotal === null;
 
     const addInfo = useCallback((info: PosLookup, quantity?: number) => {
         const qty = quantity ?? info.quantity;
@@ -144,25 +161,17 @@ export default function SellScreen({ register, shift, onReturn, onCloseShift, on
             try {
                 addInfo(await pos.lookup(text, register.id), quantity);
             } catch (e) {
-                setMessage(errorMessage(e));
+                setMessage(e instanceof ApiError && e.code === "price_required" && !hasPermission("pos.manage") ? "Bu kalemin satış fiyatı tanımlı değil; yetkili bir kullanıcı fiyat tanımlamalıdır." : errorMessage(e));
             }
         },
-        [addInfo, register.id],
+        [addInfo, register.id, hasPermission],
     );
 
     const submit = async (payments: SaleInput["payments"]) => {
         const body = {
             registerId: register.id,
             customerId: customer?.id ?? null,
-            lines: lines.map((l) => ({
-                productId: l.info.item.productId,
-                variantId: l.info.item.variantId,
-                unit: l.info.unit,
-                quantity: l.quantity,
-                unitPrice: l.info.unitPrice > 0 ? l.info.unitPrice : undefined,
-                manualDiscountPercent: l.discountPercent > 0 ? l.discountPercent : undefined,
-                fixedTotal: l.info.fixedTotal ?? undefined,
-            })),
+            lines: saleLines,
             payments,
         };
         const signature = JSON.stringify(body);
@@ -294,6 +303,11 @@ export default function SellScreen({ register, shift, onReturn, onCloseShift, on
                     Bağlantı yok. Çevrimdışı satış desteklenmez; bağlantı gelene kadar satış yapılamaz.
                 </Alert>
             )}
+            {preview.error && lines.length > 0 && (
+                <Alert severity="error" sx={{ borderRadius: 0 }}>
+                    {preview.error}
+                </Alert>
+            )}
             {message && (
                 <Alert severity="error" onClose={() => setMessage(null)} sx={{ borderRadius: 0 }}>
                     {message}
@@ -324,10 +338,11 @@ export default function SellScreen({ register, shift, onReturn, onCloseShift, on
                         onQuantity={(key, quantity) => setLines((cur) => cur.map((l) => (l.key === key ? { ...l, quantity } : l)))}
                         onDiscount={(key, discountPercent) => setLines((cur) => cur.map((l) => (l.key === key ? { ...l, discountPercent } : l)))}
                         onRemove={(key) => setLines((cur) => cur.filter((l) => l.key !== key))}
+                        serverTotals={preview.data?.lines.map((l) => l.total) ?? null}
                     />
                     <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "baseline" }}>
                         <Typography variant="h5">Toplam</Typography>
-                        <Typography variant="h3" aria-label="Sepet toplamı">
+                        <Typography variant="h3" aria-label="Sepet toplamı" color={unsettled ? "text.disabled" : "text.primary"}>
                             {money(total)}
                         </Typography>
                     </Stack>
@@ -337,7 +352,7 @@ export default function SellScreen({ register, shift, onReturn, onCloseShift, on
                         <QuickButtons pages={register.pages} onPick={pickButton} disabled={!online} />
                     </Paper>
                     <Paper sx={{ p: 2 }}>
-                        <PaymentPanel key={panelKey} total={total} customer={customer} busy={busy} offline={!online || !canSell} onSubmit={(p) => void submit(p)} />
+                        <PaymentPanel key={panelKey} total={total} customer={customer} busy={busy} offline={!online || !canSell} pending={unsettled} onSubmit={(p) => void submit(p)} />
                     </Paper>
                 </Stack>
             </Box>

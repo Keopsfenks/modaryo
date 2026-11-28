@@ -18,20 +18,19 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { IconTrash } from "@tabler/icons-react";
-import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessages";
 import { newClientId, pos, type RegisterDto, type ReturnResult, type SaleDto, type SalePaymentInput } from "@/lib/api/pos";
-import { parseAmount } from "@/lib/money";
-import { lineTotal, type CartLine } from "./Cart";
-import { fmtQty, money, parseNumber, round2 } from "./format";
+import { lineEstimate, type CartLine } from "./Cart";
+import { fmtQty, money, parseNumber } from "./format";
 import PaymentPanel from "./PaymentPanel";
+import { usePreview } from "./usePreview";
 
 type ReturnScreenProps = { register: RegisterDto; onDone: (result: ReturnResult) => void; onCancel: () => void };
 
 /**
  * İade / değişim (F9): fiş numarası (ya da okutulan fiş barkodu) ile satış yüklenir; iade miktarı satılan - daha önce iade edilenle sınırlıdır.
  * Değişimde yeni kalemler eklenir; iade değeri önce değişime mahsup edilir, fark ya müşteriden alınır ya nakit/karta iade edilir.
- * Tutarlar tahmindir; sunucu kesin değeri hesaplar (uyuşmazlıkta sunucunun tutarı gösterilir).
+ * İade değeri, mahsup, tahsil ve iade tutarları sunucu önizlemesinden gelir (/returns/preview); istemci tutar hesaplamaz.
  */
 export default function ReturnScreen({ register, onDone, onCancel }: ReturnScreenProps) {
     const [receipt, setReceipt] = useState("");
@@ -43,8 +42,6 @@ export default function ReturnScreen({ register, onDone, onCancel }: ReturnScree
     const [reason, setReason] = useState("");
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [info, setInfo] = useState<string | null>(null);
-    const [serverRefund, setServerRefund] = useState<number | null>(null);
     // Aynı iade denemesinin kimliği: yeniden gönderimde korunur.
     const attempt = useRef<{ id: string; signature: string } | null>(null);
 
@@ -61,7 +58,6 @@ export default function ReturnScreen({ register, onDone, onCancel }: ReturnScree
             }
             setSale(s);
             setQtys({});
-            setServerRefund(null);
         } catch (e) {
             setSale(null);
             setError(errorMessage(e));
@@ -69,22 +65,30 @@ export default function ReturnScreen({ register, onDone, onCancel }: ReturnScree
     };
 
     const picked = (sale?.lines ?? []).map((l) => {
-        const left = round2(l.quantity - l.returnedQuantity);
+        // Ağırlıklı kalemlerde kalan miktar 3 ondalıktır (2'ye yuvarlamak "Tümü"yü bozar).
+        const left = Math.round((l.quantity - l.returnedQuantity) * 1e6) / 1e6;
         const q = parseNumber(qtys[l.id] ?? "") ?? 0;
-        const valid = q > 0 && q <= left;
-        const value = valid ? (q === l.quantity ? l.total : round2((l.total * q) / l.quantity)) : 0;
-        return { line: l, left, q, valid, over: q > left, value };
+        return { line: l, left, q, valid: q > 0 && q <= left, over: q > left };
     });
     const chosen = picked.filter((p) => p.valid);
     const anyOver = picked.some((p) => p.over);
-    const returnValue = round2(chosen.reduce((s, p) => s + p.value, 0));
-    const onAccount = sale?.payments.filter((p) => p.method === "onAccount").reduce((s, p) => s + p.amount, 0) ?? 0;
-    const share = sale && onAccount > 0 && sale.total > 0 ? Math.min(returnValue, round2((returnValue * onAccount) / sale.total)) : 0;
-    const cashable = round2(returnValue - share);
-    const exchangeTotal = round2(exchange.reduce((s, l) => s + lineTotal(l), 0));
-    const credit = Math.min(cashable, exchangeTotal);
-    const payDue = round2(exchangeTotal - credit);
-    const refundDue = serverRefund ?? round2(cashable - credit);
+
+    const exchangeLines = exchange.map((l) => ({
+        productId: l.info.item.productId,
+        variantId: l.info.item.variantId,
+        unit: l.info.unit,
+        quantity: l.quantity,
+        fixedTotal: l.info.fixedTotal ?? undefined,
+    }));
+    const returnLines = chosen.map((p) => ({ saleLineId: p.line.id, quantity: p.q }));
+    const previewBody = sale ? { saleNumber: sale.number, registerId: register.id, lines: returnLines, exchangeLines: exchangeLines.length > 0 ? exchangeLines : undefined } : null;
+    const preview = usePreview(previewBody && chosen.length > 0 && !anyOver ? JSON.stringify(previewBody) : "", () => pos.previewReturn(previewBody!));
+    const quote = preview.data;
+    const waiting = chosen.length > 0 && !anyOver && quote === null;
+    const returnValue = quote?.returnValue ?? 0;
+    const share = quote?.onAccountShare ?? 0;
+    const payDue = quote?.payDue ?? 0;
+    const refundDue = quote?.refundDue ?? 0;
 
     const addExchange = async () => {
         const code = exchangeScan.trim();
@@ -100,23 +104,13 @@ export default function ReturnScreen({ register, onDone, onCancel }: ReturnScree
     };
 
     const submit = async (payments?: SalePaymentInput[]) => {
-        if (!sale || chosen.length === 0) return;
+        if (!sale || chosen.length === 0 || !quote) return;
         const body = {
             saleNumber: sale.number,
             registerId: register.id,
-            lines: chosen.map((p) => ({ saleLineId: p.line.id, quantity: p.q })),
+            lines: returnLines,
             refund: payDue <= 0 && refundDue > 0 ? [{ method, amount: refundDue }] : undefined,
-            exchangeLines:
-                exchange.length > 0
-                    ? exchange.map((l) => ({
-                          productId: l.info.item.productId,
-                          variantId: l.info.item.variantId,
-                          unit: l.info.unit,
-                          quantity: l.quantity,
-                          unitPrice: l.info.unitPrice > 0 ? l.info.unitPrice : undefined,
-                          fixedTotal: l.info.fixedTotal ?? undefined,
-                      }))
-                    : undefined,
+            exchangeLines: exchangeLines.length > 0 ? exchangeLines : undefined,
             exchangePayments: payDue > 0 ? payments : undefined,
             reason: reason.trim() === "" ? null : reason.trim(),
         };
@@ -124,22 +118,11 @@ export default function ReturnScreen({ register, onDone, onCancel }: ReturnScree
         if (attempt.current?.signature !== signature) attempt.current = { id: newClientId(), signature };
         setBusy(true);
         setError(null);
-        setInfo(null);
         try {
             const result = await pos.createReturn({ clientReturnId: attempt.current.id, ...body });
             attempt.current = null;
             onDone(result);
         } catch (e) {
-            if (e instanceof ApiError && e.code === "refund_mismatch") {
-                // Sunucu kesin iade tutarını bildirir ("... toplamı 25,00 olmalıdır."); tutar güncellenir, kasiyer yeniden onaylar.
-                const found = /(\d{1,3}(?:\.\d{3})*,\d{2})/.exec(e.message);
-                const exact = found ? parseAmount(found[1]) : null;
-                if (exact !== null) {
-                    setServerRefund(exact);
-                    setInfo(`İade tutarı sunucuya göre ${money(exact)} olarak güncellendi; tekrar onaylayın.`);
-                    return;
-                }
-            }
             setError(errorMessage(e));
         } finally {
             setBusy(false);
@@ -155,7 +138,7 @@ export default function ReturnScreen({ register, onDone, onCancel }: ReturnScree
                         <Button onClick={onCancel}>Satışa dön</Button>
                     </Stack>
                     {error && <Alert severity="error">{error}</Alert>}
-                    {info && <Alert severity="info">{info}</Alert>}
+                    {preview.error && <Alert severity="error">{preview.error}</Alert>}
                     <TextField
                         autoFocus
                         label="Fiş numarası"
@@ -215,10 +198,10 @@ export default function ReturnScreen({ register, onDone, onCancel }: ReturnScree
                             <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "baseline" }}>
                                 <Typography variant="h6">İade değeri</Typography>
                                 <Typography variant="h4" aria-label="İade değeri">
-                                    {money(returnValue)}
+                                    {waiting ? "..." : money(returnValue)}
                                 </Typography>
                             </Stack>
-                            {share > 0 && <Typography color="text.secondary">Bunun {money(share)} tutarı veresiye olduğundan müşteri borcundan düşülür.</Typography>}
+                            {share > 0 &&  <Typography color="text.secondary">Bunun {money(share)} tutarı veresiye olduğundan müşteri borcundan düşülür.</Typography>}
                             <Stack spacing={1}>
                                 <Typography variant="subtitle1">Değişim ürünleri (isteğe bağlı)</Typography>
                                 <TextField
@@ -239,7 +222,7 @@ export default function ReturnScreen({ register, onDone, onCancel }: ReturnScree
                                             {l.info.item.name} × {fmtQty(l.quantity)}
                                         </Typography>
                                         <Stack direction="row" sx={{ alignItems: "center" }} spacing={1}>
-                                            <Typography>{money(lineTotal(l))}</Typography>
+                                            <Typography color={quote?.exchange?.lines[exchange.indexOf(l)] ? "text.primary" : "text.disabled"}>{money(quote?.exchange?.lines[exchange.indexOf(l)]?.total ?? lineEstimate(l))}</Typography>
                                             <IconButton aria-label={`Değişim satırını sil ${l.info.item.name}`} onClick={() => setExchange((cur) => cur.filter((x) => x.key !== l.key))}>
                                                 <IconTrash size={18} />
                                             </IconButton>
@@ -251,7 +234,7 @@ export default function ReturnScreen({ register, onDone, onCancel }: ReturnScree
                             {payDue > 0 ? (
                                 <Paper variant="outlined" sx={{ p: 2 }}>
                                     <Typography sx={{ mb: 1 }}>Değişim farkı müşteriden alınır.</Typography>
-                                    <PaymentPanel total={payDue} customer={null} allowOnAccount={false} busy={busy} offline={chosen.length === 0 || anyOver} submitLabel="İadeyi tamamla" onSubmit={(p) => void submit(p)} />
+                                    <PaymentPanel total={payDue} customer={null} allowOnAccount={false} busy={busy} offline={chosen.length === 0 || anyOver} pending={waiting} submitLabel="İadeyi tamamla" onSubmit={(p) => void submit(p)} />
                                 </Paper>
                             ) : (
                                 <Stack spacing={1}>
@@ -267,7 +250,7 @@ export default function ReturnScreen({ register, onDone, onCancel }: ReturnScree
                                         </>
                                     )}
                                     <div>
-                                        <Button variant="contained" size="large" disabled={busy || chosen.length === 0 || anyOver} onClick={() => void submit()} sx={{ minHeight: 56 }}>
+                                        <Button variant="contained" size="large" disabled={busy || chosen.length === 0 || anyOver || waiting} onClick={() => void submit()} sx={{ minHeight: 56 }}>
                                             {busy ? "İşleniyor..." : "İadeyi tamamla"}
                                         </Button>
                                     </div>
