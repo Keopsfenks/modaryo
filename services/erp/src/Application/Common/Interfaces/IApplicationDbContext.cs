@@ -257,6 +257,19 @@ public interface IApplicationDbContext {
     /// </summary>
     Task<bool> LockShiftAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>
+    ///     POS satış satırını işlem sonuna kadar kilitler (FOR UPDATE); yoksa false. Aynı fişe yazan iade ve iptal, hangi kasada olurlarsa olsun sıraya girer
+    ///     (iade edilmiş miktar ve durum bu kilit altında okunur). Sıra: cari, vardiya, satış satırı, seri numarası, stok. Açık işlem gerekir.
+    /// </summary>
+    Task<bool> LockPosSaleAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    ///     Bu istek boyunca cari kilidi ve otomatik eşleştirme yeniden kurulumu atlanan cariler. Yalnızca POS perakende carisi için kullanılır: tezgahta
+    ///     tam ödenen satışlar bu cariyi satır kilidiyle sıraya sokmaz ve büyüyen defteri her satışta taramaz (eşleştirme artımlı yazılır).
+    ///     <see cref="LockCurrentAccountAsync" /> bu carilerde kilit almadan yalnızca varlığı denetler.
+    /// </summary>
+    ISet<Guid> CariLockExemptions { get; }
+
     /// <summary>Satış siparişi satırını işlem sonuna kadar kilitler (FOR UPDATE); yoksa false.</summary>
     Task<bool> LockSalesOrderAsync(Guid id, CancellationToken cancellationToken);
 

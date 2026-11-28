@@ -244,11 +244,19 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
         ChangeTracker.Clear();
     }
 
+    public ISet<Guid> CariLockExemptions { get; } = new HashSet<Guid>();
+
     public async Task<bool> LockCurrentAccountAsync(Guid id, CancellationToken cancellationToken) {
         if (Database.CurrentTransaction is null)
             throw new InvalidOperationException("Cari kilidi yalnızca açık bir işlem içinde alınabilir.");
 
         var tenantId = CurrentTenantId;
+        if (CariLockExemptions.Contains(id)) {
+            // Muaf cari (POS perakende): satır kilidi alınmaz, yalnızca varlık denetlenir.
+            var exists = await Database.SqlQuery<Guid>($"SELECT \"Id\" AS \"Value\" FROM current_accounts WHERE \"Id\" = {id} AND \"TenantId\" = {tenantId}").ToListAsync(cancellationToken);
+            return exists.Count > 0;
+        }
+
         var locked = await Database
                          .SqlQuery<Guid>($"SELECT \"Id\" AS \"Value\" FROM current_accounts WHERE \"Id\" = {id} AND \"TenantId\" = {tenantId} FOR UPDATE")
                          .ToListAsync(cancellationToken);
@@ -284,6 +292,17 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
         var tenantId = CurrentTenantId;
         var locked = await Database
                          .SqlQuery<Guid>($"SELECT \"Id\" AS \"Value\" FROM pos_shifts WHERE \"Id\" = {id} AND \"TenantId\" = {tenantId} FOR UPDATE")
+                         .ToListAsync(cancellationToken);
+        return locked.Count > 0;
+    }
+
+    public async Task<bool> LockPosSaleAsync(Guid id, CancellationToken cancellationToken) {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Satış kilidi yalnızca açık bir işlem içinde alınabilir.");
+
+        var tenantId = CurrentTenantId;
+        var locked = await Database
+                         .SqlQuery<Guid>($"SELECT \"Id\" AS \"Value\" FROM pos_sales WHERE \"Id\" = {id} AND \"TenantId\" = {tenantId} FOR UPDATE")
                          .ToListAsync(cancellationToken);
         return locked.Count > 0;
     }

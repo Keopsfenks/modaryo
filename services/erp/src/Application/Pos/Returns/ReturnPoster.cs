@@ -40,6 +40,26 @@ public sealed record ReturnInput(
     string?                          Reason
 );
 
+/// <summary>İade önizlemesi girdisi: gerçek iadenin satır ve değişim girdileriyle aynıdır (dağılım ve ödeme yoktur).</summary>
+public sealed record ReturnPreviewInput(string SaleNumber, Guid? RegisterId, IReadOnlyList<ReturnLineInput> Lines, IReadOnlyList<SaleLineInput>? ExchangeLines);
+
+public sealed record ReturnPreviewLineDto(Guid SaleLineId, decimal Quantity, decimal Amount, decimal Net);
+
+/// <summary>
+///     İade önizlemesi: gerçek iadeyle aynı hesap. ReturnValue iade değeri (KDV dahil), OnAccountShare müşteri borcundan düşen veresiye payı, ExchangeCredit değişime
+///     mahsup edilen, PayDue değişimde müşteriden alınacak fark (exchangePayments toplamı), RefundDue nakit/karta iade edilecek tutar (refund toplamı).
+/// </summary>
+public sealed record ReturnPreviewDto(
+    decimal                            ReturnValue,
+    decimal                            ReturnNet,
+    decimal                            OnAccountShare,
+    decimal                            ExchangeCredit,
+    decimal                            PayDue,
+    decimal                            RefundDue,
+    IReadOnlyList<ReturnPreviewLineDto> Lines,
+    SalePreviewDto?                    Exchange
+);
+
 public sealed record ReturnResultDto(
     Guid            Id,
     string          Number,
@@ -112,9 +132,15 @@ public sealed class ReturnPoster(
             await using var tx = await db.BeginTransactionAsync(ct);
 
             var exchangeInvoice = exchanging && settings.LegalDocumentMode == LegalDocumentMode.EArchiveInvoice;
-            var needsCari       = head.Mode == LegalDocumentMode.EArchiveInvoice || head.OnAccountAmount > 0m || exchangeInvoice;
+            var retail          = customer.Id == settings.RetailCustomerId;
+            var needsCari       = (head.Mode == LegalDocumentMode.EArchiveInvoice || head.OnAccountAmount > 0m || exchangeInvoice) && !retail;
+            if (retail) db.CariLockExemptions.Add(customer.Id);   // perakende cari: kilit ve yeniden eşleştirme yok (PosSalePoster ile aynı)
             if (needsCari && !await db.LockCurrentAccountAsync(customer.Id, ct)) throw new NotFoundException(customer.Id.ToString(), "CurrentAccount");
             var shift = await sales.LockOpenShiftAsync(register.Id, ct);
+
+            // Fişin satırı kilitlenir: aynı fişe başka kasadan gelen iade ve iptal sıraya girer (iade edilmiş miktar ve durum kilit altında okunur).
+            // Sıra: cari, vardiya, satış satırı, seri numarası, stok.
+            if (!await db.LockPosSaleAsync(head.Id, ct)) throw new NotFoundException(head.Id.ToString(), "PosSale");
 
             if (input.ClientReturnId is { } raced && await FindReplayAsync(raced, ct) is { } existing) return existing;
 
@@ -122,24 +148,12 @@ public sealed class ReturnPoster(
             var sale = await db.PosSales.Include(s => s.Lines).FirstAsync(s => s.Id == head.Id, ct);
             if (sale.Status != PosSaleStatus.Completed) throw PosErrors.Conflict("sale_cancelled", "Satış iptal edilmiş; iade yapılamaz.");
 
-            var picked = new List<(PosSaleLine Line, decimal Quantity)>();
-            foreach (var l in input.Lines) {
-                var line = sale.Lines.FirstOrDefault(x => x.Id == l.SaleLineId) ?? throw PosErrors.Bad("return_line_invalid", "İade satırı fişe ait değil.");
-                var left = line.Quantity - line.ReturnedQuantity;
-                if (l.Quantity > left) throw PosErrors.Bad("return_exceeds_sold", $"\"{line.Description}\" için iade edilebilecek en fazla miktar {Math.Max(0m, left):0.######}.");
-                picked.Add((line, l.Quantity));
-            }
-
+            // Önizlemeyle aynı hesap (PickLines, ValueAsync, Settle).
+            var picked = PickLines(sale, input.Lines);
             var values = await ValueAsync(picked, ct);
             var net    = values.Sum(v => v.Net);
             var total  = values.Sum(v => v.Amount);
-
-            // Değer dağılımı: veresiye payı müşteri borcundan düşer; kalan değişime mahsup edilir; artan nakit/karta iade edilir.
-            var share   = sale.OnAccountAmount > 0m && sale.Total > 0m ? Math.Min(total, Math.Round(total * sale.OnAccountAmount / sale.Total, 2, MidpointRounding.AwayFromZero)) : 0m;
-            var cashable = total - share;
-            var credit  = exchange is null ? 0m : Math.Min(cashable, exchange.Total);
-            var payDue  = exchange is null ? 0m : exchange.Total - credit;
-            var refundDue = cashable - credit;
+            var (share, credit, payDue, refundDue) = Settle(sale, total, exchange?.Total);
 
             var refunds = (input.Refund ?? []).ToList();
             foreach (var r in refunds)
@@ -219,6 +233,52 @@ public sealed class ReturnPoster(
             db.ClearTracking();
             throw PosErrors.VersionConflict();
         }
+    }
+
+    /// <summary>Seçilen satırları fişe karşı doğrular (fişe ait, kalan miktarı aşmayan). Kilit altında (gerçek iade) ya da kilitsiz (önizleme) çağrılır.</summary>
+    private static List<(PosSaleLine Line, decimal Quantity)> PickLines(PosSale sale, IReadOnlyList<ReturnLineInput> lines) {
+        var picked = new List<(PosSaleLine Line, decimal Quantity)>();
+        foreach (var l in lines) {
+            var line = sale.Lines.FirstOrDefault(x => x.Id == l.SaleLineId) ?? throw PosErrors.Bad("return_line_invalid", "İade satırı fişe ait değil.");
+            var left = line.Quantity - line.ReturnedQuantity;
+            if (l.Quantity > left) throw PosErrors.Bad("return_exceeds_sold", $"\"{line.Description}\" için iade edilebilecek en fazla miktar {Math.Max(0m, left):0.######}.");
+            picked.Add((line, l.Quantity));
+        }
+
+        return picked;
+    }
+
+    /// <summary>Değer dağılımı: veresiye payı müşteri borcundan düşer; kalan değişime mahsup edilir; artan nakit/karta iade edilir.</summary>
+    private static (decimal Share, decimal Credit, decimal PayDue, decimal RefundDue) Settle(PosSale sale, decimal total, decimal? exchangeTotal) {
+        var share     = sale.OnAccountAmount > 0m && sale.Total > 0m ? Math.Min(total, Math.Round(total * sale.OnAccountAmount / sale.Total, 2, MidpointRounding.AwayFromZero)) : 0m;
+        var cashable  = total - share;
+        var credit    = exchangeTotal is null ? 0m : Math.Min(cashable, exchangeTotal.Value);
+        var payDue    = exchangeTotal is null ? 0m : exchangeTotal.Value - credit;
+        return (share, credit, payDue, cashable - credit);
+    }
+
+    /// <summary>
+    ///     POST /returns/preview: gerçek iadeyle aynı satır seçimi, değer hesabı, mahsup ve (varsa) değişim satırı çözümü; kilit almaz, hiçbir şey yazmaz.
+    ///     İade kasası ve vardiya gerekmez (yalnızca fişin şubesine erişim denetlenir).
+    /// </summary>
+    public async Task<ReturnPreviewDto> PreviewAsync(ReturnPreviewInput input, CancellationToken ct) {
+        var number = input.SaleNumber.Trim().ToUpperInvariant();
+        var sale   = await db.PosSales.AsNoTracking().Include(s => s.Lines).FirstOrDefaultAsync(s => s.Number == number, ct) ?? throw new NotFoundException(input.SaleNumber, "PosSale");
+        BranchGuard.Ensure(tenant, sale.BranchId);
+        if (sale.Status != PosSaleStatus.Completed) throw PosErrors.Conflict("sale_cancelled", "Satış iptal edilmiş; iade yapılamaz.");
+        if (input.Lines.Count == 0) throw PosErrors.Bad("return_empty", "İade için en az bir satır seçilmelidir.");
+        if (input.Lines.Select(l => l.SaleLineId).Distinct().Count() != input.Lines.Count) throw PosErrors.Bad("duplicate_line", "Aynı fiş satırı bir iadede yalnızca bir kez yer alabilir.");
+        foreach (var l in input.Lines)
+            if (l.Quantity <= 0m || Math.Round(l.Quantity, 6) != l.Quantity) throw PosErrors.Bad("quantity_invalid", "İade miktarı sıfırdan büyük olmalı ve en fazla 6 ondalık basamak içermelidir.");
+
+        var picked   = PickLines(sale, input.Lines);
+        var values   = await ValueAsync(picked, ct);
+        var total    = values.Sum(v => v.Amount);
+        var exchange = input.ExchangeLines is { Count: > 0 } ? await resolver.ResolveAsync(input.ExchangeLines, sale.CurrentAccountId, CurrentAccountClock.Today(time), ct) : null;
+        var (share, credit, payDue, refundDue) = Settle(sale, total, exchange?.Total);
+        return new ReturnPreviewDto(total, values.Sum(v => v.Net), share, credit, payDue, refundDue,
+                                    picked.Select((p, i) => new ReturnPreviewLineDto(p.Line.Id, p.Quantity, values[i].Amount, values[i].Net)).ToList(),
+                                    exchange is null ? null : PosSalePoster.ToPreview(exchange));
     }
 
     private sealed record Value(decimal Amount, decimal Net);

@@ -26,6 +26,12 @@ public sealed record LineInput {
     public decimal?          OtvPercent      { get; init; }
     public decimal?          OtvPerUnit      { get; init; }
 
+    /// <summary>
+    ///     Açık KDV tutarı: yalnızca sistem üretimi belgelerde (POS e-Arşiv satışı) kullanılır; KDV dahil raf fiyatından türetilen KDV'yi kuruşu kuruşuna
+    ///     taşır. API girdisinde verilirse 400 (invalid_amounts).
+    /// </summary>
+    public decimal?          VatOverride     { get; init; }
+
     /// <summary>İade faturalarında iade edilen asıl fatura satırı.</summary>
     public Guid?             SourceLineId    { get; init; }
     public List<InvoiceLot>? Lots            { get; init; }

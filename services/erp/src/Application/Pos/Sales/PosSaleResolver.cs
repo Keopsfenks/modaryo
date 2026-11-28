@@ -1,3 +1,4 @@
+using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Inventory.Tracking;
 using ERP.Application.Pricing;
@@ -48,6 +49,7 @@ public sealed record ResolvedSale(IReadOnlyList<ResolvedSaleLine> Lines) {
 public sealed class PosSaleResolver(
     IApplicationDbContext db,
     ICurrentTenant        tenant,
+    ICurrentSession       session,
     IPriceQuoteService    quotes,
     ICampaignService      campaigns,
     TimeProvider          time
@@ -85,7 +87,10 @@ public sealed class PosSaleResolver(
                     throw PosErrors.Bad("price_currency", $"{label}: kasada yalnızca TL fiyatlı kalemler satılır.");
                 (price, vatIncluded) = (quote.UnitPrice, quote.VatIncluded);
             } else if (l.UnitPrice is { } given && given >= 0m && Math.Round(given, 6) == given) {
-                // Fiyat listesinde olmayan (açık fiyatlı) kalem: kasiyerin girdiği KDV dahil fiyat.
+                // Fiyat listesinde olmayan (açık fiyatlı) kalem: kasiyerin girdiği KDV dahil fiyat yalnızca fiyat değiştirme yetkisiyle kabul edilir
+                // (0 dahil: yetkisiz kasiyer kalemi bedavaya satamaz).
+                if (!session.HasPermission(PosPermissions.PriceOverride))
+                    throw new AppException(403, "price_override_required", $"{label}: fiyat listesinde olmayan kalem için fiyat girmek yetki gerektirir.");
                 (price, vatIncluded) = (given, true);
             } else {
                 throw PosErrors.Bad("price_required", $"{label}: satış fiyatı bulunamadı.");
@@ -113,16 +118,23 @@ public sealed class PosSaleResolver(
     }
 
     private ResolvedSaleLine PricedLine(Prepared p, string name, CampaignResult? campaign, string label) {
-        var unitNet = p.VatIncluded ? Round(p.Price / (1m + p.VatRate / 100m), 6) : p.Price;
-        var gross   = Round(p.Quantity * unitNet, 2);
+        if (p.ManualPercent is > 100m) throw PosErrors.Bad("discount_invalid", $"{label}: iskonto yüzdesi 100'ü aşamaz.");
 
-        // Kampanya tutarı fiyatın cinsindendir (KDV dahil fiyatsa KDV dahil); KDV hariç tutara çevrilir.
-        var campaignNet = campaign is null ? 0m : Round(p.VatIncluded ? campaign.DiscountAmount / (1m + p.VatRate / 100m) : campaign.DiscountAmount, 2);
-        campaignNet = Math.Min(campaignNet, gross);
+        if (p.VatIncluded) {
+            // KDV dahil raf fiyatı: brüt doğruluk kaynağıdır, net ve KDV brütten türetilir (toplam raf fiyatını kuruşu kuruşuna verir).
+            var priced = PosLinePricing.VatIncluded(p.Price, p.Quantity, p.VatRate, campaign?.DiscountAmount ?? 0m, p.ManualPercent);
+            // İskonto politikası yalnızca elle iskontoya uygulanır (otomatik kampanya kasiyerin yetkisine bağlı değildir).
+            if (priced.ManualGross > 0m && priced.GrossBeforeDiscount > 0m) DiscountPolicy.Ensure(Math.Round(priced.ManualGross / priced.GrossBeforeDiscount * 100m, 4), tenant);
+            return new ResolvedSaleLine(p.Sort, p.Product, p.VariantId, name, p.Unit, p.Factor, p.Quantity, priced.UnitNet, p.VatRate, priced.Discount, priced.CampaignDiscount,
+                                        priced.CampaignDiscount > 0m ? campaign?.CampaignId : null, priced.Net, priced.Vat, priced.Total);
+        }
+
+        var unitNet = p.Price;
+        var gross   = Round(p.Quantity * unitNet, 2);
+        var campaignNet = campaign is null ? 0m : Math.Min(Round(campaign.DiscountAmount, 2), gross);
 
         var manual = 0m;
         if (p.ManualPercent is { } pct and > 0m) {
-            if (pct > 100m) throw PosErrors.Bad("discount_invalid", $"{label}: iskonto yüzdesi 100'ü aşamaz.");
             manual = Round((gross - campaignNet) * pct / 100m, 2);
             // İskonto politikası yalnızca elle iskontoya uygulanır (otomatik kampanya kasiyerin yetkisine bağlı değildir).
             if (gross > 0m) DiscountPolicy.Ensure(Math.Round(manual / gross * 100m, 4), tenant);

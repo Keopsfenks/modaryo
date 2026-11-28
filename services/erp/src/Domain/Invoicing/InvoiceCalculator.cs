@@ -10,7 +10,8 @@ public sealed record CalcLine(
     decimal? OtvPercent,
     decimal? OtvPerUnit,
     int?     WithholdingTenths,
-    bool     Exempt);
+    bool     Exempt,
+    decimal? VatOverride = null);
 
 public sealed record CalcLineResult(
     decimal Gross,
@@ -92,6 +93,15 @@ public static class InvoiceCalculator {
                       l.OtvPerUnit is { } ou ? Round(l.Quantity * ou, 2) : 0m;
             var vatBase  = net + otv;
             var vat      = Round(vatBase * l.VatRate / 100m, 2);
+            if (l.VatOverride is { } forced) {
+                // Açık KDV: sistem üretimi belgelerde (POS: KDV dahil raf fiyatı brütten türetilir) hesaplanan KDV'den en çok 1 kuruş sapabilir.
+                if (forced < 0 || Math.Abs(forced - vat) > 0.01m) {
+                    throw new ArgumentException("Açık KDV tutarı hesaplanan KDV'den en çok 1 kuruş farklı olabilir.");
+                }
+
+                vat = forced;
+            }
+
             var withheld = l.WithholdingTenths is { } n ? Round(vat * n / 10m, 2) : 0m;
             results.Add(new CalcLineResult(gross[i], lineDiscount[i], docShare[i], net, otv, vatBase, vat, withheld, net + otv + vat - withheld));
         }

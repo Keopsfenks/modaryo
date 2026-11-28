@@ -199,6 +199,7 @@ public sealed class InvoiceBuilder(
     /// </param>
     public async Task<Built> BuildAsync(InvoiceInput input, Guid? existingInvoiceId, bool preview, CancellationToken ct, bool systemGenerated = false) {
         if (!systemGenerated) InvoiceRules.EnsureKindPermission(session, input.Kind);
+        if (!systemGenerated && input.Lines.Any(l => l.VatOverride is not null)) throw InvoiceErrors.Bad("invalid_amounts", "Açık KDV tutarı yalnızca sistem üretimi belgelerde kullanılabilir.");
         if (input.Kind == InvoiceKind.ExchangeDifference)
             throw InvoiceErrors.Bad("invalid_kind", "Kur farkı faturası elle oluşturulamaz.");
 
@@ -446,7 +447,7 @@ public sealed class InvoiceBuilder(
                 Serials = InvoiceRules.NormalizeSerials(l.Serials)
             };
             var calc = new CalcLine(quantity, l.UnitPrice, l.VatIncluded, l.DiscountPercent, l.DiscountAmount, vatRate, l.OtvPercent, l.OtvPerUnit,
-                                    withheld?.Tenths, !string.IsNullOrEmpty(eCode));
+                                    withheld?.Tenths, !string.IsNullOrEmpty(eCode), l.VatOverride);
             result.Add(new Resolved(line, calc));
         }
 

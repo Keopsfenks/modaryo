@@ -98,6 +98,43 @@ public sealed class PosSalePoster(
 ) {
     public const string StockSource = "pos-sale";
 
+    // ---- önizleme: POST /sales/preview ------------------------------------------------------------------------------
+
+    /// <summary>
+    ///     Gerçek satışla aynı müşteri çözümü ve aynı <see cref="PosSaleResolver" /> hesabı (fiyat, kampanya, elle iskonto, yuvarlama); kilit almaz, hiçbir şey yazmaz.
+    ///     Ödeme ve vardiya denetimi yoktur (kasiyer henüz ödeme girmemiş olabilir).
+    /// </summary>
+    public async Task<SalePreviewDto> PreviewAsync(SalePreviewInput input, CancellationToken ct) {
+        if (input.RegisterId is { } registerId) {
+            var branch = await db.PosRegisters.AsNoTracking().Where(r => r.Id == registerId).Select(r => (Guid?)r.BranchId).FirstOrDefaultAsync(ct) ?? throw new NotFoundException(registerId.ToString(), "Register");
+            BranchGuard.Ensure(tenant, branch);
+        }
+
+        var settings   = (PosSettings)(await setup.EnsureAsync(ct)).Value;
+        var customerId = input.CustomerId ?? settings.RetailCustomerId!.Value;
+        await LoadCustomerAsync(customerId, ct);
+        var resolved = await resolver.ResolveAsync(input.Lines, customerId, CurrentAccountClock.Today(time), ct);
+        return ToPreview(resolved);
+    }
+
+    public static SalePreviewDto ToPreview(ResolvedSale resolved) {
+        static decimal Gross(decimal value, int rate) => Math.Round(value * (1m + rate / 100m), 2, MidpointRounding.AwayFromZero);
+        var lines = resolved.Lines.Select(l => {
+            var discountGross = Gross(l.Discount, l.VatRate);
+            var campaignGross = Gross(l.CampaignDiscount, l.VatRate);
+            return new SalePreviewLineDto(l.Sort, l.Product.Id, l.VariantId, l.Description, l.Unit, l.Quantity, l.UnitPrice, l.VatRate, l.Discount, l.CampaignDiscount, discountGross, campaignGross,
+                                          l.CampaignId, l.Net, l.Vat, l.Total, l.Total + discountGross + campaignGross);
+        }).ToList();
+        return new SalePreviewDto(lines, resolved.Subtotal, resolved.Discount, resolved.Vat, resolved.Total);
+    }
+
+    private async Task<CurrentAccount> LoadCustomerAsync(Guid customerId, CancellationToken ct) {
+        var customer = await db.CurrentAccounts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == customerId, ct) ?? throw new NotFoundException(customerId.ToString(), "CurrentAccount");
+        if (!customer.IsActive) throw PosErrors.Conflict("current_account_inactive", "Cari pasif; satış yapılamaz.");
+        if (!customer.IsCustomer) throw PosErrors.Bad("cari_not_customer", "Satış için cari müşteri olmalıdır.");
+        return customer;
+    }
+
     // ---- giriş: POST /sales --------------------------------------------------------------------------------------
 
     public async Task<SaleResultDto> CreateAsync(SaleInput input, CancellationToken ct) {
@@ -111,9 +148,7 @@ public sealed class PosSalePoster(
         var settings   = (PosSettings)(await setup.EnsureAsync(ct)).Value;
         var retail     = settings.RetailCustomerId!.Value;
         var customerId = input.CustomerId ?? retail;
-        var customer   = await db.CurrentAccounts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == customerId, ct) ?? throw new NotFoundException(customerId.ToString(), "CurrentAccount");
-        if (!customer.IsActive) throw PosErrors.Conflict("current_account_inactive", "Cari pasif; satış yapılamaz.");
-        if (!customer.IsCustomer) throw PosErrors.Bad("cari_not_customer", "Satış için cari müşteri olmalıdır.");
+        var customer   = await LoadCustomerAsync(customerId, ct);
 
         var (cash, card, onAccount) = NormalizePayments(input.Payments);
         if (onAccount > 0m && customerId == retail) throw PosErrors.Bad("veresiye_requires_customer", "Veresiye satış için perakende dışında bir müşteri seçilmelidir.");
@@ -127,8 +162,10 @@ public sealed class PosSalePoster(
         try {
             await using var tx = await db.BeginTransactionAsync(ct);
 
-            // Kilit sırası: cari, vardiya, seri numarası, stok. Retail e-Arşiv satışları aynı cari satırında sıraya girer.
-            var needsCari = settings.LegalDocumentMode == LegalDocumentMode.EArchiveInvoice || onAccount > 0m;
+            // Kilit sırası: cari, vardiya, satış satırı, seri numarası, stok. Perakende carisi (tezgahta tam ödenen satış) kilitlenmez ve her satışta yeniden
+            // eşleştirilmez (tüm şubelerin e-Arşiv satışlarını sıraya sokup büyüyen defteri taramasın); eşleştirme artımlı yazılır (LinkRetailCollectionsAsync).
+            var needsCari = (settings.LegalDocumentMode == LegalDocumentMode.EArchiveInvoice || onAccount > 0m) && customerId != retail;
+            if (customerId == retail) db.CariLockExemptions.Add(customerId);
             if (needsCari && !await db.LockCurrentAccountAsync(customerId, ct)) throw new NotFoundException(customerId.ToString(), "CurrentAccount");
             var shift = await LockOpenShiftAsync(register.Id, ct);
 
@@ -251,7 +288,7 @@ public sealed class PosSalePoster(
             Notes = $"POS satış {sale.Number}",
             Lines = ctx.Resolved.Lines.Select(l => new LineInput {
                 ProductId = l.Product.Id, VariantId = l.VariantId, Description = l.Description, Unit = l.Unit, Quantity = l.Quantity, UnitPrice = l.UnitPrice, VatIncluded = false,
-                DiscountAmount = l.Discount + l.CampaignDiscount > 0m ? l.Discount + l.CampaignDiscount : null, VatRate = l.VatRate
+                DiscountAmount = l.Discount + l.CampaignDiscount > 0m ? l.Discount + l.CampaignDiscount : null, VatRate = l.VatRate, VatOverride = l.Vat
             }).ToList()
         };
 
@@ -279,18 +316,48 @@ public sealed class PosSalePoster(
         sale.InvoiceId = invoice.Id;
 
         // Tahsilatlar: nakit (para üstü düşülmüş) ve kart, fatura borcunu kapatır; veresiye açık kalır.
-        if (sale.CashNet > 0m) await CollectAsync(sale, ctx.Customer.Id, ctx.Register.CashAccountId, PaymentMethod.Cash, sale.CashNet, ct);
-        if (sale.CardAmount > 0m) await CollectAsync(sale, ctx.Customer.Id, ctx.Register.CardAccountId, PaymentMethod.CreditCard, sale.CardAmount, ct);
+        var collections = new List<Guid>();
+        if (sale.CashNet > 0m) collections.Add(await CollectAsync(sale, ctx.Customer.Id, ctx.Register.CashAccountId, PaymentMethod.Cash, sale.CashNet, ct));
+        if (sale.CardAmount > 0m) collections.Add(await CollectAsync(sale, ctx.Customer.Id, ctx.Register.CardAccountId, PaymentMethod.CreditCard, sale.CardAmount, ct));
+        if (db.CariLockExemptions.Contains(ctx.Customer.Id)) await LinkRetailCollectionsAsync(invoice.LedgerEntryId, ctx.Customer.Id, collections, ct);
+    }
+
+    /// <summary>
+    ///     Perakende e-Arşiv satışı: tahsilatları fatura vade satırına artımlı eşleştirir (otomatik eşleştirmeyle aynı türden satırlar). Perakende carisinin tüm
+    ///     defteri yeniden kurulmaz; satış başına maliyet geçmişten bağımsızdır. Sonradan bir yeniden kurma (elle hareket) FIFO ile aynı sonucu üretir.
+    /// </summary>
+    private async Task LinkRetailCollectionsAsync(Guid? invoiceEntryId, Guid customerId, List<Guid> documentIds, CancellationToken ct) {
+        if (invoiceEntryId is null || documentIds.Count == 0) return;
+
+        var debits  = await db.LedgerDueLines.AsNoTracking().Where(d => d.EntryId == invoiceEntryId).OrderBy(d => d.Sequence).ToListAsync(ct);
+        var left    = debits.ToDictionary(d => d.Id, d => d.Amount);
+        var entries = await db.LedgerEntries.AsNoTracking().Where(e => e.Source == LedgerEntrySource.Payment && e.SourceId != null && documentIds.Contains(e.SourceId.Value) && e.CancelledAt == null).Select(e => e.Id).ToListAsync(ct);
+        var credits = await db.LedgerDueLines.AsNoTracking().Where(d => entries.Contains(d.EntryId)).ToListAsync(ct);
+        foreach (var credit in credits) {
+            var rest = credit.Amount;
+            foreach (var debit in debits) {
+                var take = Math.Min(rest, left[debit.Id]);
+                if (take <= 0m) continue;
+                db.LedgerAllocations.Add(new LedgerAllocation {
+                    TenantId = debit.TenantId, CurrentAccountId = customerId, DebitLineId = debit.Id, CreditLineId = credit.Id, Amount = take, Kind = AllocationKind.Auto, CreatedAt = time.GetUtcNow()
+                });
+                left[debit.Id] -= take;
+                rest           -= take;
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
     }
 
     public static string CollectionNote(string number) {
         return $"POS {number}";
     }
 
-    private async Task CollectAsync(PosSale sale, Guid customerId, Guid accountId, PaymentMethod method, decimal amount, CancellationToken ct) {
-        await finance.PostInTransactionAsync(FinanceDocumentKind.Collection, new PosCollection {
+    private async Task<Guid> CollectAsync(PosSale sale, Guid customerId, Guid accountId, PaymentMethod method, decimal amount, CancellationToken ct) {
+        var posted = await finance.PostInTransactionAsync(FinanceDocumentKind.Collection, new PosCollection {
             CurrentAccountId = customerId, AccountId = accountId, Method = method, Date = sale.Date, Amount = amount, Description = CollectionNote(sale.Number)
         }, null, null, ct);
+        return posted.Id;
     }
 
     private sealed record PosCollection : PaymentInput;
@@ -379,9 +446,14 @@ public sealed class PosSalePoster(
 
         try {
             await using var tx = await db.BeginTransactionAsync(ct);
-            if ((head.Mode == LegalDocumentMode.EArchiveInvoice || head.OnAccountAmount > 0m) && !await db.LockCurrentAccountAsync(head.CurrentAccountId, ct))
+            var retail = ((PosSettings)(await setup.EnsureAsync(ct)).Value).RetailCustomerId;
+            if (head.CurrentAccountId == retail) db.CariLockExemptions.Add(head.CurrentAccountId);
+            if ((head.Mode == LegalDocumentMode.EArchiveInvoice || head.OnAccountAmount > 0m) && head.CurrentAccountId != retail && !await db.LockCurrentAccountAsync(head.CurrentAccountId, ct))
                 throw new NotFoundException(head.CurrentAccountId.ToString(), "CurrentAccount");
             if (!await db.LockShiftAsync(head.ShiftId, ct)) throw new NotFoundException(head.ShiftId.ToString(), "Shift");
+
+            // Aynı fişe yazan iade ve iptal (başka kasadan olsa da) sıraya girer: sıra cari, vardiya, satış satırı, seri numarası, stok.
+            if (!await db.LockPosSaleAsync(saleId, ct)) throw new NotFoundException(saleId.ToString(), "PosSale");
 
             var sale = await db.PosSales.Include(s => s.Lines).Include(s => s.Payments).FirstAsync(s => s.Id == saleId, ct);
             if (sale.Status != PosSaleStatus.Completed) throw PosErrors.Conflict("sale_cancelled", "Satış zaten iptal edilmiş.");
@@ -391,6 +463,10 @@ public sealed class PosSalePoster(
             if (sale.Date != today || shift.Status != ShiftStatus.Open)
                 throw PosErrors.Conflict("cancel_not_allowed", "Satış yalnızca aynı gün ve açık vardiyada iptal edilebilir; iade yapın.");
             if (await db.PosReturns.AnyAsync(r => r.SaleId == sale.Id, ct)) throw PosErrors.Conflict("sale_has_returns", "Satışın iadesi var; iptal edilemez.");
+
+            // Değişim satışı iade mahsubu taşır: tek başına iptali iade kredisini yetim bırakır; iade yapılır.
+            if (sale.ReturnCreditAmount > 0m || await db.PosReturns.AnyAsync(r => r.ExchangeSaleId == sale.Id, ct))
+                throw PosErrors.Conflict("cancel_not_allowed", "Değişim satışı iptal edilemez; iade yapın.");
 
             var now = time.GetUtcNow();
 
@@ -451,6 +527,16 @@ public sealed class PosSalePoster(
         var docs = await db.FinanceDocuments.AsNoTracking().Where(d => d.Kind == FinanceDocumentKind.Collection && d.CurrentAccountId == sale.CurrentAccountId && d.Description == note && d.CancelledAt == null)
                            .Select(d => d.Id).ToListAsync(ct);
         foreach (var documentId in docs) await finance.CancelPosCollectionAsync(documentId, reason, ct);
+
+        // Perakende: yeniden kurma atlandığı için artımlı eşleştirmeler burada kaldırılır.
+        if (db.CariLockExemptions.Contains(sale.CurrentAccountId)) {
+            var entryIds = new List<Guid>();
+            if (invoice?.LedgerEntryId is { } invoiceEntry) entryIds.Add(invoiceEntry);
+            entryIds.AddRange(await db.LedgerEntries.AsNoTracking().Where(e => e.Source == LedgerEntrySource.Payment && e.SourceId != null && docs.Contains(e.SourceId.Value)).Select(e => e.Id).ToListAsync(ct));
+            var lineIds = await db.LedgerDueLines.AsNoTracking().Where(d => entryIds.Contains(d.EntryId)).Select(d => d.Id).ToListAsync(ct);
+            db.LedgerAllocations.RemoveRange(await db.LedgerAllocations.Where(a => lineIds.Contains(a.DebitLineId) || lineIds.Contains(a.CreditLineId)).ToListAsync(ct));
+        }
+
         await db.SaveChangesAsync(ct);
     }
 

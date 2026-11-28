@@ -17,6 +17,23 @@ public sealed record SaleLineInput(
     decimal? FixedTotal
 );
 
+/// <summary>
+///     Satış önizlemesi girdisi: gerçek satışın müşteri ve satır girdileriyle aynıdır (ödeme ve istemci kimliği yoktur). RegisterId verilirse kasanın şubesine erişim denetlenir.
+/// </summary>
+public sealed record SalePreviewInput(Guid? RegisterId, Guid? CustomerId, IReadOnlyList<SaleLineInput> Lines);
+
+/// <summary>
+///     Önizleme satırı: sunucunun gerçek satışta yazacağı tutarlar. UnitPrice net birim fiyat (6 hane); Discount/CampaignDiscount KDV hariç, DiscountGross/
+///     CampaignDiscountGross fişteki gibi KDV dahildir. ListTotal indirimsiz KDV dahil satır tutarıdır (miktar x raf fiyatı).
+/// </summary>
+public sealed record SalePreviewLineDto(
+    int Sort, Guid ProductId, Guid? VariantId, string Description, string Unit, decimal Quantity, decimal UnitPrice, int VatRate,
+    decimal Discount, decimal CampaignDiscount, decimal DiscountGross, decimal CampaignDiscountGross, Guid? CampaignId,
+    decimal Net, decimal Vat, decimal Total, decimal ListTotal
+);
+
+public sealed record SalePreviewDto(IReadOnlyList<SalePreviewLineDto> Lines, decimal Subtotal, decimal Discount, decimal VatTotal, decimal Total);
+
 public sealed record SalePaymentInput(PosPaymentMethod Method, decimal Amount);
 
 /// <summary>ClientSaleId istemcinin ürettiği tek seferlik kimliktir: bağlantısı kopan istemci aynı satışı güvenle yeniden gönderebilir.</summary>

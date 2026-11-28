@@ -16,6 +16,12 @@ public static class PosPermissions {
     public const string Reports  = "pos.reports";
     public const string Manage   = "pos.manage";
 
+    /// <summary>
+    ///     Fiyat listesinde olmayan kalem için kasiyerin fiyat girmesi (açık fiyat) ve 0 TL satış: kasa yöneticisi yetkisi. Ayrı bir "pos.price-override" izni
+    ///     kimlik servisinde yeni bir izin sürümü gerektirir; mevcut denk yetki olarak pos.manage kullanılır (tek satırlık değişiklik).
+    /// </summary>
+    public const string PriceOverride = Manage;
+
     public const string SettingsPos = "ayarlar.pos";
 
     /// <summary>Kasa noktası seçimi: yönetici ya da satış/vardiya yetkisi olan kasiyer kasaları görebilir.</summary>

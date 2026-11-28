@@ -35,6 +35,7 @@ public class Pos : IEndpointGroup {
         groupBuilder.MapPut(PosSetButtons, "registers/{id:guid}/buttons");
         groupBuilder.MapGet(PosLookup, "lookup");
         groupBuilder.MapGet(PosLookupSearch, "lookup/search");
+        groupBuilder.MapPost(PosPreviewSale, "sales/preview");
         groupBuilder.MapPost(PosCreateSale, "sales");
         groupBuilder.MapGet(PosGetSale, "sales/{id:guid}");
         groupBuilder.MapGet(PosGetSaleByNumber, "sales/by-number/{number}");
@@ -44,6 +45,7 @@ public class Pos : IEndpointGroup {
         groupBuilder.MapPost(PosCashMove, "shifts/{id:guid}/cash-moves");
         groupBuilder.MapGet(PosShifts, "shifts");
         groupBuilder.MapGet(PosCurrentShift, "shifts/current");
+        groupBuilder.MapPost(PosPreviewReturn, "returns/preview");
         groupBuilder.MapPost(PosCreateReturn, "returns");
         groupBuilder.MapGet(PosShiftReport, "reports/shift/{id:guid}");
         groupBuilder.MapGet(PosDayReport, "reports/day");
@@ -97,6 +99,12 @@ public class Pos : IEndpointGroup {
     public static async Task<Ok<IReadOnlyList<SellableItem>>> PosLookupSearch(ISender sender, string? q) {
         return TypedResults.Ok(await sender.Send(new PosSearchQuery(q)));
     }
+    [EndpointSummary("Satış önizleme")]
+    [EndpointDescription("pos.sell. Gövde: { registerId?, customerId?, lines: [satış satırı girdisi (satış kaydıyla aynı)] }. Gerçek satışla aynı müşteri çözümü ve aynı hesap (P2 fiyatı müşteriye göre, kampanya, elle iskonto, KDV dahil fiyatta brütten türetme); kilit almaz, hiçbir şey yazmaz; ödeme ve vardiya aranmaz. Yanıt: { lines: [{ sort, productId, variantId, description, unit, quantity, unitPrice, vatRate, discount, campaignDiscount, discountGross, campaignDiscountGross, campaignId, net, vat, total, listTotal }], subtotal, discount, vatTotal, total }. total gerçek satışın toplamıdır.")]
+    public static async Task<Ok<SalePreviewDto>> PosPreviewSale(ISender sender, SalePreviewInput body) {
+        return TypedResults.Ok(await sender.Send(new PreviewSaleCommand(body)));
+    }
+
     [EndpointSummary("Satış kaydet")]
     [EndpointDescription("pos.sell. Gövde: { clientSaleId, registerId, customerId?, lines: [{ productId, variantId?, unit?, quantity, unitPrice?, manualDiscountPercent?, fixedTotal? }], payments: [{ method: cash|card|onAccount, amount }] }. clientSaleId istemcinin ürettiği tek seferlik kimliktir (zorunlu): aynı kimlikle tekrar gelen gönderim yeni satış yazmaz, kayıtlı satışı 200 ve replayed=true ile döndürür. Fiyatlar sunucuda çözülür (P2 önceliği); kampanya otomatik uygulanır; elle iskonto iskonto politikasına tabidir (403 discount_limit_exceeded). Kasiyerin bu kasada açık vardiyası olmalıdır (409 shift_required). Ödemeler toplamı karşılamalıdır (400 payment_insufficient); kart kalanı aşamaz (400 card_exceeds_remaining); nakit fazlası para üstüdür. Veresiye (method onAccount) perakende dışı müşteri ister (400 veresiye_requires_customer); kredi limiti aşılırsa satis.limit-asimi gerekir (409 limit_approval_required). Yanıt: { id, number, total, change, invoiceNumber?, replayed, slip }.")]
     public static async Task<Results<Created<SaleResultDto>, Ok<SaleResultDto>>> PosCreateSale(ISender sender, SaleInput body) {
@@ -151,6 +159,12 @@ public class Pos : IEndpointGroup {
     [EndpointDescription("Kasiyerin bu kasadaki açık vardiyası; yoksa 404.")]
     public static async Task<Ok<ShiftDto>> PosCurrentShift(ISender sender, Guid registerId) {
         return TypedResults.Ok(await sender.Send(new CurrentShiftQuery(registerId)));
+    }
+
+    [EndpointSummary("İade / değişim önizleme")]
+    [EndpointDescription("pos.return. Gövde: { saleNumber, registerId?, lines: [{ saleLineId, quantity }], exchangeLines?: [satış satırı girdisi] }. Gerçek iadeyle aynı satır seçimi (400 return_exceeds_sold), değer hesabı ve mahsup; kilit almaz, hiçbir şey yazmaz. Yanıt: { returnValue, returnNet, onAccountShare, exchangeCredit, payDue, refundDue, lines: [{ saleLineId, quantity, amount, net }], exchange?: satış önizlemesi }. refund toplamı refundDue, exchangePayments toplamı payDue olmalıdır.")]
+    public static async Task<Ok<ReturnPreviewDto>> PosPreviewReturn(ISender sender, ReturnPreviewInput body) {
+        return TypedResults.Ok(await sender.Send(new PreviewReturnCommand(body)));
     }
 
     [EndpointSummary("İade / değişim")]

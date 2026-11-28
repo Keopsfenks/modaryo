@@ -14,6 +14,9 @@ public sealed class AutoAllocator(
     ///     bağlama ekler, SaveChanges çağıranın işidir.
     /// </summary>
     public async Task RebuildAsync(Guid currentAccountId, CancellationToken ct) {
+        // POS perakende carisi: eşleştirme artımlı yazılır (PosSalePoster); her satışta tüm geçmişi yeniden kurmak yok.
+        if (db.CariLockExemptions.Contains(currentAccountId)) return;
+
         if (!await db.LockCurrentAccountAsync(currentAccountId, ct))
             throw new NotFoundException(currentAccountId.ToString(), "CurrentAccount");
 
