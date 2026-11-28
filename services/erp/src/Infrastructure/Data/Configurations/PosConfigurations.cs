@@ -144,7 +144,9 @@ public class PosReturnConfiguration : IEntityTypeConfiguration<PosReturn> {
         builder.HasOne<PosSale>().WithMany().HasForeignKey(e => e.SaleId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Shift>().WithMany().HasForeignKey(e => e.ShiftId).OnDelete(DeleteBehavior.Restrict);
         builder.HasMany(e => e.Lines).WithOne().HasForeignKey(l => l.ReturnId).OnDelete(DeleteBehavior.Cascade);
+        builder.Property(e => e.CashierName).HasMaxLength(200);
         builder.HasIndex(e => new { e.TenantId, e.Number }).IsUnique();
+        builder.HasIndex(e => new { e.TenantId, e.ClientReturnId }).IsUnique().HasFilter("\"ClientReturnId\" IS NOT NULL");
         builder.HasIndex(e => e.SaleId);
         builder.HasIndex(e => e.ShiftId);
     }

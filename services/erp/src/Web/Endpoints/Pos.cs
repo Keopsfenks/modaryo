@@ -1,6 +1,10 @@
 using ERP.Application.Catalog.Items;
 using ERP.Application.Pos.Lookup;
 using ERP.Application.Pos.Registers;
+using ERP.Application.Pos.Reports;
+using ERP.Application.Pos.Returns;
+using ERP.Application.Pos.Shifts;
+using ERP.Domain.Pos;
 using ERP.Application.Pos.Sales;
 using ERP.Application.Pos.Sales.Commands;
 using ERP.Application.Pos.Sales.Queries;
@@ -12,6 +16,12 @@ public class Pos : IEndpointGroup {
     public static string? RoutePrefix => "/api/erp/pos";
 
     public sealed record RegisterBody(string Code, string Name, Guid BranchId, Guid WarehouseId, Guid CashAccountId, Guid CardAccountId, bool? IsActive, uint? Version);
+
+    public sealed record OpenShiftBody(Guid RegisterId, decimal OpeningCash);
+
+    public sealed record CloseShiftBody(decimal CountedCash, string? Note);
+
+    public sealed record CashMoveBody(CashMoveDirection Kind, decimal Amount, string Reason);
 
     public sealed record CancelBody(string Reason);
 
@@ -29,6 +39,15 @@ public class Pos : IEndpointGroup {
         groupBuilder.MapGet(PosGetSale, "sales/{id:guid}");
         groupBuilder.MapGet(PosGetSaleByNumber, "sales/by-number/{number}");
         groupBuilder.MapPost(PosCancelSale, "sales/{id:guid}/cancel");
+        groupBuilder.MapPost(PosOpenShift, "shifts/open");
+        groupBuilder.MapPost(PosCloseShift, "shifts/{id:guid}/close");
+        groupBuilder.MapPost(PosCashMove, "shifts/{id:guid}/cash-moves");
+        groupBuilder.MapGet(PosShifts, "shifts");
+        groupBuilder.MapGet(PosCurrentShift, "shifts/current");
+        groupBuilder.MapPost(PosCreateReturn, "returns");
+        groupBuilder.MapGet(PosShiftReport, "reports/shift/{id:guid}");
+        groupBuilder.MapGet(PosDayReport, "reports/day");
+        groupBuilder.MapGet(PosCashierReport, "reports/cashiers");
     }
 
     [EndpointSummary("Kasa noktaları")]
@@ -101,5 +120,60 @@ public class Pos : IEndpointGroup {
     [EndpointDescription("pos.return. Gövde: { reason }. Yalnızca aynı gün ve hâlâ açık vardiyadaki satış iptal edilir (409 cancel_not_allowed; iade kullanın); iadesi olan satış iptal edilemez (409 sale_has_returns). Stok bir kez geri alınır, hesap hareketleri ve (e-Arşiv modunda) fatura ile tahsilatlar iptal edilir.")]
     public static async Task<Ok<SaleDto>> PosCancelSale(ISender sender, Guid id, CancelBody body) {
         return TypedResults.Ok(await sender.Send(new CancelSaleCommand(id, body.Reason ?? string.Empty)));
+    }
+
+    [EndpointSummary("Vardiya aç")]
+    [EndpointDescription("pos.shift. Gövde: { registerId, openingCash }. Kasada aynı anda tek açık vardiya olur (409 shift_already_open).")]
+    public static async Task<Created<ShiftDto>> PosOpenShift(ISender sender, OpenShiftBody body) {
+        var dto = await sender.Send(new OpenShiftCommand(body.RegisterId, body.OpeningCash));
+        return TypedResults.Created($"/api/erp/pos/shifts/{dto.Id}", dto);
+    }
+
+    [EndpointSummary("Vardiya kapat")]
+    [EndpointDescription("pos.shift (vardiyanın sahibi ya da pos.manage). Gövde: { countedCash, note? }. Beklenen nakit = açılış + net nakit satış - nakit iade + kasa girişi - kasa çıkışı; fark (sayılan - beklenen) saklanır. Yanıt kasa raporudur.")]
+    public static async Task<Ok<ShiftReportDto>> PosCloseShift(ISender sender, Guid id, CloseShiftBody body) {
+        return TypedResults.Ok(await sender.Send(new CloseShiftCommand(id, body.CountedCash, body.Note)));
+    }
+
+    [EndpointSummary("Kasa girişi/çıkışı")]
+    [EndpointDescription("pos.cashmove. Gövde: { kind: in|out, amount, reason }. Açık vardiyada beklenen nakdi etkiler; eksiye düşerse ayara göre uyarı (cash_negative) ya da 409.")]
+    public static async Task<Ok<CashMoveResultDto>> PosCashMove(ISender sender, Guid id, CashMoveBody body) {
+        return TypedResults.Ok(await sender.Send(new AddCashMoveCommand(id, body.Kind, body.Amount, body.Reason)));
+    }
+
+    [EndpointSummary("Vardiyalar")]
+    [EndpointDescription("pos.shift, pos.manage ya da pos.reports. Yönetici/rapor yetkisi olmayan kasiyer yalnızca kendi vardiyalarını görür.")]
+    public static async Task<Ok<IReadOnlyList<ShiftDto>>> PosShifts(ISender sender, Guid? registerId, ShiftStatus? status, int? limit) {
+        return TypedResults.Ok(await sender.Send(new ListShiftsQuery(registerId, status, limit ?? 50)));
+    }
+
+    [EndpointSummary("Açık vardiyam")]
+    [EndpointDescription("Kasiyerin bu kasadaki açık vardiyası; yoksa 404.")]
+    public static async Task<Ok<ShiftDto>> PosCurrentShift(ISender sender, Guid registerId) {
+        return TypedResults.Ok(await sender.Send(new CurrentShiftQuery(registerId)));
+    }
+
+    [EndpointSummary("İade / değişim")]
+    [EndpointDescription("pos.return. Gövde: { clientReturnId?, saleNumber, registerId?, lines: [{ saleLineId, quantity }], refund: [{ method: cash|card, amount }], exchangeLines?: [satış satırları], exchangePayments?: [{ method, amount }], reason? }. Miktar satılan - iade edilenden fazla olamaz (400 return_exceeds_sold). İade dağılımı (iade değeri - veresiye payı - değişim mahsubu) toplamı tutmalıdır (400 refund_mismatch). Değişimde fark müşteriden alınır (exchangePayments) ya da iade edilir (refund).")]
+    public static async Task<Ok<ReturnResultDto>> PosCreateReturn(ISender sender, ReturnInput body) {
+        return TypedResults.Ok(await sender.Send(new CreateReturnCommand(body)));
+    }
+
+    [EndpointSummary("Vardiya raporu (kasa raporu)")]
+    [EndpointDescription("pos.shift (kendi vardiyası), pos.manage ya da pos.reports.")]
+    public static async Task<Ok<ShiftReportDto>> PosShiftReport(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new ShiftReportQuery(id)));
+    }
+
+    [EndpointSummary("Gün sonu raporu")]
+    [EndpointDescription("pos.reports. Kasa ve gün başına: ödeme yöntemi toplamları, KDV özeti, iadeler, kampanya indirimi, kasiyer başına satış, ilk ve son fiş numarası.")]
+    public static async Task<Ok<DayReportDto>> PosDayReport(ISender sender, Guid registerId, DateOnly date) {
+        return TypedResults.Ok(await sender.Send(new DayReportQuery(registerId, date)));
+    }
+
+    [EndpointSummary("Kasiyer raporu")]
+    [EndpointDescription("pos.reports. from/to (en çok 1 yıl), registerId isteğe bağlı: kasiyer başına satış, iptal ve iade toplamları.")]
+    public static async Task<Ok<IReadOnlyList<CashierSalesDto>>> PosCashierReport(ISender sender, DateOnly from, DateOnly to, Guid? registerId) {
+        return TypedResults.Ok(await sender.Send(new CashierReportQuery(from, to, registerId)));
     }
 }

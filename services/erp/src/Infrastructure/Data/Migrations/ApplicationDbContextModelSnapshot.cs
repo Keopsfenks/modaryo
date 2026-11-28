@@ -3331,7 +3331,14 @@ namespace ERP.Infrastructure.Data.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<string>("CashierName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<Guid>("CashierUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ClientReturnId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("Created")
@@ -3419,6 +3426,10 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.HasIndex("ShiftId");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "ClientReturnId")
+                        .IsUnique()
+                        .HasFilter("\"ClientReturnId\" IS NOT NULL");
 
                     b.HasIndex("TenantId", "Number")
                         .IsUnique();

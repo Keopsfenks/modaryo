@@ -21,6 +21,9 @@ public static class PosPermissions {
     /// <summary>Kasa noktası seçimi: yönetici ya da satış/vardiya yetkisi olan kasiyer kasaları görebilir.</summary>
     public const string ViewRegisters = "pos.manage|pos.sell|pos.shift";
 
+    /// <summary>Vardiya listesi ve raporu: kasiyer, yönetici ya da rapor yetkisi.</summary>
+    public const string ViewShifts = "pos.shift|pos.manage|pos.reports";
+
     /// <summary>Fiş sorgusu: satış, iade ya da rapor yetkisi olan görebilir.</summary>
     public const string ViewSales = "pos.manage|pos.sell|pos.return|pos.reports";
 

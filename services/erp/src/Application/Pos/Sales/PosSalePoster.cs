@@ -68,7 +68,9 @@ public sealed record PosSaleContext(
     decimal      Card,
     decimal      OnAccount,
     decimal      ReturnCredit,
-    DateOnly     Date
+    DateOnly     Date,
+    ReservedNumber? Reserved    = null,
+    bool         StockLocked = false
 );
 
 /// <summary>
@@ -217,7 +219,7 @@ public sealed class PosSalePoster(
         }
 
         // Tüm stok anahtarları tek çağrıda (seri numarası kilidinden sonra), bakiye okumalarından önce. Değişimde iade ile birlikte çağıran önceden kilitler.
-        if (keys.Count > 0) await db.LockStockAsync(keys, ct);
+        if (keys.Count > 0 && !ctx.StockLocked) await db.LockStockAsync(keys, ct);
         if (stockLines.Count > 0) {
             await stock.IssueAsync(MovementType.PosSale, StockSource, sale.Id, date, stockLines, ct);
             await SetCostsAsync(sale, ct);
@@ -273,7 +275,7 @@ public sealed class PosSalePoster(
         db.Invoices.Add(draft);
         await db.SaveChangesAsync(ct);
 
-        var (invoice, _) = await issuer.IssueAsync(draft.Id, false, ct);
+        var (invoice, _) = await issuer.IssueAsync(draft.Id, false, ct, ctx.Reserved);
         sale.InvoiceId = invoice.Id;
 
         // Tahsilatlar: nakit (para üstü düşülmüş) ve kart, fatura borcunu kapatır; veresiye açık kalır.
@@ -302,6 +304,15 @@ public sealed class PosSalePoster(
     }
 
     // ---- stok ----------------------------------------------------------------------------------------------------
+
+    /// <summary>Çözülmüş satırların stok kilit anahtarları (değişimde iade ile birlikte önceden kilitlenir).</summary>
+    public static void AddStockKeys(ResolvedSale resolved, Guid warehouse, List<(Guid, Guid, Guid?)> keys) {
+        foreach (var l in resolved.Lines) {
+            if (l.Product.Kind == ProductKind.Service || l.BaseQuantity <= 0m) continue;
+            if (l.Product.IsBundle) keys.AddRange(l.Product.BundleComponents.Select(c => (warehouse, c.ProductId, c.VariantId)));
+            else keys.Add((warehouse, l.Product.Id, l.VariantId));
+        }
+    }
 
     private static List<StockLine> PlanStock(PosSale sale, ResolvedSale resolved, Guid warehouse, List<(Guid, Guid, Guid?)> keys) {
         var lines = new List<StockLine>();

@@ -33,6 +33,11 @@ public class PosReturn : BaseAuditableEntity, ITenantOwned {
 
     public string? Reason { get; set; }
 
+    /// <summary>İstemcinin ürettiği (isteğe bağlı) tek seferlik iade kimliği: aynı kimlikli yeniden gönderim yeni iade yazmaz.</summary>
+    public Guid? ClientReturnId { get; set; }
+
+    public string? CashierName { get; set; }
+
     public List<PosReturnLine> Lines { get; set; } = new();
 
     public uint Version  { get; set; }

@@ -157,4 +157,35 @@ internal static class PosTestSupport {
         await using var db = PricingTestSupport.Db(tenant);
         return await db.PosSales.AsNoTracking().Include(s => s.Lines).Include(s => s.Payments).OrderBy(s => s.Number).ToListAsync();
     }
+
+    public static async Task<Guid> OpenShiftApi(Env env, Guid register, decimal opening = 0m) {
+        using var response = await env.Client.PostAsJsonAsync($"{Api}/shifts/open", new { registerId = register, openingCash = opening });
+        response.StatusCode.ShouldBe(HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        return (await response.JsonAsync()).GetProperty("id").GetGuid();
+    }
+
+    public static async Task<Guid> SaleLineId(Env env, string saleNumber, int sort = 1) {
+        await using var db = PricingTestSupport.Db(env.Tenant);
+        return await db.PosSaleLines.AsNoTracking().Where(l => l.Sort == sort && db.PosSales.Any(s => s.Id == l.SaleId && s.Number == saleNumber)).Select(l => l.Id).SingleAsync();
+    }
+
+    public static Task<HttpResponseMessage> PostReturn(HttpClient client, string saleNumber, Guid saleLine, decimal quantity, object[]? refund = null, object[]? exchangeLines = null,
+                                                      object[]? exchangePayments = null, Guid? clientReturnId = null, Guid? registerId = null) {
+        return client.PostAsJsonAsync($"{Api}/returns", new {
+            clientReturnId, saleNumber, registerId, lines = new[] { new { saleLineId = saleLine, quantity } }, refund = refund ?? [], exchangeLines, exchangePayments
+        });
+    }
+
+    public static async Task<JsonElement> Return(HttpClient client, string saleNumber, Guid saleLine, decimal quantity, object[]? refund = null, object[]? exchangeLines = null,
+                                                 object[]? exchangePayments = null, Guid? clientReturnId = null) {
+        using var response = await PostReturn(client, saleNumber, saleLine, quantity, refund, exchangeLines, exchangePayments, clientReturnId);
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return await response.JsonAsync();
+    }
+
+    public static async Task<JsonElement> CloseShift(HttpClient client, Guid shift, decimal counted) {
+        using var response = await client.PostAsJsonAsync($"{Api}/shifts/{shift}/close", new { countedCash = counted, note = (string?)null });
+        response.StatusCode.ShouldBe(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return await response.JsonAsync();
+    }
 }

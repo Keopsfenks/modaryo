@@ -56,6 +56,7 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Invoicing.Posting.IInvoicePostHook, ERP.Application.Pos.Sales.PosInvoiceHook>();
         builder.Services.AddScoped<ERP.Application.Pos.Sales.PosSaleResolver>();
         builder.Services.AddScoped<ERP.Application.Pos.Sales.PosSalePoster>();
+        builder.Services.AddScoped<ERP.Application.Pos.Returns.ReturnPoster>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Orders.PoBuilder>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Orders.PoMapper>();
         builder.Services.AddScoped<ERP.Application.Sales.SalesLineBuilder>();
