@@ -84,6 +84,7 @@ export const navigation: NavSection[] = [
     {
         title: "Satış",
         items: [
+            { title: "Kasa (POS)", href: "/pos", icon: IconCash, permission: "pos.sell", module: "pos", implemented: true },
             { title: "Müşteriler", href: "/satis/musteriler", icon: IconUsers, permission: "cari.read", implemented: true },
             { title: "Fiyat listeleri", href: "/satis/fiyat-listeleri", icon: IconTags, permission: "fiyat.read", implemented: true },
             { title: "Müşteri grupları", href: "/satis/musteri-gruplari", icon: IconUsersGroup, permission: "fiyat.read", implemented: true },
