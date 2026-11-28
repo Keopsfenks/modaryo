@@ -46,49 +46,6 @@ public sealed class CreateShipmentCommandHandler(
 }
 
 [Authorize(Permission = SalesPermissions.Ship)]
-public sealed record DeliverShipmentCommand(Guid Id, DeliverInput Input) : IRequest<ShipmentDto>;
-
-public sealed class DeliverShipmentCommandValidator : AbstractValidator<DeliverShipmentCommand> {
-    public DeliverShipmentCommandValidator() {
-        RuleFor(c => c.Input.ReceivedBy).MaximumLength(200).WithMessage("Teslim alan en fazla 200 karakter olabilir.");
-    }
-}
-
-public sealed class DeliverShipmentCommandHandler(
-    IApplicationDbContext db,
-    ICurrentTenant        tenant,
-    IOutbox               outbox,
-    TimeProvider          clock,
-    ShipmentMapper        mapper
-) : IRequestHandler<DeliverShipmentCommand, ShipmentDto> {
-    public async Task<ShipmentDto> Handle(DeliverShipmentCommand request, CancellationToken ct) {
-        var head = await db.Shipments.AsNoTracking().Where(s => s.Id == request.Id).Select(s => new { s.SalesOrderId, s.BranchId }).FirstOrDefaultAsync(ct)
-                   ?? throw new NotFoundException(request.Id.ToString(), "Shipment");
-        BranchGuard.Ensure(tenant, head.BranchId);
-
-        await using var tx = await db.BeginTransactionAsync(ct);
-        try {
-            // İptal ile aynı sipariş kilidi: teslim ve iptal birbirini aynı durum üzerinde görür.
-            await db.LockSalesOrderAsync(head.SalesOrderId, ct);
-            var shipment = await db.Shipments.Include(s => s.Lines).FirstAsync(s => s.Id == request.Id, ct);
-            if (shipment.Status != ShipmentStatus.Shipped)
-                throw SalesErrors.Conflict("shipment_not_deliverable", "Yalnızca sevk edilmiş sevkler teslim edildi olarak işaretlenebilir.");
-
-            shipment.Status      = ShipmentStatus.Delivered;
-            shipment.DeliveredAt = request.Input.DeliveredAt ?? clock.GetUtcNow();
-            shipment.ReceivedBy  = string.IsNullOrWhiteSpace(request.Input.ReceivedBy) ? null : request.Input.ReceivedBy.Trim();
-            outbox.Enqueue("sales.shipment-delivered", new { shipmentId = shipment.Id, number = shipment.Number, orderId = shipment.SalesOrderId });
-            await db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
-            return await mapper.ToDtoAsync(shipment, ct);
-        } catch (DbUpdateConcurrencyException) {
-            db.ClearTracking();
-            throw SalesErrors.VersionConflict();
-        }
-    }
-}
-
-[Authorize(Permission = SalesPermissions.Ship)]
 public sealed record CancelShipmentCommand(Guid Id, string Reason) : IRequest<ShipmentDto>;
 
 public sealed class CancelShipmentCommandValidator : AbstractValidator<CancelShipmentCommand> {

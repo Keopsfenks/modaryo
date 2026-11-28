@@ -53,6 +53,10 @@ public static class DependencyInjection {
         builder.Services.AddSingleton(new RelayDatabase(connectionString));
         builder.Services.AddSingleton<IEventStreamPublisher>(sp => new ValkeyEventStreamPublisher(
                                                                  sp.GetRequiredService<IConnectionMultiplexer>()));
+        builder.Services.AddScoped<ERP.Application.Shipping.Notifications.ShipmentEmailHandler>();
+        builder.Services.AddSingleton(new OutboxSubscriberDescriptor(ERP.Application.Shipping.Notifications.ShipmentEmailHandler.SubscriberName,
+                                                                     ERP.Application.Shipping.Notifications.ShipmentEmailHandler.Handles,
+                                                                     typeof(ERP.Application.Shipping.Notifications.ShipmentEmailHandler)));
         builder.Services.AddSingleton<OutboxRelay>();
         builder.Services.AddSingleton(sp => new StoredAllocationsBackfill(
                                           sp.GetRequiredService<RelayDatabase>(),

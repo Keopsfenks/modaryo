@@ -50,6 +50,9 @@ public class ErpApiFactory(
                                           services.RemoveAll<IMemberDirectory>();
                                           services.AddSingleton<IMemberDirectory>(Members);
                                           services.AddSingleton<IItemUsageProvider>(ItemUsage);
+                                          services.RemoveAll<IDocumentMailer>();
+                                          services.AddSingleton<TestMailerGate>();
+                                          services.AddSingleton<IDocumentMailer>(sp => sp.GetRequiredService<TestMailerGate>());
                                           services.RemoveAll<ITcmbRateSource>();
                                           services.AddSingleton<ITcmbRateSource>(Tcmb);
                                       });

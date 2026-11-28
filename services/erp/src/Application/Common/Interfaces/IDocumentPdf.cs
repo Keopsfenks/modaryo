@@ -22,4 +22,10 @@ public interface IDocumentPdf {
 
     /// <summary>Toplama listesinin A4 PDF'i (kalem, miktar, konum, önerilen lotlar ve işaret kutusu). Yetki ve şube denetimi çağıranındır.</summary>
     Task<byte[]> RenderPickListAsync(Guid pickListId, CancellationToken ct);
+
+    /// <summary>
+    ///     Sevk irsaliyesinin A4 PDF'i: satıcı ve alıcı, teslimat adresi, kalemler (lot/seri), araç ve sürücü, sevk tarihi-saati. İrsaliye numarası verilmiş sevk gerekir.
+    ///     Yetki ve şube denetimi çağıranındır.
+    /// </summary>
+    Task<byte[]> RenderIrsaliyeAsync(Guid shipmentId, CancellationToken ct);
 }

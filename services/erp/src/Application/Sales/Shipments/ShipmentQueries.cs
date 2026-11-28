@@ -1,14 +1,20 @@
 using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
 using ERP.Application.Common.Security;
+using ERP.Application.Settings;
+using ERP.Application.Settings.Categories;
+using ERP.Application.Shipping.Dispatch;
 using ERP.Domain.Sales;
 
 namespace ERP.Application.Sales.Shipments;
 
-public sealed class ShipmentMapper(IApplicationDbContext db) {
+public sealed class ShipmentMapper(IApplicationDbContext db, ITenantSettings settings) {
     public async Task<ShipmentDto> ToDtoAsync(Shipment s, CancellationToken ct) {
         var order    = await db.SalesOrders.AsNoTracking().Where(o => o.Id == s.SalesOrderId).Select(o => o.Number).FirstOrDefaultAsync(ct);
-        var customer = await db.CurrentAccounts.AsNoTracking().Where(c => c.Id == s.CurrentAccountId).Select(c => c.Name).FirstOrDefaultAsync(ct);
+        var cari     = await db.CurrentAccounts.AsNoTracking().Where(c => c.Id == s.CurrentAccountId).Select(c => new { c.Name, c.Email }).FirstOrDefaultAsync(ct);
+        var customer = cari?.Name;
+        var shipping = await settings.GetAsync<ShippingSettings>(ct);
+        var proof = await db.DeliveryProofs.AsNoTracking().Where(p => p.ShipmentId == s.Id).OrderByDescending(p => p.DeliveredAt).FirstOrDefaultAsync(ct);
         var lines = s.Lines.OrderBy(l => l.Sort)
                      .Select(l => new ShipmentLineDto(l.Id, l.Sort, l.SalesOrderLineId, l.ProductId, l.VariantId, l.Description, l.Unit, l.Factor, l.Quantity, l.Width, l.Length,
                                                       l.InvoicedQuantity, l.Lots, l.Serials)).ToList();
@@ -18,7 +24,9 @@ public sealed class ShipmentMapper(IApplicationDbContext db) {
                        .Select(a => new AttemptDto(a.AttemptNo, a.SentAt, a.Outcome.ToString(), a.ResolvedAt, a.FailureReason)).ToList();
         return new ShipmentDto(s.Id, s.Number, s.Status, s.SalesOrderId, order ?? string.Empty, s.CurrentAccountId, customer ?? string.Empty, s.BranchId, s.WarehouseId, s.Date,
                                s.ShippedAt, s.DeliveredAt, s.ReceivedBy, s.DeliveryAddress, s.CargoNote, s.Notes, s.CancelReason, s.InvoiceId, s.Version, lines,
-                               s.CarrierCode, s.TrackingNo, s.IrsaliyeNo, s.DispatchAt, s.Vehicle, s.Driver, s.PickListId, parcels.Sum(p => p.WeightKg), parcels.Sum(p => p.Desi), parcels, attempts);
+                               s.CarrierCode, s.TrackingNo, s.IrsaliyeNo, s.DispatchAt, s.Vehicle, s.Driver, s.PickListId, parcels.Sum(p => p.WeightKg), parcels.Sum(p => p.Desi), parcels, attempts,
+                               CarrierRules.Name(shipping, s.CarrierCode), CarrierRules.TrackingUrl(shipping, s.CarrierCode, s.TrackingNo), string.IsNullOrWhiteSpace(cari?.Email), s.ReturnId,
+                               proof is null ? null : new ProofDto(proof.ReceivedBy, proof.DeliveredAt, proof.PhotoFileId, proof.Note));
     }
 }
 

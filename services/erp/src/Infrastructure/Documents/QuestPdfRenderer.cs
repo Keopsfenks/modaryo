@@ -152,6 +152,34 @@ public sealed class QuestPdfRenderer(
         return await Task.Run(() => new PickListTemplate(model).GeneratePdf(), ct);
     }
 
+    public async Task<byte[]> RenderIrsaliyeAsync(Guid shipmentId, CancellationToken ct) {
+        var shipment = await db.Shipments.AsNoTracking().Include(s => s.Lines).FirstOrDefaultAsync(s => s.Id == shipmentId, ct)
+                       ?? throw new NotFoundException(shipmentId.ToString(), "Shipment");
+        var customer = await db.CurrentAccounts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == shipment.CurrentAccountId, ct)
+                       ?? throw new NotFoundException(shipment.CurrentAccountId.ToString(), "CurrentAccount");
+        var order      = await db.SalesOrders.AsNoTracking().Where(o => o.Id == shipment.SalesOrderId).Select(o => o.Number).FirstOrDefaultAsync(ct);
+        var productIds = shipment.Lines.Select(l => l.ProductId).Distinct().ToList();
+        var products   = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).Select(p => new { p.Id, p.Code }).ToDictionaryAsync(p => p.Id, p => p.Code, ct);
+        var firm       = await settings.GetAsync<CompanyProfileSettings>(ct);
+        var document   = await settings.GetAsync<DocumentSettings>(ct);
+        var shipping   = await settings.GetAsync<ShippingSettings>(ct);
+
+        var lines = shipment.Lines.OrderBy(l => l.Sort).Select(l => new IrsaliyePdfLine(
+                                                                   l.Sort, products.GetValueOrDefault(l.ProductId) ?? string.Empty, l.Description, l.Unit, l.Quantity,
+                                                                   l.Lots is { Count: > 0 } lots ? string.Join(", ", lots.Select(x => $"{x.LotNo} ({x.Quantity:0.######})")) : null,
+                                                                   l.Serials is { Count: > 0 } serials ? string.Join(", ", serials) : null)).ToList();
+        var delivery = shipment.DeliveryAddress is { } a ? Address(a.Address, a.District, a.City, a.Country) : null;
+        var dispatch = (shipment.DispatchAt ?? shipment.ShippedAt ?? shipment.Created).ToOffset(TimeSpan.FromHours(3));
+        var model = new IrsaliyePdfModel(shipment.IrsaliyeNo ?? shipment.Number, dispatch, FirmParty(firm), CariParty(await LiveSnapshotAsync(customer, ct)), delivery, shipment.Number,
+                                         order ?? string.Empty, ShipmentCarrierName(shipping, shipment.CarrierCode), shipment.TrackingNo, shipment.Vehicle, shipment.Driver, lines,
+                                         document.AccentColor, document.FooterNote, await LoadLogoAsync(firm.LogoFileId, ct));
+        return await Task.Run(() => new IrsaliyeTemplate(model).GeneratePdf(), ct);
+    }
+
+    private static string? ShipmentCarrierName(ShippingSettings shipping, string? code) {
+        return code is null ? null : (shipping.Carriers ?? ShippingSettings.CarrierSeed).FirstOrDefault(c => c.Code == code)?.Name ?? code;
+    }
+
     private async Task<List<SalesPdfLine>> SalesLinesAsync(
         IReadOnlyList<(int Sort, Guid ProductId, string Description, string Unit, decimal Quantity, decimal? Width, decimal? Length, decimal UnitPrice, decimal? DiscountPercent, int VatRate, decimal Net, decimal Total)> rows,
         CancellationToken ct) {

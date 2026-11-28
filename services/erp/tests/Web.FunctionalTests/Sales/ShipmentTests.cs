@@ -178,8 +178,8 @@ public class ShipmentTests : TestBase {
         delivered.GetProperty("status").GetString().ShouldBe("delivered");
         delivered.GetProperty("receivedBy").GetString().ShouldBe("Ali Veli");
         delivered.GetProperty("deliveredAt").ValueKind.ShouldNotBe(JsonValueKind.Null);
-        using var again = await env.Client.PostAsJsonAsync($"{Api}/shipments/{shipment}/deliver", new { });
-        await Fail(again, HttpStatusCode.Conflict, "shipment_not_deliverable");
+        using var again = await env.Client.PostAsJsonAsync($"{Api}/shipments/{shipment}/deliver", new { receivedBy = "Ali Veli" });
+        await Fail(again, HttpStatusCode.Conflict, "invalid_shipment_transition");
         using var cancel = await env.Client.PostAsJsonAsync($"{Api}/shipments/{shipment}/cancel", new { reason = "Geri alınamaz" });
         await Fail(cancel, HttpStatusCode.Conflict, "shipment_not_cancellable");
     }

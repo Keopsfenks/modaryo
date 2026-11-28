@@ -65,6 +65,7 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Sales.Shipments.ShipmentService>();
         builder.Services.AddScoped<ERP.Application.Sales.Shipments.ShipmentMapper>();
         builder.Services.AddScoped<ERP.Application.Shipping.Picking.PickListService>();
+        builder.Services.AddScoped<ERP.Application.Shipping.Delivery.DeliveryService>();
         builder.Services.AddScoped<ERP.Application.Shipping.Picking.PickListMapper>();
         builder.Services.AddScoped<ERP.Application.Sales.Invoicing.ShipmentInvoiceBuilder>();
         builder.Services.AddScoped<ERP.Application.Sales.Invoicing.ShipmentInvoiceGuard>();
@@ -73,6 +74,7 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Sales.Recurring.RecurringGenerator>();
         builder.Services.AddScoped<ERP.Application.Treasury.IRecurringForecast, ERP.Application.Sales.Recurring.RecurringForecast>();
         builder.Services.AddScoped<ERP.Application.Sales.Returns.ReturnService>();
+        builder.Services.AddScoped<ERP.Application.Sales.Returns.ReturnCreator>();
         builder.Services.AddScoped<ERP.Application.Sales.Returns.ReturnMapper>();
         builder.Services.AddScoped<ERP.Application.Invoicing.Posting.IInvoicePostHook, ERP.Application.Sales.Invoicing.SalesInvoiceHook>();
         builder.Services.AddScoped<ERP.Application.Purchasing.Receipts.ReceiptMapper>();

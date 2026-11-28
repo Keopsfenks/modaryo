@@ -1033,8 +1033,8 @@ namespace ERP.Infrastructure.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Key")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
 
                     b.Property<int>("Value")
                         .HasColumnType("integer");
@@ -3208,6 +3208,45 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.ToTable("outbox_messages", (string)null);
                 });
 
+            modelBuilder.Entity("ERP.Domain.Platform.OutboxSubscriberState", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Subscriber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("GaveUp")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("MessageId", "Subscriber");
+
+                    b.HasIndex("NextAttemptAt")
+                        .HasDatabaseName("IX_outbox_subscriber_states_Pending")
+                        .HasFilter("\"CompletedAt\" IS NULL AND NOT \"GaveUp\"");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("outbox_subscriber_states", (string)null);
+                });
+
             modelBuilder.Entity("ERP.Domain.Pricing.Campaign", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5207,6 +5246,9 @@ namespace ERP.Infrastructure.Data.Migrations
                     b.Property<string>("ReceivedBy")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("ReturnId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("SalesOrderId")
                         .HasColumnType("uuid");

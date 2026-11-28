@@ -74,15 +74,35 @@ public sealed class CreateReturnCommandValidator : AbstractValidator<CreateRetur
 
 public sealed class CreateReturnCommandHandler(
     IApplicationDbContext db,
+    ReturnCreator         creator,
+    ReturnMapper          mapper
+) : IRequestHandler<CreateReturnCommand, ReturnDto> {
+    public async Task<ReturnDto> Handle(CreateReturnCommand request, CancellationToken ct) {
+        await using var tx = await db.BeginTransactionAsync(ct);
+        try {
+            var ret = await creator.CreateAsync(request.Input, ct);
+            await tx.CommitAsync(ct);
+            return await mapper.ToDtoAsync(ret, ct);
+        } catch (DbUpdateConcurrencyException) {
+            db.ClearTracking();
+            throw SalesErrors.VersionConflict();
+        }
+    }
+}
+
+/// <summary>
+///     İade belgesi kesimi (stok girişi, P4 iade taslağı, sipariş iade miktarı). Çağıran açık bir işlem sağlar ve onaylar; kilitler (cari, sipariş, stok) bu sınıfta
+///     sırayla alınır, çağıran daha önce aldıysa yeniden almak zararsızdır. Sevkiyat "iade edildi" akışı da bunu kendi işlemi içinde çağırır.
+/// </summary>
+public sealed class ReturnCreator(
+    IApplicationDbContext db,
     ICurrentTenant        tenant,
     IStockService         stock,
     IOutbox               outbox,
     InvoiceBuilder        builder,
-    ReturnMapper          mapper,
     TimeProvider          clock
-) : IRequestHandler<CreateReturnCommand, ReturnDto> {
-    public async Task<ReturnDto> Handle(CreateReturnCommand request, CancellationToken ct) {
-        var input    = request.Input;
+) {
+    public async Task<SalesReturn> CreateAsync(ReturnInput input, CancellationToken ct) {
         var original = await db.Invoices.AsNoTracking().Include(i => i.Lines).FirstOrDefaultAsync(i => i.Id == input.InvoiceId, ct)
                        ?? throw new NotFoundException(input.InvoiceId.ToString(), "Invoice");
         BranchGuard.Ensure(tenant, original.BranchId);
@@ -100,121 +120,114 @@ public sealed class CreateReturnCommandHandler(
                             ? await db.Shipments.AsNoTracking().Where(s => s.Id == shipmentLines.Values.First().ShipmentId).Select(s => (Guid?)s.SalesOrderId).FirstOrDefaultAsync(ct)
                             : null;
 
-        await using var tx = await db.BeginTransactionAsync(ct);
-        try {
-            // İade, fatura kesimi ve iptaliyle aynı cari kilidini alır: paralel iadeler iade edilebilir miktarı birlikte aşamaz.
-            await db.LockCurrentAccountAsync(original.CurrentAccountId, ct);
-            if (orderId is { } oid) await db.LockSalesOrderAsync(oid, ct);
+        // İade, fatura kesimi ve iptaliyle aynı cari kilidini alır: paralel iadeler iade edilebilir miktarı birlikte aşamaz.
+        await db.LockCurrentAccountAsync(original.CurrentAccountId, ct);
+        if (orderId is { } oid) await db.LockSalesOrderAsync(oid, ct);
 
-            var status = await db.Invoices.AsNoTracking().Where(i => i.Id == original.Id).Select(i => (InvoiceStatus?)i.Status).FirstOrDefaultAsync(ct);
-            if (status == InvoiceStatus.Cancelled) throw SalesErrors.Conflict("original_cancelled", "Asıl fatura iptal edilmiş; iade yapılamaz.");
-            if (status != InvoiceStatus.Issued) throw SalesErrors.Conflict("return_of_not_issued", "İade yalnızca kesilmiş faturaya yapılabilir.");
+        var status = await db.Invoices.AsNoTracking().Where(i => i.Id == original.Id).Select(i => (InvoiceStatus?)i.Status).FirstOrDefaultAsync(ct);
+        if (status == InvoiceStatus.Cancelled) throw SalesErrors.Conflict("original_cancelled", "Asıl fatura iptal edilmiş; iade yapılamaz.");
+        if (status != InvoiceStatus.Issued) throw SalesErrors.Conflict("return_of_not_issued", "İade yalnızca kesilmiş faturaya yapılabilir.");
 
-            var warehouse = await db.Warehouses.AsNoTracking().FirstOrDefaultAsync(w => w.Id == input.WarehouseId, ct) ?? throw new NotFoundException(input.WarehouseId.ToString(), "Warehouse");
-            BranchGuard.Ensure(tenant, warehouse.BranchId);
-            if (warehouse.Kind != input.WarehouseKind)
-                throw SalesErrors.Bad("warehouse_kind_mismatch", $"Seçilen depo {KindName(input.WarehouseKind)} türünde değil.");
-            if (!warehouse.IsActive) throw SalesErrors.Conflict("warehouse_inactive", "Depo pasif.");
-            if (warehouse.BranchId != original.BranchId) throw SalesErrors.Bad("warehouse_branch_mismatch", "Depo, faturanın şubesine ait değil.");
+        var warehouse = await db.Warehouses.AsNoTracking().FirstOrDefaultAsync(w => w.Id == input.WarehouseId, ct) ?? throw new NotFoundException(input.WarehouseId.ToString(), "Warehouse");
+        BranchGuard.Ensure(tenant, warehouse.BranchId);
+        if (warehouse.Kind != input.WarehouseKind)
+            throw SalesErrors.Bad("warehouse_kind_mismatch", $"Seçilen depo {KindName(input.WarehouseKind)} türünde değil.");
+        if (!warehouse.IsActive) throw SalesErrors.Conflict("warehouse_inactive", "Depo pasif.");
+        if (warehouse.BranchId != original.BranchId) throw SalesErrors.Bad("warehouse_branch_mismatch", "Depo, faturanın şubesine ait değil.");
 
-            var picked = new List<(InvoiceLine Line, ReturnLineInput Input)>();
-            foreach (var l in input.Lines) {
-                var line = original.Lines.FirstOrDefault(x => x.Id == l.InvoiceLineId) ?? throw SalesErrors.Bad("return_line_invalid", "İade satırı faturaya ait değil.");
-                picked.Add((line, l));
-            }
-
-            // İade edilmiş miktar: iptal edilmemiş iade belgeleri + belge dışı (elle) kesilmiş iade faturaları.
-            var docReturned = (await db.SalesReturnLines.AsNoTracking().Where(l => lineIds.Contains(l.InvoiceLineId))
-                                       .Join(db.SalesReturns.Where(r => r.Status != SalesReturnStatus.Cancelled), l => l.SalesReturnId, r => r.Id, (l, _) => new { l.InvoiceLineId, l.Quantity })
-                                       .ToListAsync(ct)).GroupBy(x => x.InvoiceLineId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
-            var manualReturned = (await db.InvoiceLines.AsNoTracking().Where(l => l.SourceLineId != null && lineIds.Contains(l.SourceLineId.Value))
-                                          .Join(db.Invoices.Where(i => i.Kind == InvoiceKind.SalesReturn && i.Status == InvoiceStatus.Issued && i.SourceType != ReturnService.Source),
-                                                l => l.InvoiceId, i => i.Id, (l, _) => new { Source = l.SourceLineId!.Value, l.Quantity }).ToListAsync(ct))
-                                 .GroupBy(x => x.Source).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
-            foreach (var (line, l) in picked) {
-                var remaining = line.Quantity - docReturned.GetValueOrDefault(line.Id) - manualReturned.GetValueOrDefault(line.Id);
-                if (l.Quantity > remaining)
-                    throw SalesErrors.Bad("return_exceeds_invoiced", $"\"{line.Description}\" için iade edilebilecek en fazla miktar {Math.Max(0m, remaining):0.######}.");
-            }
-
-            // Stok: ürünlü, hizmet olmayan satırlar asıl çıkış maliyetiyle depoya girer.
-            var productIds = picked.Where(p => p.Line.ProductId != null).Select(p => p.Line.ProductId!.Value).Distinct().ToList();
-            var products   = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
-            // Stok girişi yalnızca asıl çıkışı olan faturalarda: sevkten kesilen fatura (çıkış sevkte) ya da stoku etkileyen fatura. Aksi halde yalnızca cari alacaklanır.
-            var issuedStock = original.SourceType == ShipmentInvoiceLinks.Source || original.AffectsStock;
-            var stockLines = new List<StockLine>();
-            var costs      = new Dictionary<Guid, decimal?>();
-            var keys       = new List<(Guid, Guid, Guid?)>();
-            foreach (var (line, l) in picked) {
-                if (!issuedStock) continue;
-                if (line.ProductId is not { } pid || products[pid] is not { Kind: not ProductKind.Service } product) continue;
-                if (product.IsBundle) throw SalesErrors.Bad("bundle_return_unsupported", $"\"{line.Description}\" set ürünüdür; bileşenleri ayrı iade edilmelidir.");
-
-                var baseQuantity = Math.Round(l.Quantity * line.Factor, 6, MidpointRounding.AwayFromZero);
-                var cost         = await OriginalCostAsync(original, line, shipmentLines, ct);
-                costs[line.Id] = cost;
-                var lots = l.Lots?.Select(x => new LotInput(x.LotNo, x.Expiry, x.Quantity, x.LotId)).ToList();
-                stockLines.Add(new StockLine(warehouse.Id, pid, line.VariantId, baseQuantity, cost, lots is { Count: > 0 } ? lots : null, InvoiceRules.NormalizeSerials(l.Serials), line.Id));
-                keys.Add((warehouse.Id, pid, line.VariantId));
-                if (TrackingValidator.IsTracked(product)) keys.Add(TrackingValidator.ItemKey(pid));
-            }
-
-            var date = input.Date ?? DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime.AddHours(3));
-            var ret  = new SalesReturn {
-                Number = await DocumentNumbers.NextAsync(db, "IA", date, ct), Status = SalesReturnStatus.Posted, InvoiceId = original.Id, SalesOrderId = orderId,
-                CurrentAccountId = original.CurrentAccountId, BranchId = original.BranchId, Date = date, WarehouseId = warehouse.Id, WarehouseKind = warehouse.Kind,
-                Reason = string.IsNullOrWhiteSpace(input.Reason) ? null : input.Reason.Trim()
-            };
-            var sort = 1;
-            foreach (var (line, l) in picked) {
-                var (width, length) = Dimensions(line, l.Quantity);
-                ret.Lines.Add(new SalesReturnLine {
-                    SalesReturnId = ret.Id, Sort = sort++, InvoiceLineId = line.Id, SalesOrderLineId = line.SourceLineId is { } sid && shipmentLines.TryGetValue(sid, out var sl) ? sl.SalesOrderLineId : null,
-                    ProductId = line.ProductId, VariantId = line.VariantId, Description = line.Description, Unit = line.Unit, Factor = line.Factor, Quantity = l.Quantity,
-                    Width = width, Length = length, UnitCost = costs.GetValueOrDefault(line.Id)
-                });
-            }
-
-            // Stok kilitleri tek çağrıda, girişten önce.
-            if (keys.Count > 0) await db.LockStockAsync(keys, ct);
-            db.SalesReturns.Add(ret);
-            await db.SaveChangesAsync(ct);
-            if (stockLines.Count > 0) await stock.ReceiveAsync(MovementType.SalesReturn, ReturnService.StockSource, ret.Id, date, stockLines, ct);
-
-            // P4 SalesReturn taslağı: fiyatlar asıl faturadan; stok etkisi yok (stok belgede girdi).
-            var body  = ReturnBody(original, picked, date);
-            var built = await builder.BuildAsync(body, null, false, ct);
-            var draft = new Invoice { Status = InvoiceStatus.Draft, SourceType = ReturnService.Source, SourceId = ret.Id };
-            InvoiceBuilder.Apply(draft, body, built);
-            foreach (var line in built.Lines) {
-                line.InvoiceId = draft.Id;
-                draft.Lines.Add(line);
-            }
-
-            foreach (var due in built.Due) {
-                due.InvoiceId = draft.Id;
-                draft.DueSchedule.Add(due);
-            }
-
-            db.Invoices.Add(draft);
-            ret.ReturnInvoiceId = draft.Id;
-
-            if (orderId is { } orderKey) {
-                var orderLines = await db.SalesOrderLines.Where(l => l.SalesOrderId == orderKey).ToListAsync(ct);
-                foreach (var rl in ret.Lines.Where(l => l.SalesOrderLineId != null)) {
-                    var target = orderLines.First(l => l.Id == rl.SalesOrderLineId);
-                    target.ReturnedQuantity += Math.Round(rl.Quantity * rl.Factor / target.Factor, 6, MidpointRounding.AwayFromZero);
-                }
-            }
-
-            outbox.Enqueue("sales.return-created", new { returnId = ret.Id, number = ret.Number, invoiceId = original.Id, kind = ret.WarehouseKind.ToString() });
-            await db.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
-            return await mapper.ToDtoAsync(ret, ct);
-        } catch (DbUpdateConcurrencyException) {
-            db.ClearTracking();
-            throw SalesErrors.VersionConflict();
+        var picked = new List<(InvoiceLine Line, ReturnLineInput Input)>();
+        foreach (var l in input.Lines) {
+            var line = original.Lines.FirstOrDefault(x => x.Id == l.InvoiceLineId) ?? throw SalesErrors.Bad("return_line_invalid", "İade satırı faturaya ait değil.");
+            picked.Add((line, l));
         }
+
+        // İade edilmiş miktar: iptal edilmemiş iade belgeleri + belge dışı (elle) kesilmiş iade faturaları.
+        var docReturned = (await db.SalesReturnLines.AsNoTracking().Where(l => lineIds.Contains(l.InvoiceLineId))
+                                   .Join(db.SalesReturns.Where(r => r.Status != SalesReturnStatus.Cancelled), l => l.SalesReturnId, r => r.Id, (l, _) => new { l.InvoiceLineId, l.Quantity })
+                                   .ToListAsync(ct)).GroupBy(x => x.InvoiceLineId).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+        var manualReturned = (await db.InvoiceLines.AsNoTracking().Where(l => l.SourceLineId != null && lineIds.Contains(l.SourceLineId.Value))
+                                      .Join(db.Invoices.Where(i => i.Kind == InvoiceKind.SalesReturn && i.Status == InvoiceStatus.Issued && i.SourceType != ReturnService.Source),
+                                            l => l.InvoiceId, i => i.Id, (l, _) => new { Source = l.SourceLineId!.Value, l.Quantity }).ToListAsync(ct))
+                             .GroupBy(x => x.Source).ToDictionary(g => g.Key, g => g.Sum(x => x.Quantity));
+        foreach (var (line, l) in picked) {
+            var remaining = line.Quantity - docReturned.GetValueOrDefault(line.Id) - manualReturned.GetValueOrDefault(line.Id);
+            if (l.Quantity > remaining)
+                throw SalesErrors.Bad("return_exceeds_invoiced", $"\"{line.Description}\" için iade edilebilecek en fazla miktar {Math.Max(0m, remaining):0.######}.");
+        }
+
+        // Stok: ürünlü, hizmet olmayan satırlar asıl çıkış maliyetiyle depoya girer.
+        var productIds = picked.Where(p => p.Line.ProductId != null).Select(p => p.Line.ProductId!.Value).Distinct().ToList();
+        var products   = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id, ct);
+        // Stok girişi yalnızca asıl çıkışı olan faturalarda: sevkten kesilen fatura (çıkış sevkte) ya da stoku etkileyen fatura. Aksi halde yalnızca cari alacaklanır.
+        var issuedStock = original.SourceType == ShipmentInvoiceLinks.Source || original.AffectsStock;
+        var stockLines = new List<StockLine>();
+        var costs      = new Dictionary<Guid, decimal?>();
+        var keys       = new List<(Guid, Guid, Guid?)>();
+        foreach (var (line, l) in picked) {
+            if (!issuedStock) continue;
+            if (line.ProductId is not { } pid || products[pid] is not { Kind: not ProductKind.Service } product) continue;
+            if (product.IsBundle) throw SalesErrors.Bad("bundle_return_unsupported", $"\"{line.Description}\" set ürünüdür; bileşenleri ayrı iade edilmelidir.");
+
+            var baseQuantity = Math.Round(l.Quantity * line.Factor, 6, MidpointRounding.AwayFromZero);
+            var cost         = await OriginalCostAsync(original, line, shipmentLines, ct);
+            costs[line.Id] = cost;
+            var lots = l.Lots?.Select(x => new LotInput(x.LotNo, x.Expiry, x.Quantity, x.LotId)).ToList();
+            stockLines.Add(new StockLine(warehouse.Id, pid, line.VariantId, baseQuantity, cost, lots is { Count: > 0 } ? lots : null, InvoiceRules.NormalizeSerials(l.Serials), line.Id));
+            keys.Add((warehouse.Id, pid, line.VariantId));
+            if (TrackingValidator.IsTracked(product)) keys.Add(TrackingValidator.ItemKey(pid));
+        }
+
+        var date = input.Date ?? DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime.AddHours(3));
+        var ret  = new SalesReturn {
+            Number = await DocumentNumbers.NextAsync(db, "IA", date, ct), Status = SalesReturnStatus.Posted, InvoiceId = original.Id, SalesOrderId = orderId,
+            CurrentAccountId = original.CurrentAccountId, BranchId = original.BranchId, Date = date, WarehouseId = warehouse.Id, WarehouseKind = warehouse.Kind,
+            Reason = string.IsNullOrWhiteSpace(input.Reason) ? null : input.Reason.Trim()
+        };
+        var sort = 1;
+        foreach (var (line, l) in picked) {
+            var (width, length) = Dimensions(line, l.Quantity);
+            ret.Lines.Add(new SalesReturnLine {
+                SalesReturnId = ret.Id, Sort = sort++, InvoiceLineId = line.Id, SalesOrderLineId = line.SourceLineId is { } sid && shipmentLines.TryGetValue(sid, out var sl) ? sl.SalesOrderLineId : null,
+                ProductId = line.ProductId, VariantId = line.VariantId, Description = line.Description, Unit = line.Unit, Factor = line.Factor, Quantity = l.Quantity,
+                Width = width, Length = length, UnitCost = costs.GetValueOrDefault(line.Id)
+            });
+        }
+
+        // Stok kilitleri tek çağrıda, girişten önce.
+        if (keys.Count > 0) await db.LockStockAsync(keys, ct);
+        db.SalesReturns.Add(ret);
+        await db.SaveChangesAsync(ct);
+        if (stockLines.Count > 0) await stock.ReceiveAsync(MovementType.SalesReturn, ReturnService.StockSource, ret.Id, date, stockLines, ct);
+
+        // P4 SalesReturn taslağı: fiyatlar asıl faturadan; stok etkisi yok (stok belgede girdi).
+        var body  = ReturnBody(original, picked, date);
+        var built = await builder.BuildAsync(body, null, false, ct);
+        var draft = new Invoice { Status = InvoiceStatus.Draft, SourceType = ReturnService.Source, SourceId = ret.Id };
+        InvoiceBuilder.Apply(draft, body, built);
+        foreach (var line in built.Lines) {
+            line.InvoiceId = draft.Id;
+            draft.Lines.Add(line);
+        }
+
+        foreach (var due in built.Due) {
+            due.InvoiceId = draft.Id;
+            draft.DueSchedule.Add(due);
+        }
+
+        db.Invoices.Add(draft);
+        ret.ReturnInvoiceId = draft.Id;
+
+        if (orderId is { } orderKey) {
+            var orderLines = await db.SalesOrderLines.Where(l => l.SalesOrderId == orderKey).ToListAsync(ct);
+            foreach (var rl in ret.Lines.Where(l => l.SalesOrderLineId != null)) {
+                var target = orderLines.First(l => l.Id == rl.SalesOrderLineId);
+                target.ReturnedQuantity += Math.Round(rl.Quantity * rl.Factor / target.Factor, 6, MidpointRounding.AwayFromZero);
+            }
+        }
+
+        outbox.Enqueue("sales.return-created", new { returnId = ret.Id, number = ret.Number, invoiceId = original.Id, kind = ret.WarehouseKind.ToString() });
+        await db.SaveChangesAsync(ct);
+        return ret;
     }
 
     private static string KindName(WarehouseKind kind) {

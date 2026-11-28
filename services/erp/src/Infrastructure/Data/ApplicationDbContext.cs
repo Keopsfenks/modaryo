@@ -215,6 +215,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
 
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
+    public DbSet<OutboxSubscriberState> OutboxSubscriberStates => Set<OutboxSubscriberState>();
+
     public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken) {
         return Database.BeginTransactionAsync(cancellationToken);
     }

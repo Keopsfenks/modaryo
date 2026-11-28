@@ -3,6 +3,7 @@ using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Files;
 using ERP.Domain.Inventory;
 using ERP.Domain.Invoicing;
+using ERP.Domain.Platform;
 using ERP.Domain.Pricing;
 using ERP.Domain.Purchasing;
 using ERP.Domain.Sales;
@@ -167,6 +168,8 @@ public interface IApplicationDbContext {
     DbSet<DeliveryAttempt> DeliveryAttempts { get; }
 
     DbSet<DeliveryProof> DeliveryProofs { get; }
+
+    DbSet<OutboxSubscriberState> OutboxSubscriberStates { get; }
 
     DbSet<PickList> PickLists { get; }
 

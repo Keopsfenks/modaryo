@@ -38,7 +38,6 @@ public class SchemaTests : TestBase {
             s.Vehicle     = "34 ABC 123";
             s.Driver      = "Ali";
             db.Parcels.Add(new Parcel { ShipmentId = shipmentId, Index = 1, WeightKg = 2.5m, WidthCm = 30, LengthCm = 30, HeightCm = 30, Desi = Desi.Of(30, 30, 30), Contents = [new ParcelContent(lineId, 4m)] });
-            db.DeliveryAttempts.Add(new DeliveryAttempt { ShipmentId = shipmentId, AttemptNo = 1, SentAt = DateTimeOffset.UtcNow, Outcome = DeliveryOutcome.Pending });
             db.DeliveryProofs.Add(new DeliveryProof { ShipmentId = shipmentId, ReceivedBy = "Veli", DeliveredAt = DateTimeOffset.UtcNow, Note = "Kapıda" });
             var pick = new PickList { Number = "TL2026000001", BranchId = s.BranchId, WarehouseId = s.WarehouseId, ShipmentIds = [shipmentId] };
             pick.Lines.Add(new PickLine {

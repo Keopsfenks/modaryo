@@ -16,7 +16,7 @@ public sealed record ShipmentInput(
     bool                             Draft = false
 );
 
-public sealed record DeliverInput(DateTimeOffset? DeliveredAt, string? ReceivedBy);
+public sealed record DeliverInput(string? ReceivedBy, DateTimeOffset? DeliveredAt, Guid? ProofFileId, string? Note);
 
 public sealed record ShipmentLineDto(
     Guid                       Id,
@@ -66,8 +66,15 @@ public sealed record ShipmentDto(
     decimal                        TotalWeightKg,
     decimal                        TotalDesi,
     IReadOnlyList<ParcelDto>       Parcels,
-    IReadOnlyList<AttemptDto>      Attempts
+    IReadOnlyList<AttemptDto>      Attempts,
+    string?                        CarrierName,
+    string?                        TrackingUrl,
+    bool                           CustomerEmailMissing,
+    Guid?                          ReturnId,
+    ProofDto?                      Proof
 );
+
+public sealed record ProofDto(string ReceivedBy, DateTimeOffset DeliveredAt, Guid? PhotoFileId, string? Note);
 
 public sealed record ParcelContentDto(Guid ShipmentLineId, decimal Quantity);
 

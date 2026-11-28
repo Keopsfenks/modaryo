@@ -1,9 +1,11 @@
 ﻿using System.Globalization;
 using System.Text.Json.Nodes;
 using ERP.Application.Common.Interfaces;
+using ERP.Application.Inventory.Costing;
 using ERP.Domain.Platform;
 using ERP.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -75,6 +77,9 @@ internal sealed class RelayDatabase(
     }
 }
 
+/// <summary>Süreç içi abonenin kaydı: ad (durum satırı anahtarı), hangi olay türlerini aldığı ve kapsamlı uygulama türü (IOutboxSubscriber).</summary>
+internal sealed record OutboxSubscriberDescriptor(string Name, Func<string, bool> Handles, Type Implementation);
+
 /// <summary>
 ///     Bekleyen outbox kayıtlarını (Id sırasıyla, en çok 100) "erp.events" akışına XADD ile iletir.
 ///     At-least-once: XADD ile PublishedAt yazımı arasında süreç ölürse kayıt yeniden iletilebilir;
@@ -85,8 +90,17 @@ internal sealed class OutboxRelay(
     IEventStreamPublisher   publisher,
     IOptions<OutboxOptions> options,
     TimeProvider            time,
-    ILogger<OutboxRelay>    logger
+    ILogger<OutboxRelay>    logger,
+    IEnumerable<OutboxSubscriberDescriptor>? subscribers = null,
+    IServiceScopeFactory?   scopes = null
 ) : BackgroundService {
+    /// <summary>Abone bir olay için bu kadar denemeden sonra bırakılır (günlüğe hata yazılır).</summary>
+    public const int MaxSubscriberAttempts = 6;
+
+    private static readonly TimeSpan SubscriberLease = TimeSpan.FromMinutes(2);
+
+    private readonly IReadOnlyList<OutboxSubscriberDescriptor> _subscribers = (subscribers ?? []).ToList();
+
     public static readonly TimeSpan MaxBackoff = TimeSpan.FromSeconds(60);
 
     public static readonly TimeSpan BaseBackoff = TimeSpan.FromSeconds(1);
@@ -96,7 +110,9 @@ internal sealed class OutboxRelay(
 
     /// <summary>İletilen kayıt sayısını döndürür. Akış hatasında kalan kayıtlar bekler (istisna fırlatmaz).</summary>
     public async Task<int> PublishPendingAsync(CancellationToken ct) {
-        return (await PublishBatchAsync(ct)).Published;
+        var published = (await PublishBatchAsync(ct)).Published;
+        await RunSubscribersAsync(ct);
+        return published;
     }
 
     private async Task<(int Published, bool Failed)> PublishBatchAsync(CancellationToken ct) {
@@ -122,11 +138,90 @@ internal sealed class OutboxRelay(
 
             message.PublishedAt = time.GetUtcNow();
             published++;
+
+            // Aboneler akışa iletimle aynı işlemde kayda geçer: olay iletildiyse abone satırı da vardır (ve tersi).
+            foreach (var subscriber in _subscribers.Where(s => s.Handles(message.Type)))
+                db.OutboxSubscriberStates.Add(new OutboxSubscriberState {
+                                                                            MessageId = message.Id, Subscriber = subscriber.Name, TenantId = message.TenantId,
+                                                                            NextAttemptAt = message.PublishedAt.Value
+                                                                        });
         }
 
         await db.SaveChangesAsync(CancellationToken.None);
         await transaction.CommitAsync(CancellationToken.None);
         return (published, failed);
+    }
+
+    private const string DueSql
+        = "SELECT * FROM outbox_subscriber_states WHERE \"CompletedAt\" IS NULL AND NOT \"GaveUp\" AND \"NextAttemptAt\" <= {0} ORDER BY \"NextAttemptAt\" LIMIT 50 FOR UPDATE SKIP LOCKED";
+
+    /// <summary>
+    ///     Vadesi gelen abone satırlarını işler. Satırlar kısa bir işlemde kiralanır (sıradaki deneme ileri alınır) ve kilitler hemen bırakılır;
+    ///     abone çağrısı kilit altında yapılmaz. Hata abonenin satırına yazılır; iş verisine ve akışa dokunmaz.
+    /// </summary>
+    internal async Task<int> RunSubscribersAsync(CancellationToken ct) {
+        if (_subscribers.Count == 0 || scopes is null) return 0;
+
+        List<(Guid MessageId, string Subscriber)> claimed;
+        await using (var db = database.Create()) {
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var now  = time.GetUtcNow();
+            var rows = await db.OutboxSubscriberStates.FromSqlRaw(DueSql, now).IgnoreQueryFilters().ToListAsync(ct);
+            foreach (var row in rows) row.NextAttemptAt = now + SubscriberLease;
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            claimed = rows.Select(r => (r.MessageId, r.Subscriber)).ToList();
+        }
+
+        foreach (var (messageId, subscriberName) in claimed) {
+            var       descriptor = _subscribers.FirstOrDefault(s => s.Name == subscriberName);
+            Exception? error     = null;
+            var       attempted  = false;
+            var       tenantId   = Guid.Empty;
+            try {
+                if (descriptor is null) throw new InvalidOperationException($"Abone \"{subscriberName}\" kayıtlı değil.");
+
+                await using var readDb  = database.Create();
+                var             message = await readDb.OutboxMessages.IgnoreQueryFilters().AsNoTracking().FirstAsync(m => m.Id == messageId, ct);
+                tenantId = message.TenantId;
+
+                await using var scope = scopes.CreateAsyncScope();
+                scope.ServiceProvider.GetRequiredService<TenantScope>().Override = new BackgroundTenant(message.TenantId);
+                var handler = (IOutboxSubscriber)scope.ServiceProvider.GetRequiredService(descriptor.Implementation);
+                attempted = await handler.HandleAsync(new OutboxEvent(message.Id, message.Type, message.PayloadJson, message.TenantId, message.OccurredAt), ct);
+            }
+            catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested) {
+                error = e;
+            }
+
+            await using var write = database.Create();
+            var state = await write.OutboxSubscriberStates.IgnoreQueryFilters()
+                                   .FirstAsync(s => s.MessageId == messageId && s.Subscriber == subscriberName, CancellationToken.None);
+            var at = time.GetUtcNow();
+            if (error is null) {
+                state.CompletedAt = at;
+                state.LastError   = null;
+                if (attempted) state.Attempts++;
+            }
+            else {
+                state.Attempts++;
+                state.LastError     = Truncate(error.Message);
+                state.NextAttemptAt = at + Backoff(state.Attempts);
+                if (state.Attempts >= MaxSubscriberAttempts) {
+                    state.GaveUp = true;
+                    logger.LogError(error, "Abone {Subscriber} olay {MessageId} için {Attempts} denemeden sonra bırakıldı (firma {Tenant}).", subscriberName, messageId,
+                                    state.Attempts, tenantId);
+                }
+                else {
+                    logger.LogWarning(error, "Abone {Subscriber} olay {MessageId} için başarısız (deneme {Attempts}); {Next:u} sonra yeniden denenecek.", subscriberName, messageId,
+                                      state.Attempts, state.NextAttemptAt);
+                }
+            }
+
+            await write.SaveChangesAsync(CancellationToken.None);
+        }
+
+        return claimed.Count;
     }
 
     private static string Truncate(string error) {
@@ -169,6 +264,7 @@ internal sealed class OutboxRelay(
             var delay = poll;
             try {
                 var (published, failed) = await PublishBatchAsync(stoppingToken);
+                await RunSubscribersAsync(stoppingToken);
                 if (failed) {
                     failures++;
                     delay = Backoff(failures);

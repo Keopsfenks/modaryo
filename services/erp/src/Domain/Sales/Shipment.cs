@@ -34,6 +34,9 @@ public class Shipment : BaseAuditableEntity, ITenantOwned {
     public string?          Vehicle    { get; set; }
     public string?          Driver     { get; set; }
 
+    /// <summary>Teslim edilemeyip iade edilen faturalı sevkte kesilen P7 iade belgesi.</summary>
+    public Guid? ReturnId { get; set; }
+
     /// <summary>Toplama listesi (Picking durumunda dolu).</summary>
     public Guid?            PickListId { get; set; }
 

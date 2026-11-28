@@ -5,6 +5,8 @@ using ERP.Application.Sales.Recurring;
 using ERP.Application.Sales.Targets;
 using ERP.Application.Sales.Returns;
 using ERP.Application.Sales.Shipments;
+using ERP.Application.Shipping.Delivery;
+using ERP.Application.Shipping.Dispatch;
 using ERP.Application.Shipping.Packing;
 using ERP.Application.Shipping.Picking;
 using ERP.Application.Sales.Quotes;
@@ -43,7 +45,12 @@ public class Sales : IEndpointGroup {
         groupBuilder.MapPost(SalesCreateShipment, "shipments");
         groupBuilder.MapPost(SalesInvoiceDraft, "shipments/invoice-draft");
         groupBuilder.MapGet(SalesGetShipment, "shipments/{id:guid}");
+        groupBuilder.MapPost(SalesShipShipment, "shipments/{id:guid}/ship");
+        groupBuilder.MapGet(SalesIrsaliyePdf, "shipments/{id:guid}/irsaliye.pdf");
         groupBuilder.MapPost(SalesDeliverShipment, "shipments/{id:guid}/deliver");
+        groupBuilder.MapPost(SalesFailShipment, "shipments/{id:guid}/fail");
+        groupBuilder.MapPost(SalesResendShipment, "shipments/{id:guid}/resend");
+        groupBuilder.MapPost(SalesReturnShipment, "shipments/{id:guid}/return");
         groupBuilder.MapPost(SalesCancelShipment, "shipments/{id:guid}/cancel");
         groupBuilder.MapPost(SalesShipmentPickList, "shipments/{id:guid}/pick-list");
         groupBuilder.MapPut(SalesShipmentParcels, "shipments/{id:guid}/parcels");
@@ -162,10 +169,41 @@ public class Sales : IEndpointGroup {
         return TypedResults.Ok(await sender.Send(new GetShipmentQuery(id)));
     }
 
+    [EndpointSummary("Sevki çıkar")]
+    [EndpointDescription("sevkiyat.ship. Gövde: { carrierCode, trackingNo?, dispatchAt?, vehicle?, driver? }. Paketlenmiş (toplama-paketleme kapalıyken taslak) sevki çıkarır: stok çıkışı (ilk kez), irsaliye numarası IR{yyyy}{000001} (şube bazında; e-İrsaliye açıkken verilmez), outbox shipment.shipped (müşteri e-postası). Açık miktar bu anda yeniden denetlenir. 409 invalid_shipment_transition | tracking_required, 400 carrier_invalid | ship_exceeds_open.")]
+    public static async Task<Ok<ShipmentDto>> SalesShipShipment(ISender sender, Guid id, DispatchInput input) {
+        return TypedResults.Ok(await sender.Send(new ShipShipmentCommand(id, input)));
+    }
+
+    [EndpointSummary("İrsaliye PDF")]
+    [EndpointDescription("sevkiyat.read. Satıcı, alıcı, teslimat adresi, kalemler (lot/seri), araç-sürücü ve sevk tarihi-saati. 409 irsaliye_not_issued.")]
+    public static async Task<FileContentHttpResult> SalesIrsaliyePdf(ISender sender, Guid id) {
+        var file = await sender.Send(new GetIrsaliyePdfQuery(id));
+        return TypedResults.File(file.Content, "application/pdf", file.FileName);
+    }
+
     [EndpointSummary("Teslim edildi")]
-    [EndpointDescription("satis.ship. Gövde: { deliveredAt?, receivedBy? }. shipped -> delivered.")]
-    public static async Task<Ok<ShipmentDto>> SalesDeliverShipment(ISender sender, Guid id, DeliverInput? input) {
-        return TypedResults.Ok(await sender.Send(new DeliverShipmentCommand(id, input ?? new DeliverInput(null, null))));
+    [EndpointDescription("sevkiyat.deliver. Gövde: { receivedBy (2-100), deliveredAt?, proofFileId? (dosya türü image), note? }. shipped -> delivered; teslim kanıtı kaydedilir. 409 invalid_shipment_transition, 400 proof_file_invalid.")]
+    public static async Task<Ok<ShipmentDto>> SalesDeliverShipment(ISender sender, Guid id, DeliverInput input) {
+        return TypedResults.Ok(await sender.Send(new DeliverShipmentCommand(id, input)));
+    }
+
+    [EndpointSummary("Teslimat başarısız")]
+    [EndpointDescription("sevkiyat.deliver. Gövde: { reason, at? }. shipped -> deliveryFailed; deneme başarısız kapanır.")]
+    public static async Task<Ok<ShipmentDto>> SalesFailShipment(ISender sender, Guid id, FailInput input) {
+        return TypedResults.Ok(await sender.Send(new FailShipmentCommand(id, input)));
+    }
+
+    [EndpointSummary("Yeniden gönder")]
+    [EndpointDescription("sevkiyat.ship. Gövde: { carrierCode?, trackingNo? }. deliveryFailed -> shipped, yeni teslimat denemesi açar; stok yeniden çıkmaz, irsaliye numarası aynı kalır. Firma değişirse takip numarası gerekir (409 tracking_required).")]
+    public static async Task<Ok<ShipmentDto>> SalesResendShipment(ISender sender, Guid id, ResendInput? input) {
+        return TypedResults.Ok(await sender.Send(new ResendShipmentCommand(id, input ?? new ResendInput(null, null))));
+    }
+
+    [EndpointSummary("Sevki iade al")]
+    [EndpointDescription("sevkiyat.ship. Gövde: { reason }. deliveryFailed -> returned. Faturasızsa stok çıkışı geri alınır ve sipariş satırı yeniden açılır; faturalıysa P7 iade belgesi (ve iade taslak faturası) kesilir. 409 shipment_invoice_draft | shipment_partially_invoiced.")]
+    public static async Task<Ok<ShipmentDto>> SalesReturnShipment(ISender sender, Guid id, ReasonBody body) {
+        return TypedResults.Ok(await sender.Send(new ReturnShipmentCommand(id, body.Reason)));
     }
 
     [EndpointSummary("Sevki iptal et")]

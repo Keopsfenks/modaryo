@@ -268,6 +268,6 @@ public class DocumentCounterConfiguration : IEntityTypeConfiguration<DocumentCou
     public void Configure(EntityTypeBuilder<DocumentCounter> builder) {
         builder.ToTable("document_counters");
         builder.HasKey(e => new { e.TenantId, e.Key });
-        builder.Property(e => e.Key).HasMaxLength(30);
+        builder.Property(e => e.Key).HasMaxLength(60);
     }
 }
