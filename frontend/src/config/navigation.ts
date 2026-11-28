@@ -102,7 +102,7 @@ export const navigation: NavSection[] = [
         title: "Sevkiyat",
         items: [
             { title: "Sevkiyat panosu", href: "/sevkiyat", icon: IconTruckLoading, permission: "sevkiyat.read", implemented: true },
-            { title: "Teslimat planları", href: "/sevkiyat/planlar", icon: IconRoute, permission: "sevkiyat.read", module: "teslimat-plani" },
+            { title: "Teslimat planları", href: "/sevkiyat/planlar", icon: IconRoute, permission: "sevkiyat.read", module: "teslimat-plani", implemented: true },
         ],
     },
     {

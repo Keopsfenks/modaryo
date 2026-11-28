@@ -289,6 +289,7 @@ export type ShipmentDto = {
     shippedAt: string | null;
     deliveredAt: string | null;
     receivedBy: string | null;
+    deliveryAddress: { title: string; address: string | null; city: string | null; district: string | null } | null;
     cargoNote: string | null;
     notes: string | null;
     cancelReason: string | null;

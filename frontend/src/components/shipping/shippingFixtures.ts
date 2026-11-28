@@ -39,6 +39,7 @@ export function shipmentDto(overrides: Partial<ShipmentDto> = {}): ShipmentDto {
         shippedAt: null,
         deliveredAt: null,
         receivedBy: null,
+        deliveryAddress: null,
         cargoNote: null,
         notes: null,
         cancelReason: null,
