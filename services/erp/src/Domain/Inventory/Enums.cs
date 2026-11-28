@@ -18,7 +18,9 @@ public enum MovementType {
     PurchaseReturn,
     SalesShipment,
     SalesReturn,
-    BundleIssue
+    BundleIssue,
+    PosSale,
+    PosReturn
 }
 
 public enum ReservationStatus { Active, Released, Consumed }
