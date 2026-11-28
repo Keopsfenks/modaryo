@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Button from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -44,6 +46,7 @@ export default function ShipmentForm({ order, onClose, onDone }: ShipmentFormPro
     const [addressId, setAddressId] = useState("");
     const [tracking, setTracking] = useState<Record<string, Tracking>>({});
     const [trackingLine, setTrackingLine] = useState<string | null>(null);
+    const [draft, setDraft] = useState(false);
     const [scan, setScan] = useState("");
     const [notice, setNotice] = useState<string | null>(null);
     const [error, setError] = useState<ApiError | string | null>(null);
@@ -121,6 +124,7 @@ export default function ShipmentForm({ order, onClose, onDone }: ShipmentFormPro
                 warehouseId: warehouseId || null,
                 deliveryAddressId: addressId || null,
                 cargoNote: cargoNote.trim() || null,
+                draft: draft || undefined,
                 lines,
             });
             onDone(shipment);
@@ -223,12 +227,16 @@ export default function ShipmentForm({ order, onClose, onDone }: ShipmentFormPro
                             )}
                             <TextField size="small" label="Kargo / teslimat notu" value={cargoNote} onChange={(e) => setCargoNote(e.target.value)} sx={{ flexGrow: 1 }} />
                         </Stack>
+                        <FormControlLabel
+                            control={<Checkbox checked={draft} onChange={(e) => setDraft(e.target.checked)} />}
+                            label="Taslak oluştur (toplama ve paketleme akışına gönder; stok sevk anında çıkar)"
+                        />
                     </Stack>
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={onClose}>Vazgeç</Button>
                     <Button variant="contained" disabled={busy} onClick={() => void submit()}>
-                        {busy ? "Sevk ediliyor..." : "Sevk et"}
+                        {busy ? "Kaydediliyor..." : draft ? "Taslak oluştur" : "Sevk et"}
                     </Button>
                 </DialogActions>
             </Dialog>

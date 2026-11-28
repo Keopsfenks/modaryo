@@ -6,10 +6,6 @@ import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
 import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
@@ -17,12 +13,14 @@ import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import FormAlert from "@/components/auth/FormAlert";
 import PageHeader from "@/components/common/PageHeader";
 import DashboardCard from "@/components/dashboard/DashboardCard";
 import ReasonDialog from "@/components/purchasing/ReasonDialog";
+import ShipmentActions from "@/components/shipping/ShipmentActions";
+import TrackingLink from "@/components/shipping/TrackingLink";
+import { shipping } from "@/lib/api/shipping";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessages";
 import { SHIPMENT_STATUS_LABELS, sales, type ShipmentDto } from "@/lib/api/sales";
@@ -39,8 +37,7 @@ export default function ShipmentDetail({ id }: { id: string }) {
     const allowed = hasPermission("satis.read");
     const [shipment, setShipment] = useState<ShipmentDto | null>(null);
     const [error, setError] = useState<ApiError | string | null>(null);
-    const [dialog, setDialog] = useState<"deliver" | "cancel" | null>(null);
-    const [receivedBy, setReceivedBy] = useState("");
+    const [dialog, setDialog] = useState<"cancel" | null>(null);
     const [busy, setBusy] = useState(false);
 
     const load = useCallback(async () => {
@@ -92,14 +89,28 @@ export default function ShipmentDetail({ id }: { id: string }) {
                             Faturayı aç
                         </Button>
                     )}
+                    {shipment.carrierName && <Chip variant="outlined" label={`Kargo: ${shipment.carrierName}`} />}
+                    {shipment.irsaliyeNo && <Chip variant="outlined" label={`İrsaliye: ${shipment.irsaliyeNo}`} />}
+                    {shipment.trackingNo && (
+                        <Chip variant="outlined" label={<TrackingLink trackingNo={shipment.trackingNo} url={shipment.trackingUrl} />} />
+                    )}
                     {shipment.cargoNote && <Chip variant="outlined" label={`Not: ${shipment.cargoNote}`} />}
                     {shipment.receivedBy && <Chip variant="outlined" label={`Teslim alan: ${shipment.receivedBy}`} />}
                     {shipment.cancelReason && <Chip variant="outlined" color="error" label={`İptal gerekçesi: ${shipment.cancelReason}`} />}
                 </Stack>
+                <ShipmentActions shipment={shipment} size="medium" onChange={setShipment} />
                 <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-                    {canShip && shipment.status === "shipped" && (
-                        <Button variant="contained" disabled={busy} onClick={() => setDialog("deliver")}>
-                            Teslim edildi
+                    {shipment.irsaliyeNo && hasPermission("sevkiyat.read") && (
+                        <Button
+                            variant="outlined"
+                            disabled={busy}
+                            onClick={() =>
+                                void run(async () => {
+                                    window.open(URL.createObjectURL(await shipping.shipments.irsaliyePdf(shipment.id)), "_blank", "noopener");
+                                })
+                            }
+                        >
+                            İrsaliye PDF
                         </Button>
                     )}
                     {canInvoice && shipment.status !== "cancelled" && !shipment.invoiceId && (
@@ -116,7 +127,7 @@ export default function ShipmentDetail({ id }: { id: string }) {
                             Fatura taslağı oluştur
                         </Button>
                     )}
-                    {canShip && shipment.status === "shipped" && (
+                    {canShip && (shipment.status === "shipped" || shipment.status === "draft") && (
                         <Button color="error" disabled={busy} onClick={() => setDialog("cancel")}>
                             Sevki iptal et
                         </Button>
@@ -156,27 +167,6 @@ export default function ShipmentDetail({ id }: { id: string }) {
                 </DashboardCard>
             </Stack>
 
-            <Dialog open={dialog === "deliver"} onClose={() => setDialog(null)} fullWidth maxWidth="xs">
-                <DialogTitle>Teslim edildi</DialogTitle>
-                <DialogContent>
-                    <TextField sx={{ mt: 1 }} fullWidth size="small" label="Teslim alan" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} />
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDialog(null)}>Vazgeç</Button>
-                    <Button
-                        variant="contained"
-                        disabled={busy}
-                        onClick={() =>
-                            void run(async () => {
-                                setShipment(await sales.shipments.deliver(shipment.id, { receivedBy: receivedBy.trim() || null }));
-                                setDialog(null);
-                            })
-                        }
-                    >
-                        Kaydet
-                    </Button>
-                </DialogActions>
-            </Dialog>
             <ReasonDialog
                 open={dialog === "cancel"}
                 title="Sevki iptal et"

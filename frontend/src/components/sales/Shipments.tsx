@@ -28,7 +28,16 @@ import { useSession } from "@/session/SessionProvider";
 
 export const SHIPMENT_BASE = "/satis/sevkler";
 
-export const SHIPMENT_STATUS_COLOR: Record<ShipmentStatus, "default" | "info" | "success" | "error"> = { draft: "default", shipped: "info", delivered: "success", cancelled: "error" };
+export const SHIPMENT_STATUS_COLOR: Record<ShipmentStatus, "default" | "info" | "success" | "error" | "warning"> = {
+    draft: "default",
+    picking: "warning",
+    packed: "warning",
+    shipped: "info",
+    delivered: "success",
+    deliveryFailed: "error",
+    returned: "error",
+    cancelled: "error",
+};
 
 /** Sevk listesi: durum ve arama süzgeçleri; satır sevk detayına gider. */
 export default function Shipments() {

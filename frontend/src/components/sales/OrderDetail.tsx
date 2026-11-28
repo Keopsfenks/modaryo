@@ -35,6 +35,7 @@ import ApprovalBanner from "./ApprovalBanner";
 import DownPaymentDialog from "./DownPaymentDialog";
 import InstallmentPlanEditor from "./InstallmentPlanEditor";
 import InvoiceFromShipmentsDialog from "./InvoiceFromShipmentsDialog";
+import { SHIPMENT_STATUS_COLOR } from "./Shipments";
 import LineTimeline from "./LineTimeline";
 import ShipmentForm from "./ShipmentForm";
 import { ProfitCell, ProfitHeaderCell, useCanSeeProfit } from "./ProfitColumn";
@@ -295,7 +296,8 @@ export default function OrderDetail({ order, planEditable, onChanged, defaultIns
                             <Stack spacing={0.5}>
                                 {order.shipments.map((s) => (
                                     <Typography key={s.id} variant="body2">
-                                        <Link href={`/satis/sevkler/${s.id}`}>{s.number}</Link> · {formatDate(s.date)} · {SHIPMENT_STATUS_LABELS[s.status] ?? s.status}
+                                        <Link href={`/satis/sevkler/${s.id}`}>{s.number}</Link> · {formatDate(s.date)} ·{" "}
+                                        <Chip size="small" color={SHIPMENT_STATUS_COLOR[s.status] ?? "default"} label={SHIPMENT_STATUS_LABELS[s.status] ?? s.status} />
                                     </Typography>
                                 ))}
                             </Stack>

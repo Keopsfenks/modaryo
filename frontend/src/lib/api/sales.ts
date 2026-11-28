@@ -10,7 +10,7 @@ export type SupplyMode = "stock" | "backToBack";
 export type QuoteStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
 export type OrderStatus = "draft" | "awaitingLimitApproval" | "awaitingPayment" | "approved" | "partiallyShipped" | "shipped" | "closed" | "cancelled";
 export type InvoiceState = "none" | "partial" | "full";
-export type ShipmentStatus = "draft" | "shipped" | "delivered" | "cancelled";
+export type ShipmentStatus = "draft" | "picking" | "packed" | "shipped" | "delivered" | "deliveryFailed" | "returned" | "cancelled";
 
 export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
     draft: "Taslak",
@@ -32,7 +32,16 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 };
 
 export const INVOICE_STATE_LABELS: Record<InvoiceState, string> = { none: "Faturalanmadı", partial: "Kısmen faturalandı", full: "Faturalandı" };
-export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = { draft: "Taslak", shipped: "Sevk edildi", delivered: "Teslim edildi", cancelled: "İptal" };
+export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
+    draft: "Taslak",
+    picking: "Toplanıyor",
+    packed: "Paketlendi",
+    shipped: "Sevk edildi",
+    delivered: "Teslim edildi",
+    deliveryFailed: "Teslim edilemedi",
+    returned: "İade alındı",
+    cancelled: "İptal",
+};
 
 export type SalesLineInput = {
     productId: string;
@@ -246,6 +255,8 @@ export type ShipmentInput = {
     deliveryAddressId?: string | null;
     cargoNote?: string | null;
     notes?: string | null;
+    /** true: stok çıkışı yapılmadan taslak sevk (toplama-paketleme akışı). */
+    draft?: boolean;
     lines: { orderLineId: string; quantity: number; lots?: TrackedLot[]; serials?: string[] }[];
 };
 
@@ -284,7 +295,26 @@ export type ShipmentDto = {
     invoiceId: string | null;
     version: number;
     lines: ShipmentLineDto[];
+    carrierCode: string | null;
+    trackingNo: string | null;
+    irsaliyeNo: string | null;
+    dispatchAt: string | null;
+    vehicle: string | null;
+    driver: string | null;
+    pickListId: string | null;
+    totalWeightKg: number;
+    totalDesi: number;
+    parcels: ParcelDto[];
+    attempts: AttemptDto[];
+    carrierName: string | null;
+    trackingUrl: string | null;
+    customerEmailMissing: boolean;
+    returnId: string | null;
+    proof: { receivedBy: string; deliveredAt: string; photoFileId: string | null; note: string | null } | null;
 };
+
+export type ParcelDto = { id: string; index: number; weightKg: number; widthCm: number; lengthCm: number; heightCm: number; desi: number; contents: { shipmentLineId: string; quantity: number }[] };
+export type AttemptDto = { attemptNo: number; sentAt: string; outcome: string; resolvedAt: string | null; failureReason: string | null };
 
 export type ShipmentRow = {
     id: string;

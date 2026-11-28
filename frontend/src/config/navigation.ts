@@ -35,6 +35,8 @@ import {
     IconNotes,
     IconPackage,
     IconPackageImport,
+    IconRoute,
+    IconTruckLoading,
     IconReceipt,
     IconSettings,
     IconShieldCheck,
@@ -94,6 +96,13 @@ export const navigation: NavSection[] = [
             { title: "Abonelikler", href: "/satis/abonelikler", icon: IconRepeat, permission: "satis.recurring", implemented: true },
             { title: "Satış hedefleri", href: "/satis/hedefler", icon: IconTargetArrow, permission: "satis.targets", implemented: true },
             { title: "Faturalar", href: "/satis/faturalar", icon: IconFileInvoice, permission: "fatura.read", implemented: true },
+        ],
+    },
+    {
+        title: "Sevkiyat",
+        items: [
+            { title: "Sevkiyat panosu", href: "/sevkiyat", icon: IconTruckLoading, permission: "sevkiyat.read", implemented: true },
+            { title: "Teslimat planları", href: "/sevkiyat/planlar", icon: IconRoute, permission: "sevkiyat.read", module: "teslimat-plani" },
         ],
     },
     {
