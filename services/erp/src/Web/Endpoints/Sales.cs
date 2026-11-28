@@ -5,6 +5,7 @@ using ERP.Application.Sales.Recurring;
 using ERP.Application.Sales.Targets;
 using ERP.Application.Sales.Returns;
 using ERP.Application.Sales.Shipments;
+using ERP.Application.Shipping.Bulk;
 using ERP.Application.Shipping.Delivery;
 using ERP.Application.Shipping.Dispatch;
 using ERP.Application.Shipping.Packing;
@@ -45,6 +46,7 @@ public class Sales : IEndpointGroup {
         groupBuilder.MapPost(SalesCreateShipment, "shipments");
         groupBuilder.MapPost(SalesInvoiceDraft, "shipments/invoice-draft");
         groupBuilder.MapGet(SalesGetShipment, "shipments/{id:guid}");
+        groupBuilder.MapPost(SalesBulkShip, "shipments/bulk");
         groupBuilder.MapPost(SalesShipShipment, "shipments/{id:guid}/ship");
         groupBuilder.MapGet(SalesIrsaliyePdf, "shipments/{id:guid}/irsaliye.pdf");
         groupBuilder.MapPost(SalesDeliverShipment, "shipments/{id:guid}/deliver");
@@ -167,6 +169,12 @@ public class Sales : IEndpointGroup {
     [EndpointDescription("satis.read. Satırlar, teslimat adresi (sevk anında cari adreslerinden dondurulur), faturalanan miktarlar.")]
     public static async Task<Ok<ShipmentDto>> SalesGetShipment(ISender sender, Guid id) {
         return TypedResults.Ok(await sender.Send(new GetShipmentQuery(id)));
+    }
+
+    [EndpointSummary("Toplu sevk")]
+    [EndpointDescription("sevkiyat.ship. Gövde: { orderIds[], warehouseId, date? }. Her siparişin açık miktarı için kendi işleminde taslak sevk açar (ardından shipping/pick-lists/batch). Yanıt sipariş bazındadır: results[{ orderId, shipmentId?, shipmentNumber?, error?{ code, message } }], created, failed. Bir siparişin hatası (ör. reservation_short, order_not_shippable, supply_pending) diğerlerini etkilemez; yarım sevk kalmaz.")]
+    public static async Task<Ok<BulkShipResult>> SalesBulkShip(ISender sender, BulkShipInput input) {
+        return TypedResults.Ok(await sender.Send(new BulkShipCommand(input)));
     }
 
     [EndpointSummary("Sevki çıkar")]

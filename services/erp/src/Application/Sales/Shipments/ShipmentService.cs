@@ -284,6 +284,9 @@ public sealed class ShipmentService(
                 throw SalesErrors.Conflict("supply_pending", $"\"{w.Line.Description}\" için tedarik henüz tamamen gelmedi; mal kabulden sonra sevk edilebilir.");
             if (input.WarehouseId is not null && rows.Any(r => r.WarehouseId != warehouse.Id))
                 throw SalesErrors.Bad("warehouse_mismatch", $"\"{w.Line.Description}\" başka bir depoda rezerve edilmiş; sevk deposu rezervasyon deposuyla aynı olmalıdır.");
+            // Taslaklar stok çıkarmaz ama rezerve edilen miktarın dışına da taşamaz: diğer canlı taslaklarla birlikte rezervasyonu aşan sevk baştan reddedilir.
+            if (rows.Sum(r => r.Quantity) < Base(pending.GetValueOrDefault(w.Line.Id) + w.Quantity, w.Line.Factor))
+                throw SalesErrors.Conflict("reservation_short", $"\"{w.Line.Description}\" için rezerve edilen miktar sevk miktarından az.");
         }
 
         var date     = input.Date ?? DateOnly.FromDateTime(clock.GetUtcNow().UtcDateTime.AddHours(3));
@@ -317,6 +320,13 @@ public sealed class ShipmentService(
                         .Where(l => db.Shipments.Any(s => s.Id == l.ShipmentId && s.SalesOrderId == order.Id && live.Contains(s.Status)))
                         .Select(l => new { l.SalesOrderLineId, l.Quantity }).ToListAsync(ct))
                .GroupBy(l => l.SalesOrderLineId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+    }
+
+    /// <summary>Taslak sevke girebilecek satırlar: açık miktardan canlı taslakların ayırdığı düşülür (toplu sevk için).</summary>
+    public async Task<List<ShipmentLineInput>> DraftableLinesAsync(SalesOrder order, CancellationToken ct) {
+        var pending = await PendingByLineAsync(order, ct);
+        return order.Lines.OrderBy(l => l.Sort).Select(l => (Line: l, Available: l.OpenQuantity - pending.GetValueOrDefault(l.Id))).Where(x => x.Available > 0m)
+                    .Select(x => new ShipmentLineInput(x.Line.Id, x.Available, null, null)).ToList();
     }
 
     /// <summary>Sevki iptal eder: stok geri alınır, rezervasyon yeniden aktif olur (stok kontrolü yapılmaz). Sipariş kilidi çağıranda alınmış olmalıdır.</summary>

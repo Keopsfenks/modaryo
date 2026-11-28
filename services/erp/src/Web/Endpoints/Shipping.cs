@@ -1,4 +1,7 @@
+using ERP.Application.Sales.Shipments;
+using ERP.Application.Shipping.Delivery;
 using ERP.Application.Shipping.Picking;
+using ERP.Application.Shipping.Plans;
 using ERP.Domain.Shipping;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -17,6 +20,14 @@ public class Shipping : IEndpointGroup {
         groupBuilder.MapPost(ShippingCompletePickList, "pick-lists/{id:guid}/complete");
         groupBuilder.MapPost(ShippingCancelPickList, "pick-lists/{id:guid}/cancel");
         groupBuilder.MapGet(ShippingPickListPdf, "pick-lists/{id:guid}/pdf");
+
+        groupBuilder.MapGet(ShippingPlans, "plans");
+        groupBuilder.MapPost(ShippingCreatePlan, "plans");
+        groupBuilder.MapGet(ShippingGetPlan, "plans/{id:guid}");
+        groupBuilder.MapPut(ShippingReorderStops, "plans/{id:guid}/stops");
+        groupBuilder.MapPost(ShippingDeliverStop, "plans/{id:guid}/stops/{stopId:guid}/deliver");
+        groupBuilder.MapPost(ShippingFailStop, "plans/{id:guid}/stops/{stopId:guid}/fail");
+        groupBuilder.MapGet(ShippingPlanPdf, "plans/{id:guid}/pdf");
     }
 
     [EndpointSummary("Toplama listeleri")]
@@ -60,6 +71,50 @@ public class Shipping : IEndpointGroup {
     [EndpointDescription("sevkiyat.read.")]
     public static async Task<FileContentHttpResult> ShippingPickListPdf(ISender sender, Guid id) {
         var file = await sender.Send(new GetPickListPdfQuery(id));
+        return TypedResults.File(file.Content, "application/pdf", file.FileName);
+    }
+
+    [EndpointSummary("Teslimat planları")]
+    [EndpointDescription("sevkiyat.read, modül teslimat-plani. Süzgeç: date, status.")]
+    public static async Task<Ok<IReadOnlyList<PlanRowDto>>> ShippingPlans(ISender sender, DateOnly? date, DeliveryPlanStatus? status) {
+        return TypedResults.Ok(await sender.Send(new ListPlansQuery(date, status)));
+    }
+
+    [EndpointSummary("Teslimat planı oluştur")]
+    [EndpointDescription("sevkiyat.plan, modül teslimat-plani. Gövde: { date, vehicle?, driverUserId? (üye), driverName? (serbest metin), shipmentIds[] (sıra = durak sırası) }. Duraklar \"Kendi aracımız\" ile sevk edilmiş (shipped) sevkler olmalıdır: 409 plan_stop_not_shipped; başka planda bekleyen durak 409 plan_stop_duplicate.")]
+    public static async Task<Created<PlanDto>> ShippingCreatePlan(ISender sender, PlanInput input) {
+        var plan = await sender.Send(new CreatePlanCommand(input));
+        return TypedResults.Created($"/api/erp/shipping/plans/{plan.Id}", plan);
+    }
+
+    [EndpointSummary("Teslimat planı")]
+    [EndpointDescription("sevkiyat.read, modül teslimat-plani. Duraklar sırayla; adres sevk anındaki kopyadır.")]
+    public static async Task<Ok<PlanDto>> ShippingGetPlan(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetPlanQuery(id)));
+    }
+
+    [EndpointSummary("Durak sırası")]
+    [EndpointDescription("sevkiyat.plan, modül teslimat-plani. Gövde: { stopIds[] } planın tüm duraklarını yeni sırayla bir kez içermelidir (400 stops_mismatch).")]
+    public static async Task<Ok<PlanDto>> ShippingReorderStops(ISender sender, Guid id, StopOrderInput input) {
+        return TypedResults.Ok(await sender.Send(new ReorderStopsCommand(id, input)));
+    }
+
+    [EndpointSummary("Durak teslim edildi")]
+    [EndpointDescription("sevkiyat.deliver, modül teslimat-plani. Gövde sevk teslimiyle aynıdır: { receivedBy, deliveredAt?, proofFileId?, note? }. Sevk delivered olur.")]
+    public static async Task<Ok<PlanDto>> ShippingDeliverStop(ISender sender, Guid id, Guid stopId, DeliverInput input) {
+        return TypedResults.Ok(await sender.Send(new DeliverStopCommand(id, stopId, input)));
+    }
+
+    [EndpointSummary("Durak başarısız")]
+    [EndpointDescription("sevkiyat.deliver, modül teslimat-plani. Gövde: { reason, at? }. Sevk deliveryFailed olur.")]
+    public static async Task<Ok<PlanDto>> ShippingFailStop(ISender sender, Guid id, Guid stopId, FailInput input) {
+        return TypedResults.Ok(await sender.Send(new FailStopCommand(id, stopId, input)));
+    }
+
+    [EndpointSummary("Rota föyü PDF")]
+    [EndpointDescription("sevkiyat.read, modül teslimat-plani. Duraklar sırayla: adres, telefon, kalemler, imza satırı.")]
+    public static async Task<FileContentHttpResult> ShippingPlanPdf(ISender sender, Guid id) {
+        var file = await sender.Send(new GetPlanPdfQuery(id));
         return TypedResults.File(file.Content, "application/pdf", file.FileName);
     }
 }

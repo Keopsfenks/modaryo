@@ -28,4 +28,7 @@ public interface IDocumentPdf {
     ///     Yetki ve şube denetimi çağıranındır.
     /// </summary>
     Task<byte[]> RenderIrsaliyeAsync(Guid shipmentId, CancellationToken ct);
+
+    /// <summary>Teslimat planının A4 rota föyü: duraklar sırayla (müşteri, adres, telefon, kalemler) ve imza satırı. Yetki ve şube denetimi çağıranındır.</summary>
+    Task<byte[]> RenderDeliveryPlanAsync(Guid planId, CancellationToken ct);
 }

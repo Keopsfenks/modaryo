@@ -66,6 +66,7 @@ public static class DependencyInjection {
         builder.Services.AddScoped<ERP.Application.Sales.Shipments.ShipmentMapper>();
         builder.Services.AddScoped<ERP.Application.Shipping.Picking.PickListService>();
         builder.Services.AddScoped<ERP.Application.Shipping.Delivery.DeliveryService>();
+        builder.Services.AddScoped<ERP.Application.Shipping.Plans.PlanMapper>();
         builder.Services.AddScoped<ERP.Application.Shipping.Picking.PickListMapper>();
         builder.Services.AddScoped<ERP.Application.Sales.Invoicing.ShipmentInvoiceBuilder>();
         builder.Services.AddScoped<ERP.Application.Sales.Invoicing.ShipmentInvoiceGuard>();

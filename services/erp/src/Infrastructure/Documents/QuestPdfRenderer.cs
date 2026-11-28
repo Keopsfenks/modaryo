@@ -176,6 +176,28 @@ public sealed class QuestPdfRenderer(
         return await Task.Run(() => new IrsaliyeTemplate(model).GeneratePdf(), ct);
     }
 
+    public async Task<byte[]> RenderDeliveryPlanAsync(Guid planId, CancellationToken ct) {
+        var plan = await db.DeliveryPlans.AsNoTracking().Include(p => p.Stops).FirstOrDefaultAsync(p => p.Id == planId, ct)
+                   ?? throw new NotFoundException(planId.ToString(), "DeliveryPlan");
+        var stops       = plan.Stops.OrderBy(s => s.Sort).ToList();
+        var shipmentIds = stops.Select(s => s.ShipmentId).ToList();
+        var shipments   = await db.Shipments.AsNoTracking().Include(s => s.Lines).Where(s => shipmentIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, ct);
+        var cariIds     = shipments.Values.Select(s => s.CurrentAccountId).Distinct().ToList();
+        var cariRows    = await db.CurrentAccounts.AsNoTracking().Where(c => cariIds.Contains(c.Id)).Select(c => new { c.Id, c.Name, c.Phone }).ToDictionaryAsync(c => c.Id, ct);
+        var firm        = await settings.GetAsync<CompanyProfileSettings>(ct);
+        var document    = await settings.GetAsync<DocumentSettings>(ct);
+
+        var rows = stops.Select(s => {
+            var shipment = shipments[s.ShipmentId];
+            var cari     = cariRows.GetValueOrDefault(shipment.CurrentAccountId);
+            var items    = string.Join("; ", shipment.Lines.OrderBy(l => l.Sort).Select(l => $"{l.Description} x {l.Quantity:0.######} {l.Unit}"));
+            var address  = s.Address is { } a ? Address(a.Address, a.District, a.City, a.Country) : null;
+            return new PlanPdfStop(s.Sort, shipment.Number, cari?.Name ?? s.Address?.Title ?? string.Empty, address, cari?.Phone, items);
+        }).ToList();
+        var model = new PlanPdfModel(plan.Number, plan.Date, plan.Vehicle, plan.DriverName, firm.LegalName ?? string.Empty, rows, document.AccentColor, document.FooterNote);
+        return await Task.Run(() => new DeliveryPlanTemplate(model).GeneratePdf(), ct);
+    }
+
     private static string? ShipmentCarrierName(ShippingSettings shipping, string? code) {
         return code is null ? null : (shipping.Carriers ?? ShippingSettings.CarrierSeed).FirstOrDefault(c => c.Code == code)?.Name ?? code;
     }
