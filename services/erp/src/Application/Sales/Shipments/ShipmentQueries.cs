@@ -89,7 +89,7 @@ public sealed class ListShipmentsQueryHandler(
                                   s.CurrentAccountId,
                                   CustomerName  = db.CurrentAccounts.Where(c => c.Id == s.CurrentAccountId).Select(c => c.Name).FirstOrDefault(),
                                   CustomerEmail = db.CurrentAccounts.Where(c => c.Id == s.CurrentAccountId).Select(c => c.Email).FirstOrDefault(),
-                                  s.Date, s.InvoiceId, s.ShippedAt, s.DeliveredAt, s.CarrierCode, s.TrackingNo, s.IrsaliyeNo, s.PickListId, s.Created
+                                  s.Date, s.InvoiceId, s.ShippedAt, s.DeliveredAt, s.CarrierCode, s.TrackingNo, s.IrsaliyeNo, s.PickListId, s.Created, s.BranchId
                               }).ToListAsync(ct);
 
         // Pano alanları sayfadaki sevkler için toplu sorgularla (kalemler, koli sayıları) ve tek ayar okumasıyla gelir; sevk başına sorgu yoktur.
@@ -108,7 +108,7 @@ public sealed class ListShipmentsQueryHandler(
                                       r.ShippedAt, r.DeliveredAt, r.CarrierCode, CarrierRules.Name(shipping, r.CarrierCode), r.TrackingNo, CarrierRules.TrackingUrl(shipping, r.CarrierCode, r.TrackingNo),
                                       r.IrsaliyeNo, r.PickListId, own.Count, parcels.GetValueOrDefault(r.Id),
                                       own.Take(3).Select(l => new ShipmentRowItemDto(l.Description, l.Unit, l.Quantity, services.Contains(l.ProductId))).ToList(),
-                                      string.IsNullOrWhiteSpace(r.CustomerEmail), r.Created);
+                                      string.IsNullOrWhiteSpace(r.CustomerEmail), r.Created, r.BranchId);
         }).ToList();
         return new ShipmentListResult(items, total);
     }

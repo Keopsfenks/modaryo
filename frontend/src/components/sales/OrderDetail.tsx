@@ -116,7 +116,7 @@ export function OrderActions({ order, onChanged, onError }: ActionsProps) {
                         Peşinat al
                     </Button>
                 )}
-                {hasPermission("satis.ship") && shippable && (
+                {(hasPermission("satis.ship") || hasPermission("sevkiyat.ship")) && shippable && (
                     <Button variant="contained" onClick={() => setDialog("ship")}>
                         Sevk et
                     </Button>
@@ -135,7 +135,7 @@ export function OrderActions({ order, onChanged, onError }: ActionsProps) {
                         Hızlı fatura
                     </Button>
                 )}
-                {hasPermission("satis.manage") && hasPermission("fatura.manage") && order.shipments.some((x) => x.status !== "cancelled") && live && (
+                {hasPermission("satis.manage") && hasPermission("fatura.manage") && order.shipments.some((x) => x.status === "shipped" || x.status === "delivered") && live && (
                     <Button variant="outlined" onClick={() => setDialog("invoice")}>
                         Sevklerden fatura
                     </Button>

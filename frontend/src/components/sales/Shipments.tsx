@@ -43,7 +43,7 @@ export const SHIPMENT_STATUS_COLOR: Record<ShipmentStatus, "default" | "info" | 
 export default function Shipments() {
     const router = useRouter();
     const { hasPermission } = useSession();
-    const allowed = hasPermission("satis.read");
+    const allowed = hasPermission("satis.read") || hasPermission("sevkiyat.read");
     const [status, setStatus] = useState<ShipmentStatus | "">("");
     const [searchInput, setSearchInput] = useState("");
     const search = useDebounced(searchInput, 300);

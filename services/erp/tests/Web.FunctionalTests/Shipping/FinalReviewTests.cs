@@ -221,6 +221,40 @@ public class FinalReviewTests : TestBase {
         (await pack.JsonAsync()).GetProperty("status").GetString().ShouldBe("packed");
     }
 
+    [Test]
+    public async Task ServiceOnlyShipment_PacksWithoutPickListOrParcels() {
+        var env = await NewOrderEnv();
+        var service = await CreateProduct(env.Client, "HZM2", new { kind = "service", baseUnit = "adet" });
+        var order = await NewOrder(env, [QLine(service, 1m, 100m)]);
+        var approved = await Approve(env.Client, order);
+        var draft = await PickSupport.Draft(env, order, (LineId(approved, 0), 1m));
+        var shipment = draft.GetProperty("id").GetGuid();
+
+        using var pack = await PickSupport.Pack(env, shipment, []);
+
+        pack.StatusCode.ShouldBe(HttpStatusCode.OK, await pack.Content.ReadAsStringAsync());
+        (await pack.JsonAsync()).GetProperty("status").GetString().ShouldBe("packed");
+        var shipped = await DispatchSupport.ShipOk(env, shipment, new { carrierCode = "kendi-arac" });
+        shipped.GetProperty("status").GetString().ShouldBe("shipped");
+    }
+
+    [Test]
+    public async Task ServiceOnlyShipment_ShipsDirectlyFromDraft_WhilePhysicalDraftStillNeedsPicking() {
+        var env = await NewOrderEnv();
+        await Stock(env, 2m);
+        var service = await CreateProduct(env.Client, "HZM3", new { kind = "service", baseUnit = "adet" });
+        var order = await NewOrder(env, [QLine(env.Product, 2m, 50m), QLine(service, 1m, 100m)]);
+        var approved = await Approve(env.Client, order);
+        var physical = await PickSupport.Draft(env, order, (LineId(approved, 0), 2m));
+        var serviceOnly = await PickSupport.Draft(env, order, (LineId(approved, 1), 1m));
+
+        using var blocked = await DispatchSupport.ShipRaw(env, physical.GetProperty("id").GetGuid(), new { carrierCode = "kendi-arac" });
+        var shipped = await DispatchSupport.ShipOk(env, serviceOnly.GetProperty("id").GetGuid(), new { carrierCode = "kendi-arac" });
+
+        blocked.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        shipped.GetProperty("status").GetString().ShouldBe("shipped");
+    }
+
     // ---- I5 ----
 
     [Test]

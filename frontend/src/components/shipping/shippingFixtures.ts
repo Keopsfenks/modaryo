@@ -20,6 +20,7 @@ export function shipmentLine(overrides: Partial<ShipmentLineDto> = {}): Shipment
         width: null,
         length: null,
         invoicedQuantity: 0,
+        isService: false,
         ...overrides,
     };
 }
@@ -74,6 +75,10 @@ export function pickLine(overrides: Partial<PickLineDto> = {}): PickLineDto {
         productId: "prod-1",
         variantId: null,
         code: "HALI01",
+        variantCode: null,
+        variantLabel: null,
+        trackingMode: "none",
+        barcodes: [],
         description: "Yün halı",
         unit: "adet",
         factor: 1,

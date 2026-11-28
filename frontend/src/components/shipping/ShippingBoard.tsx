@@ -18,7 +18,7 @@ import PageHeader from "@/components/common/PageHeader";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessages";
 import { identity, type BranchDto } from "@/lib/api/identity";
-import { sales, type ShipmentDto, type ShipmentStatus } from "@/lib/api/sales";
+import { sales, type ShipmentRow, type ShipmentStatus } from "@/lib/api/sales";
 import { shipping } from "@/lib/api/shipping";
 import { formatDate } from "@/lib/date";
 import { useSession } from "@/session/SessionProvider";
@@ -35,7 +35,14 @@ const COLUMNS: { status: ShipmentStatus; title: string }[] = [
     { status: "deliveryFailed", title: "Teslim edilemedi" },
 ];
 
-const MAX_CARDS = 200;
+// Canlı sütunlar sunucuda süzülür; teslim edilenler yalnızca bugünküleri gösterir (eski kayıtlar panoyu doldurmaz).
+const LIVE_STATUSES = "draft,picking,packed,shipped,deliveryFailed";
+const MAX_CARDS = 500;
+const startOfToday = () => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString();
+};
 
 /**
  * Sevkiyat panosu: sevkleri durumuna göre kanban sütunlarında gösterir (tarih ve şube süzgeçli).
@@ -44,8 +51,8 @@ const MAX_CARDS = 200;
 export default function ShippingBoard() {
     const router = useRouter();
     const { hasPermission } = useSession();
-    const allowed = hasPermission("sevkiyat.read");
-    const [cards, setCards] = useState<ShipmentDto[] | null>(null);
+    const allowed = hasPermission("sevkiyat.read") || hasPermission("satis.read");
+    const [cards, setCards] = useState<ShipmentRow[] | null>(null);
     const [error, setError] = useState<ApiError | string | null>(null);
     const [date, setDate] = useState("");
     const [branchId, setBranchId] = useState("");
@@ -53,14 +60,17 @@ export default function ShippingBoard() {
     const [selected, setSelected] = useState<string[]>([]);
     const [dispatching, setDispatching] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [truncated, setTruncated] = useState(false);
 
     const load = useCallback(async () => {
         try {
-            // Liste satırları kalem/koli/takip taşımaz; kartlar için her sevkin ayrıntısı okunur.
-            const { items } = await sales.shipments.list({ pageSize: MAX_CARDS });
-            const open = items.filter((r) => r.status !== "cancelled" && r.status !== "returned");
-            const details = await Promise.all(open.map((r) => sales.shipments.get(r.id).catch(() => null)));
-            setCards(details.filter((d): d is ShipmentDto => d !== null));
+            // Liste satırları pano kartı için gereken her şeyi taşır: sevk başına ayrıntı çağrısı yoktur.
+            const [live, delivered] = await Promise.all([
+                sales.shipments.list({ statuses: LIVE_STATUSES, pageSize: MAX_CARDS }),
+                sales.shipments.list({ statuses: "delivered", deliveredFrom: startOfToday(), pageSize: MAX_CARDS }),
+            ]);
+            setCards([...live.items, ...delivered.items]);
+            setTruncated(live.total > live.items.length || delivered.total > delivered.items.length);
             setError(null);
         } catch (e) {
             if (!(e instanceof ApiError)) throw e;
@@ -81,13 +91,14 @@ export default function ShippingBoard() {
 
     const visible = useMemo(() => (cards ?? []).filter((c) => (!date || c.date === date) && (!branchId || c.branchId === branchId)), [cards, date, branchId]);
     const byId = useMemo(() => new Map(visible.map((c) => [c.id, c])), [visible]);
-    const chosen = selected.map((id) => byId.get(id)).filter((c): c is ShipmentDto => c !== undefined);
+    const chosen = selected.map((id) => byId.get(id)).filter((c): c is ShipmentRow => c !== undefined);
     const allDraft = chosen.length > 0 && chosen.every((c) => c.status === "draft");
     const allPacked = chosen.length > 0 && chosen.every((c) => c.status === "packed");
 
-    const replace = (updated: ShipmentDto) => {
-        setCards((cur) => (cur ?? []).map((c) => (c.id === updated.id ? updated : c)));
-        setSelected((cur) => cur.filter((id) => id !== updated.id));
+    // Bir eylemden sonra pano sunucudan yeniden okunur (durum ve sayılar değişmiş olabilir).
+    const refresh = () => {
+        setSelected([]);
+        void load();
     };
     const toggle = (id: string) => setSelected((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
 
@@ -143,6 +154,7 @@ export default function ShippingBoard() {
                 )}
             </Stack>
             <FormAlert error={error} />
+            {truncated && <Alert severity="warning" sx={{ mb: 2 }}>Çok sayıda sevk var; pano ilk {MAX_CARDS} kaydı gösteriyor. Eski kayıtlar için Satış sevk listesini kullanın.</Alert>}
             {cards === null ? (
                 <Skeleton variant="rounded" height={240} />
             ) : (
@@ -175,8 +187,8 @@ export default function ShippingBoard() {
                                                     {formatDate(c.date)} · Sipariş {c.orderNumber}
                                                 </Typography>
                                                 <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-                                                    <Typography variant="body2">{`${c.lines.length} kalem`}</Typography>
-                                                    {c.parcels.length > 0 && <Typography variant="body2">{`${c.parcels.length} koli`}</Typography>}
+                                                    <Typography variant="body2">{`${c.lineCount} kalem`}</Typography>
+                                                    {c.parcelCount > 0 && <Typography variant="body2">{`${c.parcelCount} koli`}</Typography>}
                                                 </Stack>
                                                 {c.carrierName && <Typography variant="caption">{c.carrierName}</Typography>}
                                                 <TrackingLink trackingNo={c.trackingNo} url={c.trackingUrl} />
@@ -185,7 +197,7 @@ export default function ShippingBoard() {
                                                         Müşterinin e-postası yok; sevk bildirimi gitmeyecek.
                                                     </Typography>
                                                 )}
-                                                <ShipmentActions shipment={c} onChange={replace} />
+                                                <ShipmentActions shipment={{ ...c, serviceOnly: c.lineCount > 0 && c.items.length === c.lineCount && c.items.every((i) => i.isService) }} onChange={refresh} />
                                             </Stack>
                                         </Paper>
                                     ))}
@@ -199,7 +211,7 @@ export default function ShippingBoard() {
                 open={dispatching}
                 shipments={chosen.map((c) => ({ id: c.id, number: c.number, customerName: c.customerName }))}
                 onClose={() => setDispatching(false)}
-                onDone={(shipped) => shipped.forEach(replace)}
+                onDone={refresh}
             />
         </>
     );

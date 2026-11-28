@@ -108,7 +108,8 @@ public sealed record ShipmentRowDto(
     int                               ParcelCount,
     IReadOnlyList<ShipmentRowItemDto> Items,
     bool                              CustomerEmailMissing,
-    DateTimeOffset                    Created
+    DateTimeOffset                    Created,
+    Guid                              BranchId
 );
 
 public sealed record ShipmentListResult(IReadOnlyList<ShipmentRowDto> Items, int Total);

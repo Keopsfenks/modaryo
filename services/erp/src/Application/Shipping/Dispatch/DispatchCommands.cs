@@ -6,6 +6,7 @@ using ERP.Application.Sales.Orders;
 using ERP.Application.Sales.Shipments;
 using ERP.Application.Settings;
 using ERP.Application.Settings.Categories;
+using ERP.Domain.Catalog;
 using ERP.Domain.Sales;
 using ERP.Domain.Shipping;
 
@@ -52,8 +53,13 @@ public sealed class ShipShipmentCommandHandler(
 
             // Yalnızca Packed (ya da kısayol açıkken Draft) çıkabilir; DeliveryFailed -> Shipped yeniden gönderimdir (resend).
             var current = shipment.Status.ToString();
-            if (shipment.Status is not (ShipmentStatus.Draft or ShipmentStatus.Packed) || !ShipmentStatusMachine.CanMove(current, "Shipped", shipping.UsePickPack))
-                throw ShippingErrors.InvalidTransition(current, "Shipped");
+            if (shipment.Status is not (ShipmentStatus.Draft or ShipmentStatus.Packed)) throw ShippingErrors.InvalidTransition(current, "Shipped");
+            if (!ShipmentStatusMachine.CanMove(current, "Shipped", shipping.UsePickPack)) {
+                // Yalnızca hizmet satırlı taslak sevk, toplama-paketleme açık olsa da doğrudan çıkabilir.
+                var ids      = shipment.Lines.Select(l => l.ProductId).Distinct().ToList();
+                var physical = await db.Products.AsNoTracking().AnyAsync(p => ids.Contains(p.Id) && p.Kind != ProductKind.Service, ct);
+                if (shipment.Status != ShipmentStatus.Draft || physical) throw ShippingErrors.InvalidTransition(current, "Shipped");
+            }
 
             var input   = request.Input;
             var carrier = CarrierRules.Resolve(shipping, input.CarrierCode);

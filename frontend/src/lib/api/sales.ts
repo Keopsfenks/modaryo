@@ -273,6 +273,8 @@ export type ShipmentLineDto = {
     width: number | null;
     length: number | null;
     invoicedQuantity: number;
+    /** Hizmet satırı: toplanmaz, koliye girmez. */
+    isService: boolean;
 };
 
 export type ShipmentDto = {
@@ -317,6 +319,8 @@ export type ShipmentDto = {
 export type ParcelDto = { id: string; index: number; weightKg: number; widthCm: number; lengthCm: number; heightCm: number; desi: number; contents: { shipmentLineId: string; quantity: number }[] };
 export type AttemptDto = { attemptNo: number; sentAt: string; outcome: string; resolvedAt: string | null; failureReason: string | null };
 
+export type ShipmentRowItem = { description: string; unit: string; quantity: number; isService: boolean };
+
 export type ShipmentRow = {
     id: string;
     number: string;
@@ -327,6 +331,21 @@ export type ShipmentRow = {
     customerName: string;
     date: string;
     invoiceId: string | null;
+    shippedAt: string | null;
+    deliveredAt: string | null;
+    carrierCode: string | null;
+    carrierName: string | null;
+    trackingNo: string | null;
+    trackingUrl: string | null;
+    irsaliyeNo: string | null;
+    pickListId: string | null;
+    lineCount: number;
+    parcelCount: number;
+    /** İlk 3 kalem. */
+    items: ShipmentRowItem[];
+    customerEmailMissing: boolean;
+    created: string;
+    branchId: string;
 };
 
 export type ReturnWarehouseKind = "normal" | "quarantine" | "damaged";
@@ -467,11 +486,12 @@ export const sales = {
         proforma: (id: string) => fetchBlob(`${BASE}/orders/${id}/proforma.pdf`),
     },
     shipments: {
-        list: (q: { status?: string; orderId?: string; currentAccountId?: string; search?: string; page?: number; pageSize?: number } = {}) =>
+        list: (q: { status?: string; statuses?: string; deliveredFrom?: string; orderId?: string; currentAccountId?: string; search?: string; page?: number; pageSize?: number } = {}) =>
             apiFetch<Paged<ShipmentRow>>(`${BASE}/shipments${qs({ ...q })}`),
         get: (id: string) => apiFetch<ShipmentDto>(`${BASE}/shipments/${id}`),
         create: (body: ShipmentInput) => apiFetch<ShipmentDto>(`${BASE}/shipments`, { method: "POST", body }),
         deliver: (id: string, body: { deliveredAt?: string | null; receivedBy?: string | null } = {}) => apiFetch<ShipmentDto>(`${BASE}/shipments/${id}/deliver`, { method: "POST", body }),
+        unpick: (id: string) => apiFetch<ShipmentDto>(`${BASE}/shipments/${id}/unpick`, { method: "POST" }),
         cancel: (id: string, reason: string) => apiFetch<ShipmentDto>(`${BASE}/shipments/${id}/cancel`, { method: "POST", body: { reason } }),
         invoiceDraft: (shipmentIds: string[], date?: string) => apiFetch<InvoiceDto>(`${BASE}/shipments/invoice-draft`, { method: "POST", body: { shipmentIds, date: date ?? null } }),
     },

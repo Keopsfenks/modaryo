@@ -34,7 +34,7 @@ const qty = (n: number) => n.toLocaleString("tr-TR", { maximumFractionDigits: 4 
 export default function ShipmentDetail({ id }: { id: string }) {
     const router = useRouter();
     const { hasPermission } = useSession();
-    const allowed = hasPermission("satis.read");
+    const allowed = hasPermission("satis.read") || hasPermission("sevkiyat.read");
     const [shipment, setShipment] = useState<ShipmentDto | null>(null);
     const [error, setError] = useState<ApiError | string | null>(null);
     const [dialog, setDialog] = useState<"cancel" | null>(null);
@@ -71,7 +71,7 @@ export default function ShipmentDetail({ id }: { id: string }) {
     if (!allowed) return <Alert severity="warning">Sevkleri görüntülemek için yetkiniz yok.</Alert>;
     if (!shipment) return error ? <FormAlert error={error} /> : <Skeleton variant="rounded" height={200} />;
 
-    const canShip = hasPermission("satis.ship");
+    const canShip = hasPermission("satis.ship") || hasPermission("sevkiyat.ship");
     const canInvoice = hasPermission("satis.manage") && hasPermission("fatura.manage");
 
     return (
@@ -113,7 +113,7 @@ export default function ShipmentDetail({ id }: { id: string }) {
                             İrsaliye PDF
                         </Button>
                     )}
-                    {canInvoice && shipment.status !== "cancelled" && !shipment.invoiceId && (
+                    {canInvoice && (shipment.status === "shipped" || shipment.status === "delivered") && !shipment.invoiceId && (
                         <Button
                             variant="outlined"
                             disabled={busy}

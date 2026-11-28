@@ -11,6 +11,8 @@ const SALES = "/api/erp/sales";
 export type PickListStatus = "open" | "completed" | "cancelled";
 export type PickLot = { lotNo: string; expiry: string | null; quantity: number; lotId: string | null };
 
+export type PickBarcode = { value: string; kind: "product" | "variant" | "unit"; variantId: string | null; unitFactor: number };
+
 export type PickLineDto = {
     id: string;
     sort: number;
@@ -18,6 +20,10 @@ export type PickLineDto = {
     productId: string;
     variantId: string | null;
     code: string;
+    variantCode: string | null;
+    variantLabel: string | null;
+    trackingMode: "none" | "lot" | "serial";
+    barcodes: PickBarcode[];
     description: string;
     unit: string;
     factor: number;

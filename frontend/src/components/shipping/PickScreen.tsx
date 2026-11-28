@@ -19,6 +19,7 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import FormAlert from "@/components/auth/FormAlert";
+import LotSerialDialog from "@/components/inventory/LotSerialDialog";
 import PageHeader from "@/components/common/PageHeader";
 import { ApiError } from "@/lib/api/client";
 import { errorMessage } from "@/lib/api/errorMessages";
@@ -29,6 +30,15 @@ import { beep } from "./pickSound";
 const fmt = (n: number) => n.toLocaleString("tr-TR", { maximumFractionDigits: 4 });
 const round = (n: number) => Math.round(n * 1e4) / 1e4;
 const picked = (l: PickLineDto) => l.pickedQuantity ?? 0;
+const isSerial = (l: PickLineDto) => l.trackingMode === "serial";
+const same = (a: string, b: string | null | undefined) => !!b && a.toLowerCase() === b.toLowerCase();
+
+/** Okutulan değerin satırla eşleşmesi: barkod (ürün, varyant, birim) ya da ürün/varyant kodu. Birim barkodu, satır birimine çevrilmiş adımı döndürür. */
+function matchStep(l: PickLineDto, code: string): number | null {
+    const hit = l.barcodes.find((b) => same(code, b.value));
+    if (hit) return hit.kind === "unit" && l.factor > 0 ? round(hit.unitFactor / l.factor) : 1;
+    return same(code, l.code) || same(code, l.variantCode) ? 1 : null;
+}
 
 /**
  * Toplama ekranı (tablet öncelikli): büyük satırlar, her zaman odakta bir okutma alanı (klavye kamasıyla çalışan barkod okuyucu).
@@ -48,6 +58,8 @@ export default function PickScreen({ pickListId }: { pickListId: string }) {
     const [muted, setMuted] = useState(false);
     const [confirm, setConfirm] = useState(false);
     const [busy, setBusy] = useState(false);
+    const [serialLine, setSerialLine] = useState<string | null>(null);
+    const [serialScan, setSerialScan] = useState<Record<string, string>>({});
     const inputRef = useRef<HTMLInputElement>(null);
     // Okutmalar peş peşe gelebilir: en güncel liste ve sıra bir ref'te tutulur.
     const latest = useRef<PickListDto | null>(null);
@@ -92,6 +104,14 @@ export default function PickScreen({ pickListId }: { pickListId: string }) {
         [pickListId, apply],
     );
 
+    // Seri takipli satırda miktar seri numaralarının sayısıdır; her değişiklik tüm seri listesini gönderir.
+    const setSerials = useCallback(
+        async (line: PickLineDto, serials: string[]) => {
+            apply(await shipping.pickLists.updateLine(pickListId, line.id, { pickedQty: serials.length, serials }));
+        },
+        [pickListId, apply],
+    );
+
     function guarded(action: () => Promise<void>) {
         queue.current = queue.current.then(async () => {
             try {
@@ -113,7 +133,7 @@ export default function PickScreen({ pickListId }: { pickListId: string }) {
         guarded(async () => {
             const current = latest.current;
             if (!current) return;
-            const matches = current.lines.filter((l) => l.code.toLowerCase() === code.toLowerCase());
+            const matches = current.lines.filter((l) => matchStep(l, code) !== null);
             if (matches.length === 0) {
                 sound("error");
                 setLastScan(null);
@@ -124,8 +144,15 @@ export default function PickScreen({ pickListId }: { pickListId: string }) {
                 sound("error");
                 return setScanError(`${matches[0].description} için gereken miktar zaten toplandı.`);
             }
+            if (isSerial(line)) {
+                // Seri takipli kalem barkodla sayılmaz: seri numarası okutulur.
+                setLastScan(null);
+                document.getElementById(`serial-scan-${line.id}`)?.focus();
+                sound("ok");
+                return setScanError(`${line.description} seri takipli: seri numarasını okutun.`);
+            }
             setScanError(null);
-            await setPicked(line, picked(line) + 1);
+            await setPicked(line, picked(line) + (matchStep(line, code) ?? 1));
             setLastScan(line.description);
             sound("ok");
         });
@@ -133,7 +160,35 @@ export default function PickScreen({ pickListId }: { pickListId: string }) {
 
     function change(line: PickLineDto, quantity: number) {
         setScanError(null);
+        if (isSerial(line)) {
+            const current = line.pickedSerials ?? [];
+            if (quantity <= 0) return guarded(() => setSerials(line, []));
+            if (quantity < current.length) return guarded(() => setSerials(line, current.slice(0, quantity)));
+            return setSerialLine(line.id);
+        }
         guarded(() => setPicked(line, quantity));
+    }
+
+    function addSerial(line: PickLineDto, raw: string) {
+        const serial = raw.trim();
+        setSerialScan((cur) => ({ ...cur, [line.id]: "" }));
+        if (!serial) return;
+        guarded(async () => {
+            const fresh = latest.current?.lines.find((l) => l.id === line.id) ?? line;
+            const current = fresh.pickedSerials ?? [];
+            if (current.some((x) => same(serial, x))) {
+                sound("error");
+                return setScanError(`${serial} seri numarası zaten okutuldu.`);
+            }
+            if (current.length >= fresh.quantity) {
+                sound("error");
+                return setScanError(`${fresh.description} için gereken miktar zaten toplandı.`);
+            }
+            setScanError(null);
+            await setSerials(fresh, [...current, serial]);
+            setLastScan(`${fresh.description} (${serial})`);
+            sound("ok");
+        });
     }
 
     async function complete(force: boolean) {
@@ -157,6 +212,7 @@ export default function PickScreen({ pickListId }: { pickListId: string }) {
     if (!list) return error ? <FormAlert error={error} /> : <Skeleton variant="rounded" height={240} />;
 
     const editable = canPick && list.status === "open";
+    const serialTarget = serialLine ? (list.lines.find((l) => l.id === serialLine) ?? null) : null;
     const shortages = list.lines.filter((l) => picked(l) < l.quantity);
     const total = list.lines.reduce((s, l) => s + l.quantity, 0);
     const done = list.lines.reduce((s, l) => s + Math.min(picked(l), l.quantity), 0);
@@ -184,7 +240,11 @@ export default function PickScreen({ pickListId }: { pickListId: string }) {
                         }}
                         onBlur={() => {
                             // Dokunmatik kullanımda odak kaybolursa, açık pencere yoksa okutma alanına döner.
-                            if (!confirm && editable) setTimeout(refocus, 0);
+                            if (!confirm && editable)
+                                setTimeout(() => {
+                                    const active = document.activeElement;
+                                    if (!active || active === document.body) refocus();
+                                }, 0);
                         }}
                         slotProps={{ htmlInput: { autoComplete: "off", inputMode: "none", style: { fontSize: "1.5rem" } } }}
                     />
@@ -218,12 +278,30 @@ export default function PickScreen({ pickListId }: { pickListId: string }) {
                                         <Typography variant="h6">{l.description}</Typography>
                                         <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", rowGap: 0.5 }}>
                                             <Chip size="small" label={l.code} />
+                                            {l.variantLabel && <Chip size="small" variant="outlined" label={l.variantLabel} />}
+                                            {isSerial(l) && l.pickedSerials?.map((sn) => <Chip key={sn} size="small" color="success" variant="outlined" label={`SN ${sn}`} />)}
                                             {l.location && <Chip size="small" variant="outlined" label={`Konum: ${l.location}`} />}
                                             {l.suggestedLots?.map((lot) => (
                                                 <Chip key={lot.lotNo} size="small" variant="outlined" label={`Lot ${lot.lotNo}: ${fmt(lot.quantity)}`} />
                                             ))}
                                         </Stack>
                                     </Box>
+                                    {isSerial(l) && editable && (
+                                        <TextField
+                                            size="small"
+                                            label="Seri no okut"
+                                            value={serialScan[l.id] ?? ""}
+                                            onChange={(e) => setSerialScan((cur) => ({ ...cur, [l.id]: e.target.value }))}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") {
+                                                    e.preventDefault();
+                                                    addSerial(l, serialScan[l.id] ?? "");
+                                                }
+                                            }}
+                                            slotProps={{ htmlInput: { id: `serial-scan-${l.id}`, "aria-label": `${l.description} seri no okut`, autoComplete: "off", inputMode: "none" } }}
+                                            sx={{ width: 170 }}
+                                        />
+                                    )}
                                     <Typography variant="h4" sx={{ minWidth: 96, textAlign: "center" }}>
                                         {`${fmt(picked(l))} / ${fmt(l.quantity)}`}
                                     </Typography>
@@ -260,6 +338,22 @@ export default function PickScreen({ pickListId }: { pickListId: string }) {
                     </Button>
                 )}
             </Stack>
+
+            {serialTarget && (
+                <LotSerialDialog
+                    open
+                    mode="out"
+                    trackingMode="serial"
+                    productId={serialTarget.productId}
+                    variantId={serialTarget.variantId}
+                    warehouseId={serialTarget.warehouseId}
+                    quantity={serialTarget.quantity}
+                    title={`${serialTarget.description} · seri numaraları`}
+                    initialSerials={serialTarget.pickedSerials ?? []}
+                    onClose={() => setSerialLine(null)}
+                    onSave={(r) => guarded(() => setSerials(serialTarget, r.serials ?? []))}
+                />
+            )}
 
             <Dialog open={confirm} onClose={() => setConfirm(false)} fullWidth maxWidth="sm">
                 <DialogTitle>Eksik toplanan satırlar var</DialogTitle>

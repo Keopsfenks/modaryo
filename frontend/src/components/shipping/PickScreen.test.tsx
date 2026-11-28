@@ -18,15 +18,15 @@ beforeEach(() => resetNavigation("/sevkiyat/toplama/pk-1"));
 
 function setup(initial: PickListDto) {
     let list = initial;
-    const puts: { lineId: string; body: { pickedQty: number } }[] = [];
+    const puts: { lineId: string; body: { pickedQty: number; serials?: string[] } }[] = [];
     const completes: { force: boolean }[] = [];
     server.use(
         http.get(`${IDENTITY}/auth/session`, () => HttpResponse.json(sessionInfo({ permissions: ["sevkiyat.read", "sevkiyat.pick"] }))),
         http.get("*/api/erp/shipping/pick-lists/pk-1", () => HttpResponse.json(list)),
         http.put("*/api/erp/shipping/pick-lists/pk-1/lines/:lineId", async ({ request, params }) => {
-            const body = (await request.json()) as { pickedQty: number };
+            const body = (await request.json()) as { pickedQty: number; serials?: string[] };
             puts.push({ lineId: String(params.lineId), body });
-            list = { ...list, lines: list.lines.map((l) => (l.id === params.lineId ? { ...l, pickedQuantity: body.pickedQty } : l)) };
+            list = { ...list, lines: list.lines.map((l) => (l.id === params.lineId ? { ...l, pickedQuantity: body.pickedQty, pickedSerials: body.serials ?? l.pickedSerials } : l)) };
             return HttpResponse.json(list);
         }),
         http.post("*/api/erp/shipping/pick-lists/pk-1/complete", async ({ request }) => {
@@ -84,5 +84,50 @@ describe("PickScreen", () => {
         await user.click(await screen.findByRole("button", { name: "Toplamayı tamamla" }));
 
         await waitFor(() => expect(completes).toEqual([{ force: false }]));
+    });
+
+    it("PickScreen_ScanMatchesBarcodesAndUnitFactor", async () => {
+        const line = pickLine({
+            quantity: 24,
+            factor: 1,
+            barcodes: [
+                { value: "8690000000017", kind: "product", variantId: null, unitFactor: 1 },
+                { value: "8690000000024", kind: "unit", variantId: null, unitFactor: 12 },
+            ],
+        });
+        const { user, puts } = setup(pickList({ lines: [line] }));
+
+        const scan = await screen.findByRole("textbox", { name: "Barkod / kod okut" });
+        await user.type(scan, "8690000000017{Enter}");
+        await waitFor(() => expect(puts).toHaveLength(1));
+        expect(puts[0].body.pickedQty).toBe(1);
+        // Koli (birim) barkodu birim çarpanı kadar ekler.
+        await user.type(scan, "8690000000024{Enter}");
+        await waitFor(() => expect(puts).toHaveLength(2));
+        expect(puts[1].body.pickedQty).toBe(13);
+    });
+
+    it("PickScreen_SerialLineCollectsSerialsAndSendsThem", async () => {
+        const line = pickLine({ quantity: 2, trackingMode: "serial", barcodes: [{ value: "869", kind: "product", variantId: null, unitFactor: 1 }] });
+        const { user, puts } = setup(pickList({ lines: [line] }));
+
+        await user.type(await screen.findByRole("textbox", { name: "Yün halı seri no okut" }), "SN-1{Enter}");
+        await waitFor(() => expect(puts).toHaveLength(1));
+        expect(puts[0].body).toEqual({ pickedQty: 1, serials: ["SN-1"] });
+        await user.type(screen.getByRole("textbox", { name: "Yün halı seri no okut" }), "SN-2{Enter}");
+        await waitFor(() => expect(puts).toHaveLength(2));
+        expect(puts[1].body).toEqual({ pickedQty: 2, serials: ["SN-1", "SN-2"] });
+        // Aynı seri ikinci kez okutulamaz.
+        expect(await screen.findByText("2 / 2")).toBeInTheDocument();
+    });
+
+    it("PickScreen_BarcodeScanOfSerialLineAsksForSerialInstead", async () => {
+        const line = pickLine({ quantity: 2, trackingMode: "serial", barcodes: [{ value: "869", kind: "product", variantId: null, unitFactor: 1 }] });
+        const { user, puts } = setup(pickList({ lines: [line] }));
+
+        await user.type(await screen.findByRole("textbox", { name: "Barkod / kod okut" }), "869{Enter}");
+
+        expect(await screen.findByRole("alert")).toHaveTextContent("seri numarasını okutun");
+        expect(puts).toHaveLength(0);
     });
 });

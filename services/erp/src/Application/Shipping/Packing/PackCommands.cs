@@ -53,24 +53,28 @@ public sealed class PackShipmentCommandHandler(
             var shipment = await db.Shipments.Include(s => s.Lines).Include(s => s.Parcels).FirstAsync(s => s.Id == request.ShipmentId, ct);
             var shipping = await settings.GetAsync<ShippingSettings>(ct);
 
-            // Packed durumundaki sevkin kolileri yeniden yazılabilir (durum değişmez); diğer durumlar makineye tabidir.
-            var current = shipment.Status.ToString();
-            if (shipment.Status != ShipmentStatus.Packed && !ShipmentStatusMachine.CanMove(current, "Packed", shipping.UsePickPack))
-                throw ShippingErrors.InvalidTransition(current, "Packed");
-
-            var parcels = request.Input.Parcels;
-            if (parcels.Count == 0) throw ShippingErrors.ParcelRequired();
-
-            if (shipment.PickListId is { } pickListId) {
-                var status = await db.PickLists.AsNoTracking().Where(p => p.Id == pickListId).Select(p => p.Status).FirstAsync(ct);
-                if (status != PickListStatus.Completed) throw ShippingErrors.PickIncomplete();
-            } else {
-                throw ShippingErrors.PickIncomplete();
-            }
-
             var productIds = shipment.Lines.Select(l => l.ProductId).Distinct().ToList();
             var services   = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id) && p.Kind == ProductKind.Service).Select(p => p.Id).ToListAsync(ct);
             var physical   = shipment.Lines.Where(l => !services.Contains(l.ProductId)).ToDictionary(l => l.Id);
+            // Yalnızca hizmet satırlı taslak sevkte toplanacak mal yoktur: toplama listesi ve koli olmadan doğrudan paketlenir.
+            var serviceOnly = physical.Count == 0 && shipment.Status == ShipmentStatus.Draft;
+
+            // Packed durumundaki sevkin kolileri yeniden yazılabilir (durum değişmez); diğer durumlar makineye tabidir.
+            var current = shipment.Status.ToString();
+            if (!serviceOnly && shipment.Status != ShipmentStatus.Packed && !ShipmentStatusMachine.CanMove(current, "Packed", shipping.UsePickPack))
+                throw ShippingErrors.InvalidTransition(current, "Packed");
+
+            var parcels = request.Input.Parcels;
+            if (parcels.Count == 0 && !serviceOnly) throw ShippingErrors.ParcelRequired();
+
+            if (!serviceOnly) {
+                if (shipment.PickListId is { } pickListId) {
+                    var status = await db.PickLists.AsNoTracking().Where(p => p.Id == pickListId).Select(p => p.Status).FirstAsync(ct);
+                    if (status != PickListStatus.Completed) throw ShippingErrors.PickIncomplete();
+                } else {
+                    throw ShippingErrors.PickIncomplete();
+                }
+            }
 
             var packed = new Dictionary<Guid, decimal>();
             foreach (var parcel in parcels)

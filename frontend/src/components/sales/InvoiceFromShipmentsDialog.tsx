@@ -22,7 +22,8 @@ type Props = { shipments: OrderRef<ShipmentStatus>[]; onClose(): void };
 /** Seçilen sevklerin faturalanmamış miktarlarından satış faturası taslağı oluşturur ve taslağa gider. */
 export default function InvoiceFromShipmentsDialog({ shipments, onClose }: Props) {
     const router = useRouter();
-    const usable = shipments.filter((s) => s.status !== "cancelled");
+    // Yalnızca stok çıkışı yapılmış ve geri alınmamış (yolda ya da teslim edilmiş) sevkler faturalanabilir.
+    const usable = shipments.filter((s) => s.status === "shipped" || s.status === "delivered");
     const [selected, setSelected] = useState<string[]>(usable.map((s) => s.id));
     const [error, setError] = useState<ApiError | string | null>(null);
     const [busy, setBusy] = useState(false);
@@ -47,6 +48,7 @@ export default function InvoiceFromShipmentsDialog({ shipments, onClose }: Props
             <DialogContent>
                 <Stack spacing={1} sx={{ pt: 1 }}>
                     <FormAlert error={error} />
+                    {usable.length === 0 && <DialogContentText>Faturalanabilir sevk yok: yalnızca yolda ya da teslim edilmiş sevkler faturalanır.</DialogContentText>}
                     <DialogContentText>Seçilen sevklerin faturalanmamış miktarları için satış faturası taslağı oluşturulur. Fiyat ve iskontolar siparişten gelir.</DialogContentText>
                     {usable.map((s) => (
                         <FormControlLabel
@@ -59,7 +61,7 @@ export default function InvoiceFromShipmentsDialog({ shipments, onClose }: Props
             </DialogContent>
             <DialogActions>
                 <Button onClick={onClose}>Vazgeç</Button>
-                <Button variant="contained" disabled={busy} onClick={() => void create()}>
+                <Button variant="contained" disabled={busy || usable.length === 0} onClick={() => void create()}>
                     {busy ? "Oluşturuluyor..." : "Taslak oluştur"}
                 </Button>
             </DialogActions>

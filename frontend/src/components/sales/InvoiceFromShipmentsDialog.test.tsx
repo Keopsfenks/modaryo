@@ -17,4 +17,14 @@ describe("InvoiceFromShipmentsDialog", () => {
         expect(shipped).toBeChecked();
         expect(screen.getAllByRole("checkbox")).toHaveLength(1);
     });
+
+    it("InvoiceFromShipments_OnlyShippedOrDeliveredAreOffered", () => {
+        const all: ShipmentStatus[] = ["draft", "picking", "packed", "shipped", "delivered", "deliveryFailed", "returned", "cancelled"];
+        renderWithTheme(<InvoiceFromShipmentsDialog shipments={all.map((st, i) => ref(`s-${i}`, `SV${i}`, st))} onClose={() => undefined} />);
+
+        expect(screen.getAllByRole("checkbox").map((c) => c.getAttribute("name") ?? c.closest("label")?.textContent)).toEqual([
+            expect.stringContaining("SV3"),
+            expect.stringContaining("SV4"),
+        ]);
+    });
 });

@@ -33,12 +33,18 @@ const details = [
 
 function setup(permissions = ["sevkiyat.read", "sevkiyat.pick", "sevkiyat.ship", "sevkiyat.deliver"]) {
     const batches: string[][] = [];
+    const requests: string[] = [];
+    const detailCalls = { count: 0 };
     server.use(
         http.get(`${IDENTITY}/auth/session`, () => HttpResponse.json(sessionInfo({ permissions }))),
         http.get(`${IDENTITY}/companies/current/branches`, () => HttpResponse.json([{ id: "b-1", code: "M", name: "Merkez", isActive: true, isDefault: true }])),
-        http.get("*/api/erp/sales/shipments", () =>
-            HttpResponse.json({
-                items: details.map((d) => ({
+        http.get("*/api/erp/sales/shipments", ({ request }) => {
+            const url = new URL(request.url);
+            requests.push(url.search);
+            const wanted = (url.searchParams.get("statuses") ?? "").split(",");
+            const rows = details.filter((d) => wanted.includes(d.status));
+            return HttpResponse.json({
+                items: rows.map((d) => ({
                     id: d.id,
                     number: d.number,
                     status: d.status,
@@ -48,11 +54,28 @@ function setup(permissions = ["sevkiyat.read", "sevkiyat.pick", "sevkiyat.ship",
                     customerName: d.customerName,
                     date: d.date,
                     invoiceId: null,
+                    shippedAt: null,
+                    deliveredAt: null,
+                    carrierCode: d.carrierCode,
+                    carrierName: d.carrierCode ? "Yurtiçi" : null,
+                    trackingNo: d.trackingNo,
+                    trackingUrl: d.trackingUrl,
+                    irsaliyeNo: null,
+                    pickListId: null,
+                    lineCount: d.lines.length,
+                    parcelCount: d.parcels.length,
+                    items: d.lines.map((l) => ({ description: l.description, unit: l.unit, quantity: l.quantity, isService: false })),
+                    customerEmailMissing: false,
+                    created: "2026-11-28T08:00:00Z",
+                    branchId: d.branchId,
                 })),
-                total: details.length,
-            }),
-        ),
-        http.get("*/api/erp/sales/shipments/:id", ({ params }) => HttpResponse.json(details.find((d) => d.id === params.id))),
+                total: rows.length,
+            });
+        }),
+        http.get("*/api/erp/sales/shipments/:id", () => {
+            detailCalls.count++;
+            return HttpResponse.json({});
+        }),
         http.post("*/api/erp/shipping/pick-lists/batch", async ({ request }) => {
             batches.push(((await request.json()) as { shipmentIds: string[] }).shipmentIds);
             return HttpResponse.json({ id: "pk-9" }, { status: 201 });
@@ -63,7 +86,7 @@ function setup(permissions = ["sevkiyat.read", "sevkiyat.pick", "sevkiyat.ship",
             <ShippingBoard />
         </SessionProvider>,
     );
-    return { ...view, batches };
+    return { ...view, batches, requests, detailCalls };
 }
 
 describe("ShippingBoard", () => {
@@ -81,6 +104,18 @@ describe("ShippingBoard", () => {
         expect(await within(screen.getByRole("region", { name: "Paketlendi" })).findByText("Ceren Ticaret")).toBeInTheDocument();
         expect(await within(screen.getByRole("region", { name: "Teslim edildi" })).findByText("Deniz Ltd")).toBeInTheDocument();
         expect(within(shipped).queryByText("Akın Tekstil")).not.toBeInTheDocument();
+    });
+
+    it("Board_UsesListRowsAndStatusFilter_NoDetailCalls", async () => {
+        const { requests, detailCalls } = setup();
+
+        await screen.findByText("Bora Mobilya");
+
+        // Canlı durumlar ve bugünün teslimleri iki süzgeçli liste çağrısıyla gelir; sevk başına ayrıntı çağrısı yoktur.
+        expect(requests).toHaveLength(2);
+        expect(requests.some((q) => q.includes("statuses=draft%2Cpicking%2Cpacked%2Cshipped%2CdeliveryFailed") && q.includes("pageSize=500"))).toBe(true);
+        expect(requests.some((q) => q.includes("statuses=delivered") && q.includes("deliveredFrom="))).toBe(true);
+        expect(detailCalls.count).toBe(0);
     });
 
     it("Board_BulkPickList_CreatesBatchAndOpensIt", async () => {

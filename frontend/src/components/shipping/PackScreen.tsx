@@ -81,7 +81,7 @@ export default function PackScreen({ shipmentId }: { shipmentId: string }) {
 
     const remaining = useMemo(() => {
         const map: Record<string, number> = {};
-        for (const l of shipment?.lines ?? []) map[l.id] = l.quantity;
+        for (const l of (shipment?.lines ?? []).filter((x) => !x.isService)) map[l.id] = l.quantity;
         for (const p of parcels) for (const [id, q] of Object.entries(p.contents)) map[id] = round((map[id] ?? 0) - q);
         return map;
     }, [shipment, parcels]);
@@ -118,7 +118,7 @@ export default function PackScreen({ shipmentId }: { shipmentId: string }) {
     async function save() {
         setError(null);
         setSaved(false);
-        const open = shipment!.lines.filter((l) => (remaining[l.id] ?? 0) > 0);
+        const open = shipment!.lines.filter((l) => !l.isService).filter((l) => (remaining[l.id] ?? 0) > 0);
         if (open.length > 0) return setError(`Bazı kalemler koliye yerleştirilmemiş: ${open.map((l) => `${l.description} (${fmt(remaining[l.id])})`).join(", ")}.`);
         if (shipment!.lines.some((l) => (remaining[l.id] ?? 0) < 0)) return setError("Bir kalem sevk miktarından fazla koliye konmuş.");
         for (const [i, p] of parcels.entries()) {
@@ -156,7 +156,7 @@ export default function PackScreen({ shipmentId }: { shipmentId: string }) {
                         Kalemler
                     </Typography>
                     <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
-                        {shipment.lines.map((l) => {
+                        {shipment.lines.filter((l) => !l.isService).map((l) => {
                             const left = remaining[l.id] ?? 0;
                             return (
                                 <Chip
