@@ -40,7 +40,8 @@ public static class WarehouseRules {
         return await db.StockMovements.AnyAsync(m => m.WarehouseId == warehouseId, ct)
                || await db.StockCounts.AnyAsync(c => c.WarehouseId == warehouseId, ct)
                || await db.Reservations.AnyAsync(r => r.WarehouseId == warehouseId, ct)
-               || await db.SerialNumbers.AnyAsync(s => s.WarehouseId == warehouseId, ct);
+               || await db.SerialNumbers.AnyAsync(s => s.WarehouseId == warehouseId, ct)
+               || await db.PosRegisters.AnyAsync(r => r.WarehouseId == warehouseId, ct);
     }
 
     public static async Task<Warehouse> FindAsync(IApplicationDbContext db, ICurrentTenant tenant, Guid id, CancellationToken ct) {

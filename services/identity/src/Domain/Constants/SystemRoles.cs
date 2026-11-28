@@ -71,6 +71,12 @@ public static class SystemRoles
                 Permissions.ShippingDeliver, Permissions.ShippingPlan, Permissions.SettingsShipping,
             ],
             [Permissions.ShippingRead]),
+        new(12,
+            [
+                Permissions.PosSell, Permissions.PosReturn, Permissions.PosShift, Permissions.PosCashMove,
+                Permissions.PosReports, Permissions.PosManage, Permissions.SettingsPos,
+            ],
+            []),
     ];
 
     public static int LatestPermissionSetVersion { get; } = PermissionSetVersions.Max(v => v.Version);

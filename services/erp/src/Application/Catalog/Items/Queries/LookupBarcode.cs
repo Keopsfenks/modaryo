@@ -18,11 +18,15 @@ public sealed class LookupBarcodeQueryHandler(
     ICurrentSession       session
 ) : IRequestHandler<LookupBarcodeQuery, BarcodeHit> {
     public async Task<BarcodeHit> Handle(LookupBarcodeQuery request, CancellationToken ct) {
-        return ERP.Application.Pricing.PurchaseVisibility.Mask(await Find(request, ct), ERP.Application.Pricing.PurchaseVisibility.CanSee(session));
+        return ERP.Application.Pricing.PurchaseVisibility.Mask(await BarcodeResolver.FindAsync(db, request.Value, ct),
+                                                              ERP.Application.Pricing.PurchaseVisibility.CanSee(session));
     }
+}
 
-    private async Task<BarcodeHit> Find(LookupBarcodeQuery request, CancellationToken ct) {
-        var value = request.Value.Trim();
+/// <summary>Barkod çözümü (katalog sorgusu ve POS sorgusu ortak kullanır; izin denetimi çağıranındır).</summary>
+public static class BarcodeResolver {
+    public static async Task<BarcodeHit> FindAsync(IApplicationDbContext db, string raw, CancellationToken ct) {
+        var value = raw.Trim();
         var row = await db.Barcodes.AsNoTracking().FirstOrDefaultAsync(b => b.Value == value, ct)
                   ?? throw new NotFoundException(value, "Barcode");
 

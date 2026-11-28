@@ -30,7 +30,8 @@ public sealed class UpdateSettingsCommandHandler(
     IApplicationDbContext db,
     ICurrentSession       session,
     ICurrentTenant        tenant,
-    TimeProvider          time
+    TimeProvider          time,
+    ITenantSettings       tenantSettings
 ) : IRequestHandler<UpdateSettingsCommand, SettingsDto> {
     private const string ConflictMessage =
         "Ayarlar siz düzenlerken başka biri tarafından değiştirildi. Sayfayı yenileyip tekrar deneyin.";
@@ -67,6 +68,17 @@ public sealed class UpdateSettingsCommandHandler(
         }
 
         var row   = await db.TenantSettings.FirstOrDefaultAsync(s => s.Category == info.Key, ct);
+        if (value is PosSettings pos) {
+            // Perakende müşteri sistemce yönetilir: istemciden gelen değer yok sayılır, kayıtlı değer korunur.
+            var currentPos = row is null
+                                 ? new PosSettings()
+                                 : JsonSerializer.Deserialize<PosSettings>(row.Json, SettingsRegistry.Json) ?? new PosSettings();
+            value = pos with { RetailCustomerId = currentPos.RetailCustomerId };
+            if (pos.LegalDocumentMode == ERP.Domain.Pos.LegalDocumentMode.EArchiveInvoice
+                && !(await tenantSettings.GetAsync<EBelgeSettings>(ct)).Enabled)
+                throw ERP.Application.Pos.PosErrors.EBelgeRequired();
+        }
+
         if (value is StockSettings stock) {
             var current = row is null
                               ? new StockSettings()

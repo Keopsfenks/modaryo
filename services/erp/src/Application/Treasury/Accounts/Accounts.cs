@@ -196,7 +196,8 @@ public sealed class DeleteAccountCommandHandler(IApplicationDbContext db, ICurre
     public async Task Handle(DeleteAccountCommand request, CancellationToken ct) {
         var account = await AccountRules.FindAsync(db, tenant, request.Id, ct);
         if (await AccountRules.HasMovementsAsync(db, account.Id, ct)
-            || await db.Instruments.AnyAsync(i => i.CollectionAccountId == account.Id, ct))
+            || await db.Instruments.AnyAsync(i => i.CollectionAccountId == account.Id, ct)
+            || await db.PosRegisters.AnyAsync(r => r.CashAccountId == account.Id || r.CardAccountId == account.Id, ct))
             throw TreasuryErrors.AccountInUse();
 
         db.TreasuryAccounts.Remove(account);

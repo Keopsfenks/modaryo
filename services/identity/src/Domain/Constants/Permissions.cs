@@ -84,5 +84,13 @@ public static class Permissions
     public const string ShippingPlan = "sevkiyat.plan";
     public const string SettingsShipping = "ayarlar.sevkiyat";
 
+    public const string PosSell = "pos.sell";
+    public const string PosReturn = "pos.return";
+    public const string PosShift = "pos.shift";
+    public const string PosCashMove = "pos.cashmove";
+    public const string PosReports = "pos.reports";
+    public const string PosManage = "pos.manage";
+    public const string SettingsPos = "ayarlar.pos";
+
     public const string AuditRead = "denetim.read";
 }

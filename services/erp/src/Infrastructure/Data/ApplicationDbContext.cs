@@ -5,6 +5,7 @@ using ERP.Domain.Catalog;
 using ERP.Domain.Common;
 using ERP.Domain.CurrentAccounts;
 using ERP.Domain.Platform;
+using ERP.Domain.Pos;
 using ERP.Domain.Files;
 using ERP.Domain.Inventory;
 using ERP.Domain.Invoicing;
@@ -196,6 +197,24 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
     public DbSet<DeliveryPlan> DeliveryPlans => Set<DeliveryPlan>();
 
     public DbSet<DeliveryStop> DeliveryStops => Set<DeliveryStop>();
+
+    public DbSet<Register> PosRegisters => Set<Register>();
+
+    public DbSet<QuickButton> PosQuickButtons => Set<QuickButton>();
+
+    public DbSet<Shift> PosShifts => Set<Shift>();
+
+    public DbSet<CashMove> PosCashMoves => Set<CashMove>();
+
+    public DbSet<PosSale> PosSales => Set<PosSale>();
+
+    public DbSet<PosSaleLine> PosSaleLines => Set<PosSaleLine>();
+
+    public DbSet<PosPayment> PosPayments => Set<PosPayment>();
+
+    public DbSet<PosReturn> PosReturns => Set<PosReturn>();
+
+    public DbSet<PosReturnLine> PosReturnLines => Set<PosReturnLine>();
 
     public DbSet<InvoicePlanConsumption> InvoicePlanConsumptions => Set<InvoicePlanConsumption>();
 

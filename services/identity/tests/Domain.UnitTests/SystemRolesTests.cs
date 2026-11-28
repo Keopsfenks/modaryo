@@ -42,7 +42,8 @@ public class SystemRolesTests
              "finans.read", "finans.manage", "tahsilat.manage", "odeme.manage", "virman.manage", "masraf.manage", "ceksenet.manage", "muhasebe.manage", "muhasebe.export",
              "satinalma.read", "satinalma.manage", "satinalma.receive", "satinalma.quarantine", "ayarlar.satinalma",
              "satis.read", "satis.manage", "satis.approve", "satis.limit-asimi", "satis.ship", "satis.return", "satis.recurring", "satis.targets", "ayarlar.satis",
-             "sevkiyat.read", "sevkiyat.pick", "sevkiyat.pack", "sevkiyat.ship", "sevkiyat.deliver", "sevkiyat.plan", "ayarlar.sevkiyat"],
+             "sevkiyat.read", "sevkiyat.pick", "sevkiyat.pack", "sevkiyat.ship", "sevkiyat.deliver", "sevkiyat.plan", "ayarlar.sevkiyat",
+             "pos.sell", "pos.return", "pos.shift", "pos.cashmove", "pos.reports", "pos.manage", "ayarlar.pos"],
             ignoreOrder: true);
     }
 

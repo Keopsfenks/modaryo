@@ -1,5 +1,6 @@
 ﻿using ERP.Application.Common.Exceptions;
 using ERP.Application.Common.Interfaces;
+using ERP.Application.Settings.Categories;
 
 namespace ERP.Application.Settings;
 
@@ -12,6 +13,8 @@ internal static class SettingsSupport {
                    ?? throw new NotFoundException(category, "SettingsCategory");
         if (session.TenantId is null || !session.HasPermission(info.Permission))
             throw new ForbiddenAccessException();
+        if (info.Key == PosSettings.Key && !session.HasModule(ERP.Application.Pos.PosPermissions.Module))
+            throw new AppException(403, "module_disabled", "Bu modül firmanızda kapalı.");
 
         return info;
     }

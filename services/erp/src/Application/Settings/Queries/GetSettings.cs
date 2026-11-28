@@ -11,10 +11,13 @@ public sealed record GetSettingsQuery(
 
 public sealed class GetSettingsQueryHandler(
     IApplicationDbContext db,
-    ICurrentSession       session
+    ICurrentSession       session,
+    ERP.Application.Pos.PosSetup posSetup
 ) : IRequestHandler<GetSettingsQuery, SettingsDto> {
     public async Task<SettingsDto> Handle(GetSettingsQuery request, CancellationToken ct) {
         var info = SettingsSupport.Resolve(request.Category, session);
+        // POS ayarına ilk erişimde "Perakende Müşteri" carisi açılır.
+        if (info.Key == ERP.Application.Settings.Categories.PosSettings.Key) return await posSetup.EnsureAsync(ct);
         var row  = await db.TenantSettings.AsNoTracking().FirstOrDefaultAsync(s => s.Category == info.Key, ct);
         if (row is null) return new SettingsDto(0, info.CreateDefault());
 

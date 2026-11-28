@@ -4,6 +4,7 @@ using ERP.Domain.Files;
 using ERP.Domain.Inventory;
 using ERP.Domain.Invoicing;
 using ERP.Domain.Platform;
+using ERP.Domain.Pos;
 using ERP.Domain.Pricing;
 using ERP.Domain.Purchasing;
 using ERP.Domain.Sales;
@@ -178,6 +179,24 @@ public interface IApplicationDbContext {
     DbSet<DeliveryPlan> DeliveryPlans { get; }
 
     DbSet<DeliveryStop> DeliveryStops { get; }
+
+    DbSet<Register> PosRegisters { get; }
+
+    DbSet<QuickButton> PosQuickButtons { get; }
+
+    DbSet<Shift> PosShifts { get; }
+
+    DbSet<CashMove> PosCashMoves { get; }
+
+    DbSet<PosSale> PosSales { get; }
+
+    DbSet<PosSaleLine> PosSaleLines { get; }
+
+    DbSet<PosPayment> PosPayments { get; }
+
+    DbSet<PosReturn> PosReturns { get; }
+
+    DbSet<PosReturnLine> PosReturnLines { get; }
 
     DbSet<InvoicePlanConsumption> InvoicePlanConsumptions { get; }
 

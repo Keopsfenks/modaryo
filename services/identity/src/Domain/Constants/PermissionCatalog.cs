@@ -98,6 +98,14 @@ public static class PermissionCatalog
             new(Permissions.ShippingPlan, null, "Sevkiyat", "Teslimat planı yönet", "Teslimat planı oluşturabilir, durak ekleyebilir ve rota föyü alabilir."),
             new(Permissions.SettingsShipping, null, "Sevkiyat", "Sevkiyat ayarlarını yönet", "Toplama-paketleme kullanımı, kargo firmaları ve müşteri bildirim ayarlarını düzenleyebilir."),
 
+            new(Permissions.PosSell, "pos", "POS", "Satış yap", "Kasada satış yapabilir, ürün sorgulayabilir ve tahsilat alabilir."),
+            new(Permissions.PosReturn, "pos", "POS", "İade ve iptal", "Fiş numarasıyla iade ve değişim yapabilir, aynı gün satışı iptal edebilir."),
+            new(Permissions.PosShift, "pos", "POS", "Vardiya aç ve kapat", "Kendi vardiyasını açabilir, kapatabilir ve kasa raporunu görebilir."),
+            new(Permissions.PosCashMove, "pos", "POS", "Kasa giriş ve çıkışı", "Vardiya içinde kasaya para girişi ve çıkışı kaydedebilir."),
+            new(Permissions.PosReports, "pos", "POS", "POS raporları", "Gün sonu ve vardiya raporlarını görüntüleyebilir."),
+            new(Permissions.PosManage, "pos", "POS", "Kasa noktalarını yönet", "Kasa noktalarını ve hızlı tuş yerleşimlerini tanımlayabilir."),
+            new(Permissions.SettingsPos, "pos", "POS", "POS ayarlarını yönet", "Yasal belge modu, terazi barkod biçimleri ve perakende müşteri ayarlarını düzenleyebilir."),
+
             new(Permissions.AuditRead, null, "Denetim", "Denetim kaydını görüntüle", "Firmadaki işlem geçmişini ve denetim kayıtlarını görüntüleyebilir."));
         CoreCount = Entries.Count;
     }

@@ -144,7 +144,7 @@ public class InvitationTests : TestBase
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         var session = await veli.SessionAsync();
         session.GetProperty("activeCompany").GetProperty("id").GetGuid().ShouldBe(tenantId);
-        session.GetProperty("permissions").GetArrayLength().ShouldBe(64);
+        session.GetProperty("permissions").GetArrayLength().ShouldBe(71);
         (await veli.PostAsync($"/api/identity/invitations/{token}/accept", null)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
         owner.Dispose();
     }
