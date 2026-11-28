@@ -277,6 +277,17 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext {
         return locked.Count > 0;
     }
 
+    public async Task<bool> LockShiftAsync(Guid id, CancellationToken cancellationToken) {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("Vardiya kilidi yalnızca açık bir işlem içinde alınabilir.");
+
+        var tenantId = CurrentTenantId;
+        var locked = await Database
+                         .SqlQuery<Guid>($"SELECT \"Id\" AS \"Value\" FROM pos_shifts WHERE \"Id\" = {id} AND \"TenantId\" = {tenantId} FOR UPDATE")
+                         .ToListAsync(cancellationToken);
+        return locked.Count > 0;
+    }
+
     public async Task<bool> LockSalesOrderAsync(Guid id, CancellationToken cancellationToken) {
         if (Database.CurrentTransaction is null)
             throw new InvalidOperationException("Sipariş kilidi yalnızca açık bir işlem içinde alınabilir.");

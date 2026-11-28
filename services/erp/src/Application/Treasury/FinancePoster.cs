@@ -85,9 +85,18 @@ public sealed class FinancePoster(
     }
 
     public async Task<PostResult> PostAsync(FinanceDocumentKind kind, PaymentInput input, Guid? salesOrderId, Guid? purchaseOrderId, CancellationToken ct) {
+        await using var tx     = await db.BeginTransactionAsync(ct);
+        var             result = await PostInTransactionAsync(kind, input, salesOrderId, purchaseOrderId, ct);
+        await tx.CommitAsync(ct);
+        return result;
+    }
+
+    /// <summary>
+    ///     <see cref="PostAsync" /> ile aynı yazım, çağıranın açık işleminde (işlemi açmaz, onaylamaz). POS e-Arşiv satışı ve iadesi tahsilat/ödemeyi satışın işleminde yazar.
+    /// </summary>
+    public async Task<PostResult> PostInTransactionAsync(FinanceDocumentKind kind, PaymentInput input, Guid? salesOrderId, Guid? purchaseOrderId, CancellationToken ct) {
         var collection = kind == FinanceDocumentKind.Collection;
 
-        await using var tx = await db.BeginTransactionAsync(ct);
         if (!await db.LockCurrentAccountAsync(input.CurrentAccountId, ct)) throw new NotFoundException(input.CurrentAccountId.ToString(), "CurrentAccount");
 
         await periodLock.EnsureOpenAsync(input.Date, ct);
@@ -183,8 +192,65 @@ public sealed class FinancePoster(
                                                });
         await db.SaveChangesAsync(ct);
         if (collection && salesOrderId is { } orderId) await prepayments.OnAdvanceRecordedAsync(orderId, ct);
-        await tx.CommitAsync(ct);
         return new PostResult(document.Id, number, warnings);
+    }
+
+    /// <summary>POS fişinin kaynak ismi: kasa belgeleri "{fişNo}-{n}" numarasıyla yazılır.</summary>
+    public const string PosSource = "pos-sale";
+
+    /// <summary>Bir POS belgesinin (satış ya da iade) hesap hareketi: tutar işaretlidir (giriş +, çıkış -).</summary>
+    public sealed record PosMovement(Guid AccountId, PaymentMethod Method, decimal SignedAmount);
+
+    /// <summary>
+    ///     Yazar kasa modundaki POS satış/iadesinin hesap hareketleri: cari olmadan, hesap başına bir "PosSale" türü belge + hesap hareketi. Çağıranın
+    ///     açık işleminde çalışır. Cari yazımı yoktur (veresiye ayrıca cari defterine yazılır). Belge numaraları "{fişNo}-{n}" biçimindedir.
+    /// </summary>
+    public async Task<IReadOnlyList<Guid>> PostPosMovementsAsync(string number, DateOnly date, IReadOnlyList<PosMovement> movements, string description, CancellationToken ct) {
+        await periodLock.EnsureOpenAsync(date, ct);
+        var ids = new List<Guid>();
+        var n   = 1;
+        foreach (var m in movements.Where(m => m.SignedAmount != 0m)) {
+            var account = await AccountRules.FindAsync(db, tenant, m.AccountId, ct);
+            if (!account.IsActive) throw TreasuryErrors.AccountInactive();
+            EnsureMethod(m.Method, account.Kind);
+
+            var document = new FinanceDocument {
+                                                   Kind        = FinanceDocumentKind.PosSale,
+                                                   Number      = $"{number}-{n++}",
+                                                   Date        = date,
+                                                   Method      = m.Method,
+                                                   AccountId   = account.Id,
+                                                   Amount      = Math.Abs(m.SignedAmount),
+                                                   Currency    = account.Currency,
+                                                   Description = description
+                                               };
+            db.FinanceDocuments.Add(document);
+            TreasuryPosting.Movement(db, account, document.Id, date, m.SignedAmount, description);
+            ids.Add(document.Id);
+        }
+
+        await db.SaveChangesAsync(ct);
+        return ids;
+    }
+
+    /// <summary>POS fişinin belge ve hesap hareketlerini iptal eder (silmez); belge numaraları kullanılmış kalır. Çağıranın açık işleminde çalışır.</summary>
+    public async Task CancelPosMovementsAsync(string number, DateTimeOffset at, string reason, CancellationToken ct) {
+        var prefix    = number + "-";
+        var documents = await db.FinanceDocuments.Where(d => d.Kind == FinanceDocumentKind.PosSale && d.Number.StartsWith(prefix) && d.CancelledAt == null).ToListAsync(ct);
+        if (documents.Count == 0) return;
+
+        await periodLock.EnsureOpenAsync(documents.Min(d => d.Date), ct);
+        var ids = documents.Select(d => d.Id).ToList();
+        foreach (var d in documents) {
+            d.CancelledAt  = at;
+            d.CancelledBy  = session.UserId?.ToString();
+            d.CancelReason = reason;
+        }
+
+        foreach (var movement in await db.TreasuryMovements.Where(m => ids.Contains(m.DocumentId) && m.CancelledAt == null).ToListAsync(ct))
+            movement.CancelledAt = at;
+
+        await db.SaveChangesAsync(ct);
     }
 
     /// <summary>Tahsilat/ödemeyi geri alır: hesap hareketi, defter hareketi ve (iptal edilen satıra dokunan) elle eşleştirmeler; numara kullanılmış kalır.</summary>
@@ -242,6 +308,35 @@ public sealed class FinancePoster(
                                                 });
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+    }
+
+    /// <summary>
+    ///     POS e-Arşiv satışının tahsilatını çağıranın açık işleminde geri alır ("pos.return" kasa yetkisiyle; tahsilat yetkisi aranmaz). Çağıran carinin
+    ///     kilidini almıştır. Hesap hareketi ve defter satırı iptal edilir, eşleştirmeler yeniden kurulur.
+    /// </summary>
+    public async Task CancelPosCollectionAsync(Guid documentId, string reason, CancellationToken ct) {
+        var document = await db.FinanceDocuments.FirstOrDefaultAsync(d => d.Id == documentId, ct) ?? throw new NotFoundException(documentId.ToString(), "FinanceDocument");
+        if (document.IsCancelled) return;
+
+        await periodLock.EnsureOpenAsync(document.Date, ct);
+        var now = clock.GetUtcNow();
+        document.CancelledAt  = now;
+        document.CancelledBy  = session.UserId?.ToString();
+        document.CancelReason = reason;
+
+        foreach (var movement in await db.TreasuryMovements.Where(m => m.DocumentId == document.Id && m.CancelledAt == null).ToListAsync(ct))
+            movement.CancelledAt = now;
+
+        foreach (var entry in await db.LedgerEntries.Where(e => e.Source == LedgerEntrySource.Payment && e.SourceId == document.Id && e.CancelledAt == null).ToListAsync(ct)) {
+            entry.CancelledAt  = now;
+            entry.CancelledBy  = session.UserId?.ToString();
+            entry.CancelReason = reason;
+        }
+
+        await db.SaveChangesAsync(ct);
+        if (document.CurrentAccountId is { } cariId) await auto.RebuildAsync(cariId, ct);
+        outbox.Enqueue("payment.cancelled", new { documentId = document.Id, kind = document.Kind.ToString(), number = document.Number, reason });
+        await db.SaveChangesAsync(ct);
     }
 
     /// <summary>Kart tahsilatı POS hesabına, nakit kasaya, havale/EFT banka hesabına yazılır.</summary>

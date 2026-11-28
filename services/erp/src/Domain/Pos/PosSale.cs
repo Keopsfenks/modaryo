@@ -21,10 +21,23 @@ public class PosSale : BaseAuditableEntity, ITenantOwned {
     public decimal Total       { get; set; }
     public decimal ChangeGiven { get; set; }
 
+    /// <summary>Kasaya net giren nakit (para üstü düşülmüş), karttan çekilen, veresiye ve iade mahsubu tutarları.</summary>
+    public decimal CashNet          { get; set; }
+    public decimal CardAmount       { get; set; }
+    public decimal OnAccountAmount  { get; set; }
+    public decimal ReturnCreditAmount { get; set; }
+
+    /// <summary>İstemcinin ürettiği satış kimliği: aynı kimlikle tekrar gelen gönderim yeni satış açmaz, kayıtlı satışı döndürür.</summary>
+    public Guid ClientSaleId { get; set; }
+
+    public string? CashierName { get; set; }
+
     /// <summary>e-Arşiv modunda üretilen fatura.</summary>
     public Guid? InvoiceId { get; set; }
 
-    public string? CancelReason { get; set; }
+    public string?         CancelReason      { get; set; }
+    public DateTimeOffset? CancelledAt       { get; set; }
+    public Guid?           CancelledByUserId { get; set; }
 
     public List<PosSaleLine> Lines    { get; set; } = new();
     public List<PosPayment>  Payments { get; set; } = new();

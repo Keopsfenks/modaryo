@@ -254,7 +254,7 @@ public sealed class InvoiceBuilder(
         if (original is not null) await EnsureReturnQuantitiesAsync(original.Id, built, existingInvoiceId, ct);
 
         // İskonto politikası yalnızca satış türlerine uygulanır.
-        if (!isPurchase && calc.Gross > 0m)
+        if (!isPurchase && !systemGenerated && calc.Gross > 0m)
             DiscountPolicy.Ensure(Math.Round(calc.Discount / calc.Gross * 100m, 4), tenant);
 
         var totals   = new TotalsDto(calc.Gross, calc.Discount, calc.Net, calc.Otv, calc.Vat, calc.Withheld, calc.Payable);

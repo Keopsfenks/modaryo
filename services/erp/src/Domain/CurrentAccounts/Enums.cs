@@ -17,7 +17,8 @@ public enum LedgerEntrySource {
     Payment,
     Check,
     Note,
-    Voucher
+    Voucher,
+    PosSale
 }
 
 public enum DueDirection {

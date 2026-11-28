@@ -3,7 +3,8 @@ namespace ERP.Domain.Pos;
 /// <summary>Yasal belge modu: yazar kasa fişi ("yazar kasam var") veya e-Arşiv fatura ("yazar kasam yok").</summary>
 public enum LegalDocumentMode { FiscalReceipt, EArchiveInvoice }
 
-public enum PosPaymentMethod { Cash, Card, OnAccount }
+/// <summary>ReturnCredit: değişimde iade edilen mal bedelinin yeni satışa mahsup edilen kısmı (kasaya nakit/kart girmez).</summary>
+public enum PosPaymentMethod { Cash, Card, OnAccount, ReturnCredit }
 
 public enum ScaleValueKind { WeightGrams, PriceKurus }
 

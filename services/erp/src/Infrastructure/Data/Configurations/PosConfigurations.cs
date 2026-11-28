@@ -75,6 +75,11 @@ public class PosSaleConfiguration : IEntityTypeConfiguration<PosSale> {
         builder.Property(e => e.VatTotal).HasPrecision(18, 2);
         builder.Property(e => e.Total).HasPrecision(18, 2);
         builder.Property(e => e.ChangeGiven).HasPrecision(18, 2);
+        builder.Property(e => e.CashNet).HasPrecision(18, 2);
+        builder.Property(e => e.CardAmount).HasPrecision(18, 2);
+        builder.Property(e => e.OnAccountAmount).HasPrecision(18, 2);
+        builder.Property(e => e.ReturnCreditAmount).HasPrecision(18, 2);
+        builder.Property(e => e.CashierName).HasMaxLength(200);
         builder.Property(e => e.CancelReason).HasMaxLength(500);
         builder.Property(e => e.Version).AsXmin();
         builder.HasOne<Register>().WithMany().HasForeignKey(e => e.RegisterId).OnDelete(DeleteBehavior.Restrict);
@@ -83,6 +88,8 @@ public class PosSaleConfiguration : IEntityTypeConfiguration<PosSale> {
         builder.HasMany(e => e.Lines).WithOne().HasForeignKey(l => l.SaleId).OnDelete(DeleteBehavior.Cascade);
         builder.HasMany(e => e.Payments).WithOne().HasForeignKey(p => p.SaleId).OnDelete(DeleteBehavior.Cascade);
         builder.HasIndex(e => new { e.TenantId, e.Number }).IsUnique();
+        // Kesin tek seferlik kayıt: aynı istemci kimliği firmada bir satışa karşılık gelir.
+        builder.HasIndex(e => new { e.TenantId, e.ClientSaleId }).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.RegisterId, e.Date });
         builder.HasIndex(e => e.ShiftId);
     }
@@ -96,7 +103,7 @@ public class PosSaleLineConfiguration : IEntityTypeConfiguration<PosSaleLine> {
         builder.Property(e => e.Unit).HasMaxLength(20).IsRequired();
         builder.Property(e => e.Factor).HasPrecision(18, 6);
         builder.Property(e => e.Quantity).HasPrecision(18, 6);
-        builder.Property(e => e.UnitPrice).HasPrecision(18, 4);
+        builder.Property(e => e.UnitPrice).HasPrecision(18, 6);
         builder.Property(e => e.Discount).HasPrecision(18, 2);
         builder.Property(e => e.CampaignDiscount).HasPrecision(18, 2);
         builder.Property(e => e.Net).HasPrecision(18, 2);
@@ -125,6 +132,13 @@ public class PosReturnConfiguration : IEntityTypeConfiguration<PosReturn> {
         builder.Property(e => e.Number).HasMaxLength(40).IsRequired();
         builder.Property(e => e.RefundAmount).HasPrecision(18, 2);
         builder.Property(e => e.RefundMethod).HasConversion<string>().HasMaxLength(10);
+        builder.Property(e => e.Mode).HasConversion<string>().HasMaxLength(20);
+        builder.Property(e => e.Net).HasPrecision(18, 2);
+        builder.Property(e => e.Vat).HasPrecision(18, 2);
+        builder.Property(e => e.CashRefund).HasPrecision(18, 2);
+        builder.Property(e => e.CardRefund).HasPrecision(18, 2);
+        builder.Property(e => e.OnAccountCredit).HasPrecision(18, 2);
+        builder.Property(e => e.ExchangeCredit).HasPrecision(18, 2);
         builder.Property(e => e.Reason).HasMaxLength(500);
         builder.Property(e => e.Version).AsXmin();
         builder.HasOne<PosSale>().WithMany().HasForeignKey(e => e.SaleId).OnDelete(DeleteBehavior.Restrict);
@@ -142,6 +156,8 @@ public class PosReturnLineConfiguration : IEntityTypeConfiguration<PosReturnLine
         builder.Property(e => e.Id).ValueGeneratedNever();
         builder.Property(e => e.Quantity).HasPrecision(18, 6);
         builder.Property(e => e.Amount).HasPrecision(18, 2);
+        builder.Property(e => e.Net).HasPrecision(18, 2);
+        builder.Property(e => e.Vat).HasPrecision(18, 2);
         builder.HasOne<PosSaleLine>().WithMany().HasForeignKey(e => e.SaleLineId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(e => e.ReturnId);
     }

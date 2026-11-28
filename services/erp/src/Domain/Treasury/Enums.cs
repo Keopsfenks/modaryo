@@ -2,7 +2,7 @@ namespace ERP.Domain.Treasury;
 
 public enum TreasuryAccountKind { Cash, Bank, CardPos }
 
-public enum FinanceDocumentKind { Collection, Payment, Transfer, Expense, Income, InstrumentEvent, JournalVoucher }
+public enum FinanceDocumentKind { Collection, Payment, Transfer, Expense, Income, InstrumentEvent, JournalVoucher, PosSale }
 
 public enum PaymentMethod { Cash, Transfer, CreditCard }
 

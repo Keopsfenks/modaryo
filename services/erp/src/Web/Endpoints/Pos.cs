@@ -1,6 +1,9 @@
 using ERP.Application.Catalog.Items;
 using ERP.Application.Pos.Lookup;
 using ERP.Application.Pos.Registers;
+using ERP.Application.Pos.Sales;
+using ERP.Application.Pos.Sales.Commands;
+using ERP.Application.Pos.Sales.Queries;
 using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace ERP.Web.Endpoints;
@@ -9,6 +12,8 @@ public class Pos : IEndpointGroup {
     public static string? RoutePrefix => "/api/erp/pos";
 
     public sealed record RegisterBody(string Code, string Name, Guid BranchId, Guid WarehouseId, Guid CashAccountId, Guid CardAccountId, bool? IsActive, uint? Version);
+
+    public sealed record CancelBody(string Reason);
 
     public sealed record ButtonsBody(IReadOnlyList<IReadOnlyList<QuickButtonInput?>>? Pages);
 
@@ -20,6 +25,10 @@ public class Pos : IEndpointGroup {
         groupBuilder.MapPut(PosSetButtons, "registers/{id:guid}/buttons");
         groupBuilder.MapGet(PosLookup, "lookup");
         groupBuilder.MapGet(PosLookupSearch, "lookup/search");
+        groupBuilder.MapPost(PosCreateSale, "sales");
+        groupBuilder.MapGet(PosGetSale, "sales/{id:guid}");
+        groupBuilder.MapGet(PosGetSaleByNumber, "sales/by-number/{number}");
+        groupBuilder.MapPost(PosCancelSale, "sales/{id:guid}/cancel");
     }
 
     [EndpointSummary("Kasa noktaları")]
@@ -68,5 +77,29 @@ public class Pos : IEndpointGroup {
     [EndpointDescription("pos.sell. q: kod, ad, barkod ya da tedarikçi kodu; en çok 20 aktif kalem. Varyantlı kart varyant başına bir kalem verir.")]
     public static async Task<Ok<IReadOnlyList<SellableItem>>> PosLookupSearch(ISender sender, string? q) {
         return TypedResults.Ok(await sender.Send(new PosSearchQuery(q)));
+    }
+    [EndpointSummary("Satış kaydet")]
+    [EndpointDescription("pos.sell. Gövde: { clientSaleId, registerId, customerId?, lines: [{ productId, variantId?, unit?, quantity, unitPrice?, manualDiscountPercent?, fixedTotal? }], payments: [{ method: cash|card|onAccount, amount }] }. clientSaleId istemcinin ürettiği tek seferlik kimliktir (zorunlu): aynı kimlikle tekrar gelen gönderim yeni satış yazmaz, kayıtlı satışı 200 ve replayed=true ile döndürür. Fiyatlar sunucuda çözülür (P2 önceliği); kampanya otomatik uygulanır; elle iskonto iskonto politikasına tabidir (403 discount_limit_exceeded). Kasiyerin bu kasada açık vardiyası olmalıdır (409 shift_required). Ödemeler toplamı karşılamalıdır (400 payment_insufficient); kart kalanı aşamaz (400 card_exceeds_remaining); nakit fazlası para üstüdür. Veresiye (method onAccount) perakende dışı müşteri ister (400 veresiye_requires_customer); kredi limiti aşılırsa satis.limit-asimi gerekir (409 limit_approval_required). Yanıt: { id, number, total, change, invoiceNumber?, replayed, slip }.")]
+    public static async Task<Results<Created<SaleResultDto>, Ok<SaleResultDto>>> PosCreateSale(ISender sender, SaleInput body) {
+        var result = await sender.Send(new CreateSaleCommand(body));
+        return result.Replayed ? TypedResults.Ok(result) : TypedResults.Created($"/api/erp/pos/sales/{result.Id}", result);
+    }
+
+    [EndpointSummary("Satış")]
+    [EndpointDescription("pos.sell, pos.return, pos.reports ya da pos.manage. Satır, ödeme ve fiş modeli (slip).")]
+    public static async Task<Ok<SaleDto>> PosGetSale(ISender sender, Guid id) {
+        return TypedResults.Ok(await sender.Send(new GetSaleQuery(id)));
+    }
+
+    [EndpointSummary("Fiş numarasıyla satış")]
+    [EndpointDescription("pos.sell, pos.return, pos.reports ya da pos.manage. Fiş numarası ya da fiş barkodu (numaranın kendisi).")]
+    public static async Task<Ok<SaleDto>> PosGetSaleByNumber(ISender sender, string number) {
+        return TypedResults.Ok(await sender.Send(new GetSaleByNumberQuery(number)));
+    }
+
+    [EndpointSummary("Satışı iptal et")]
+    [EndpointDescription("pos.return. Gövde: { reason }. Yalnızca aynı gün ve hâlâ açık vardiyadaki satış iptal edilir (409 cancel_not_allowed; iade kullanın); iadesi olan satış iptal edilemez (409 sale_has_returns). Stok bir kez geri alınır, hesap hareketleri ve (e-Arşiv modunda) fatura ile tahsilatlar iptal edilir.")]
+    public static async Task<Ok<SaleDto>> PosCancelSale(ISender sender, Guid id, CancelBody body) {
+        return TypedResults.Ok(await sender.Send(new CancelSaleCommand(id, body.Reason ?? string.Empty)));
     }
 }
